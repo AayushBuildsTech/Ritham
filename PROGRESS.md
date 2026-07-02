@@ -175,10 +175,13 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 4 | Payments + entitlements (Razorpay, ledger, paywall) | Not started |
 | 5 | Home horoscopes (cached, daily/weekly/monthly) | Not started |
 | 6 | Notifications | **DROPPED for v1** |
-| 7 | Reports (Vastu + Matchmaking PDF) | Not started |
+| 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | Not started |
 | 8 | Store (Amazon affiliate) | Not started |
-| 9 | Refer & Earn | Not started |
+| 9 | ~~Refer & Earn~~ | **REMOVED from plan** |
 | 10 | Polish + compliance (privacy policy, disclaimer, analytics) | Not started |
+
+> Note: Refer & Earn is dropped. The `referral_code` column + `generate_referral_code`
+> trigger in migration 001 are now vestigial (harmless; leave as-is, optional cleanup later).
 
 ---
 
@@ -250,9 +253,12 @@ is committed and pushed to GitHub (AayushBuildsTech/Ritham, branch `main`).
 
 Two open follow-ups:
 
-1. **Flip on real AI (anytime):** add `ANTHROPIC_API_KEY` in Supabase → Edge Functions
-   → `bright-processor` → Secrets. No code/deploy change — the function swaps from the
-   mock reply to real Claude Sonnet 5 automatically. Reset the free minute to re-test.
+1. **Flip on real AI — DECISION: defer to near launch (~Phase 10).** The chat stays on
+   the mock reply through development. When ready: add `ANTHROPIC_API_KEY` in Supabase
+   → Edge Functions → `bright-processor` → Secrets (no code/deploy change — it swaps to
+   real Claude Sonnet 5 automatically). At that point do a quality pass: send several
+   real chats and tune the system prompt in `supabase/functions/chat/index.ts`. Do NOT
+   prompt the user to add the key before then.
 2. **Start Phase 4 — Payments + entitlements** (the money layer):
    - Razorpay: server-side order create + verify in an Edge Function (never trust the
      client — rule #3).
@@ -313,3 +319,35 @@ it's a normal tab; the free 1-min is always available there.
   new user": the referral trigger used pgcrypto `gen_random_bytes` (in the
   `extensions` schema, off the trigger search_path) → switched to core
   `gen_random_uuid`. All three migrations (001, 002, 003) are applied.
+
+---
+
+## 15. Phase 7 — Report PDF Design Spec (decided)
+
+Two paid PDF reports: **Vastu (₹149)** and **Matchmaking (₹199)**. Design decisions
+made with the user — build to these when Phase 7 starts.
+
+**Visual style — "Premium & minimal" (on-brand, §12):**
+- Deep indigo pages (`#14122b`→`#1e1b45`), gold accents (`#d9a441`/`#e6c063`),
+  off-white text (`#f0ece8`).
+- Elegant **serif** headings, generous whitespace, subtle gold line dividers.
+- Understated and expensive-feeling. NOT ornate/mandala-heavy, NOT infographic-style.
+
+**Length:** Medium — **~6–9 pages**.
+
+**Required structure (every report):**
+1. **Branded cover page** — ✦ Ritham logo, report title, person's name + birth details.
+2. **Details page (up front)** — the person's full birth details + Kundli summary
+   (Lagna, Moon sign, Sun sign, Nakshatra, key planetary placements). *(user-requested)*
+3. **Birth chart diagram** — a rendered visual Kundli (North vs South Indian style: ASK
+   the user when building).
+4. **Main analysis** — report body (Vastu: directional / room-by-room; Matchmaking:
+   compatibility / guna milan, doshas).
+5. **Summary + score/verdict** — at-a-glance box (Vastu health score / compatibility %).
+6. **Remedies & recommendations** — gemstones, mantras, directions, do's & don'ts.
+
+**Generation approach (recommended):** HTML/CSS → PDF **server-side** (Edge Function) for
+full control of the brand aesthetic. Report text narrated by Claude from Kundli facts
+(rule #2: AI narrates, never computes). Cache each generated PDF in **Supabase Storage** —
+one purchase = one stored PDF (protect margins, rule #4). Delivery: in-app viewer +
+download/share. Gate behind verified payment (Phase 4 entitlements).
