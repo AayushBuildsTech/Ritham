@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Ritham",
+    "slug": "ritham",
+    "version": "1.0.0",
+    "scheme": "ritham",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#14122b",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ritham.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#14122b",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      },
+      "package": "com.ritham.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
