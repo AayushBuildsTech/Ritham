@@ -159,8 +159,8 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | Phase | Description | Status |
 |---|---|---|
 | 1 | Skeleton + Auth (Expo scaffold, 4-tab nav, Supabase OTP) | **DONE — verified on device** (OTP login → Home tab works) |
-| 2 | Profile + Kundli (birth form, kundliService, chart storage) | Not started |
-| 3 | Chat — hero feature (free 1-min, countdown, AI via Edge Function) | Not started |
+| 2 | Profile + Kundli (birth form, kundliService, chart storage) | **DONE — verified on device** (form + live geocoding + mock chart) |
+| 3 | Chat — hero feature (free 1-min, countdown, AI via Edge Function) | **DONE — verified on device** (mock reply; add API key for real AI) |
 | 4 | Payments + entitlements (Razorpay, ledger, paywall) | Not started |
 | 5 | Home horoscopes (cached, daily/weekly/monthly) | Not started |
 | 6 | Notifications | **DROPPED for v1** |
@@ -244,6 +244,34 @@ Phase 1 is DONE and verified on the device. Next:
    go through it — never direct), store chart + summary in Supabase.
 3. Per `AGENTS.md`, read the SDK 57 docs (https://docs.expo.dev/versions/v57.0.0/)
    before writing native/Expo code.
+
+### Guided onboarding (new users)
+Flow: **OTP → (auto) Kundli form → (auto) Home.** Chat is NOT part of onboarding —
+it's a normal tab; the free 1-min is always available there.
+- `app/(tabs)/index.tsx` (Home) redirects a signed-in user with NO profile to
+  `/profile` (with a loading guard, no flash).
+- `app/profile.tsx` — on FIRST profile creation (`wasNew`), `router.replace('/(tabs)')`
+  (Home). Editing an existing profile still shows the chart view.
+- `app/(tabs)/chat.tsx` — normal tab behaviour; free minute available; when it ends
+  it shows a banner and stays put (no auto-navigation).
+
+### Phase 3 — Chat (working, mock AI)
+- Edge Function is deployed on Supabase but the dashboard "Via Editor" flow
+  auto-named it **`bright-processor`** (NOT `chat`). `lib/chatService.ts` calls that
+  slug via the `CHAT_FUNCTION` constant — keep them in sync. Source lives at
+  `supabase/functions/chat/index.ts`.
+- Model chosen: **Claude Sonnet 5** (`claude-sonnet-5`), thinking disabled for snappy
+  cheap chat replies. AI is called ONLY from the Edge Function.
+- **Currently returns a MOCK reply** because `ANTHROPIC_API_KEY` isn't set. To go
+  live: Supabase → Edge Functions → (bright-processor) Secrets → add
+  `ANTHROPIC_API_KEY=sk-ant-...`. No redeploy/code change needed — the function
+  swaps to real Claude automatically.
+- Free 1-minute session = one per phone, enforced server-side via
+  `users.free_minute_used_at`. To re-test the free flow, reset it:
+  `update public.users set free_minute_used_at = null where phone = '<digits>';`
+- Deploy note: local `npx supabase login`/`link` failed on Windows (device_code bug
+  + path error). Dashboard "Via Editor" deploy was used instead — that's the
+  reliable path here.
 
 ### Auth navigation (Phase 1, fixed)
 - Redirect logic was only in `app/index.tsx`, which mounts only at `/`. After OTP

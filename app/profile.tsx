@@ -132,6 +132,7 @@ export default function ProfileScreen() {
     if (!day || !month || !year) return setError('Please select your full date of birth.');
     if (!hour || !minute || !ampm) return setError('Please select your time of birth.');
     if (!place) return setError('Please select your birth place.');
+    const wasNew = !profile; // brand-new profile → onboarding: go to Home after creating
 
     // validate the calendar date is real (e.g. reject 30 February)
     const y = Number(year), m = Number(month), d = Number(day);
@@ -177,6 +178,11 @@ export default function ProfileScreen() {
 
       // compute + cache the Kundli via the single service entry point
       const kundli = await computeAndStoreKundli(row);
+      if (wasNew) {
+        // first-run onboarding: after creating the Kundli, go to Home
+        router.replace('/(tabs)');
+        return;
+      }
       setProfile({ ...row, kundli_chart: kundli, kundli_summary: kundli.summary, kundli_source: kundli.source, kundli_computed_at: kundli.computed_at });
       setMode('view');
     } catch (e: any) {

@@ -1,11 +1,30 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { Colors, Fonts, Spacing } from '../../constants/theme';
 
 export default function HomeScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  // Guided onboarding: a signed-in user with no profile yet is sent straight to
+  // Kundli creation (→ then chat → then back here). Returning users stay on Home.
+  useEffect(() => {
+    (async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles').select('id').eq('user_id', user.id).limit(1).maybeSingle();
+      if (!data) { router.replace('/profile'); return; }
+      setChecking(false);
+    })();
+  }, [user]);
+
+  if (checking) {
+    return <View style={styles.loading}><ActivityIndicator color={Colors.gold} size="large" /></View>;
+  }
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -55,6 +74,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  loading: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' },
   root: { flex: 1, backgroundColor: Colors.bg },
   content: { padding: Spacing.lg, paddingTop: 56 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xl },
