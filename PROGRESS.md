@@ -64,33 +64,43 @@ clean `npm install --legacy-peer-deps` (React 19 peer strictness).
 ```
 ritham/
 ├── app/
-│   ├── _layout.tsx              ← Root layout: AuthProvider + StatusBar
+│   ├── _layout.tsx              ← Root layout: AuthProvider + AuthGate (global redirect guard)
 │   ├── index.tsx                ← Entry: checks auth → redirects to (auth) or (tabs)
-│   ├── profile.tsx              ← Profile placeholder (Phase 2)
+│   ├── profile.tsx              ← Phase 2: Kundli birth-details form + chart view (create/edit)
 │   ├── (auth)/
 │   │   ├── _layout.tsx          ← Stack navigator for auth screens
 │   │   ├── index.tsx            ← Phone number entry screen
 │   │   └── verify-otp.tsx       ← 6-digit OTP verification screen
 │   └── (tabs)/
 │       ├── _layout.tsx          ← Bottom tab bar (4 tabs)
-│       ├── index.tsx            ← Home (horoscope placeholders)
-│       ├── chat.tsx             ← Chat placeholder
+│       ├── index.tsx            ← Home; redirects profile-less users to /profile (onboarding)
+│       ├── chat.tsx             ← Phase 3: AI chat, free 1-min countdown
 │       ├── store.tsx            ← Store placeholder
 │       └── reports.tsx          ← Reports placeholder
 ├── components/
-│   └── LoadingScreen.tsx        ← Shown while checking auth session
+│   ├── LoadingScreen.tsx        ← Shown while checking auth session
+│   └── SelectModal.tsx          ← Reusable picker (local + async remote search)
 ├── config/
 │   └── pricing.ts               ← Single source of truth for ALL prices (paise)
 ├── constants/
-│   └── theme.ts                 ← Colors (indigo/gold), fonts, spacing
+│   ├── theme.ts                 ← Colors (indigo/gold), fonts, spacing
+│   └── cities.ts                ← Bundled Indian cities (offline birth-place defaults)
 ├── context/
 │   └── AuthContext.tsx          ← Session state, 5s timeout fallback, signOut
 ├── lib/
-│   └── supabase.ts              ← Supabase client (uses AsyncStorage, NOT SecureStore)
+│   ├── supabase.ts              ← Supabase client (AsyncStorage, NOT SecureStore)
+│   ├── kundliService.ts         ← ONLY entry point for Kundli data; mock + DB cache; 1 swap point
+│   ├── geocoding.ts             ← Open-Meteo place search (lat/lon + timezone)
+│   └── chatService.ts           ← Wraps the chat Edge Function (CHAT_FUNCTION slug)
 ├── supabase/
+│   ├── functions/
+│   │   └── chat/index.ts        ← Phase 3 Edge Function: calls Claude (deployed as `bright-processor`)
 │   └── migrations/
-│       ├── 001_phase1_users.sql ← users table + RLS + referral code trigger
-│       └── 002_auth_user_sync.sql ← auto-sync auth.users → public.users on OTP verify
+│       ├── 001_phase1_users.sql       ← users table + RLS + referral code trigger
+│       ├── 002_auth_user_sync.sql     ← auto-sync auth.users → public.users on OTP verify
+│       ├── 003_fix_referral_code_schema.sql ← fix signup 500 (gen_random_uuid)
+│       ├── 004_phase2_profiles.sql    ← profiles (birth details + cached Kundli) + RLS
+│       └── 005_phase3_chat.sql        ← chat_sessions + chat_messages + free-minute tracking
 ├── .env.local                   ← REAL Supabase keys (user has filled this in)
 ├── .env.example                 ← Template (safe to commit)
 ├── .gitignore
@@ -106,11 +116,12 @@ ritham/
 ## 6. Supabase Setup Status
 
 - [x] Project created on supabase.com
-- [x] Phone auth enabled (Sign In / Providers → Phone → test mode, OTP = 123456)
-- [x] Migration 001 run (users table + RLS)
-- [x] Migration 002 run (auth trigger)
+- [x] Phone auth enabled (test OTP `919986692684=123456`, valid until Jul 30 2026)
+- [x] Migrations 001–005 all run (users, auth sync, referral fix, profiles, chat)
 - [x] `.env.local` filled with real SUPABASE_URL and SUPABASE_ANON_KEY
-- [ ] SMS provider (Twilio) — not needed until production launch
+- [x] Edge Function deployed (slug `bright-processor`; source `supabase/functions/chat`)
+- [ ] `ANTHROPIC_API_KEY` secret — NOT set yet (chat returns mock until added)
+- [ ] SMS provider (Twilio) — not needed until production launch (test numbers bypass it)
 
 ---
 
@@ -234,16 +245,29 @@ npx tsc --noEmit
 
 ## 14. What Claude Should Do Next Session
 
-Phase 1 is DONE and verified on the device. Next:
+**Phases 1, 2, 3 + guided onboarding are DONE and verified on the device.** All code
+is committed and pushed to GitHub (AayushBuildsTech/Ritham, branch `main`).
 
-1. **(Optional polish)** In `app/(auth)/index.tsx` the error handler dumps the raw
-   Supabase Response as JSON (user saw `{"status":500,...}`). Replace with a
-   friendly message. Same for `verify-otp.tsx`.
-2. **Start Phase 2:** Profile creation form (name, DOB, birth time, gender, birth
-   place), `kundliService.getKundli(profile)` wrapper module (all Kundli API calls
-   go through it — never direct), store chart + summary in Supabase.
-3. Per `AGENTS.md`, read the SDK 57 docs (https://docs.expo.dev/versions/v57.0.0/)
-   before writing native/Expo code.
+Two open follow-ups:
+
+1. **Flip on real AI (anytime):** add `ANTHROPIC_API_KEY` in Supabase → Edge Functions
+   → `bright-processor` → Secrets. No code/deploy change — the function swaps from the
+   mock reply to real Claude Sonnet 5 automatically. Reset the free minute to re-test.
+2. **Start Phase 4 — Payments + entitlements** (the money layer):
+   - Razorpay: server-side order create + verify in an Edge Function (never trust the
+     client — rule #3).
+   - `entitlements_ledger` table: one row per paid grant (rule #7).
+   - Turn the chat's "packs coming soon" banner into the real **paywall** using the
+     session/question packs in `config/pricing.ts`.
+   - Grant time-based / question-based entitlements after verified payment; consume
+     them in the chat flow.
+   - Decisions needed up front: Razorpay test keys, which packs to surface first.
+
+**(Optional polish, not blocking):** `app/(auth)/index.tsx` + `verify-otp.tsx` still
+dump the raw Supabase error as JSON — replace with friendly messages.
+
+Per `AGENTS.md`, read the SDK 57 docs (https://docs.expo.dev/versions/v57.0.0/)
+before writing native/Expo code.
 
 ### Guided onboarding (new users)
 Flow: **OTP → (auto) Kundli form → (auto) Home.** Chat is NOT part of onboarding —
