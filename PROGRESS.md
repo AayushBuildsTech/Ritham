@@ -128,7 +128,7 @@ ritham/
 - [x] **Phase 4:** migration `006_phase4_payments.sql` run (payment_orders + entitlements_ledger)
 - [x] **Phase 4:** Edge Functions `create-order` + `verify-payment` deployed; `chat` redeployed
 - [x] **Phase 4:** `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` (test keys) secrets set
-- [x] **Phase 4:** app rebuilt with native Razorpay module; running on device (paywall reached)
+- [x] **Phase 4:** app rebuilt with native Razorpay module; **payment verified on device** (test card + netbanking → entitlement granted → chat consumes)
 
 ---
 
@@ -179,7 +179,7 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 1 | Skeleton + Auth (Expo scaffold, 4-tab nav, Supabase OTP) | **DONE — verified on device** (OTP login → Home tab works) |
 | 2 | Profile + Kundli (birth form, kundliService, chart storage) | **DONE — verified on device** (form + live geocoding + mock chart) |
 | 3 | Chat — hero feature (free 1-min, countdown, AI via Edge Function) | **DONE — verified on device** (mock reply; add API key for real AI) |
-| 4 | Payments + entitlements (Razorpay, ledger, paywall) | **DEPLOYED — running on device** (functions live, secrets set, paywall reached; see §16) |
+| 4 | Payments + entitlements (Razorpay, ledger, paywall) | **DONE — verified on device** (card + netbanking payment → verify → entitlement granted → chat consumes; see §16) |
 | 5 | Home horoscopes (cached, daily/weekly/monthly) | Not started |
 | 6 | Notifications | **DROPPED for v1** |
 | 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | Not started |
