@@ -6,7 +6,10 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { sendChat, ChatResult } from '../../lib/chatService';
+import { sendChat, ChatResult, SessionKind, ChatBalance } from '../../lib/chatService';
+import { getBalance } from '../../lib/paymentService';
+import Paywall from '../../components/Paywall';
+import { formatSeconds } from '../../config/pricing';
 import { Colors, Fonts, Spacing } from '../../constants/theme';
 
 type Entry = 'loading' | 'need_profile' | 'ready';
@@ -30,14 +33,22 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionKind, setSessionKind] = useState<SessionKind | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [ended, setEnded] = useState(false);
   const [banner, setBanner] = useState('');
 
+  // Phase 4 — entitlements + paywall
+  const [balance, setBalance] = useState<ChatBalance | null>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [pendingKind, setPendingKind] = useState<'questions' | 'time' | undefined>(undefined);
+
   const scrollRef = useRef<ScrollView>(null);
 
-  // ── load profile + free-minute status ───────────────────────────────────────
+  const hasBalance = !!balance && (balance.questions > 0 || balance.seconds > 0);
+
+  // ── load profile + free-minute status + entitlement balance ──────────────────
   useEffect(() => {
     (async () => {
       if (!user) return;
@@ -52,17 +63,18 @@ export default function ChatScreen() {
       const { data: u } = await supabase
         .from('users').select('free_minute_used_at').eq('id', user.id).maybeSingle();
       setFreeUsed(!!u?.free_minute_used_at);
+      setBalance(await getBalance());
       setEntry('ready');
     })();
   }, [user]);
 
-  // ── countdown ───────────────────────────────────────────────────────────────
+  // ── countdown (time-based sessions only) ─────────────────────────────────────
   useEffect(() => {
     if (!expiresAt) return;
     const tick = () => {
       const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
       setRemaining(left);
-      if (left <= 0) setEnded(true);
+      if (left <= 0) { setEnded(true); setShowPaywall(true); }
     };
     tick();
     const id = setInterval(tick, 1000);
@@ -73,29 +85,37 @@ export default function ChatScreen() {
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || sending || ended || !profile) return;
+    if (!text || sending || ended || showPaywall || !profile) return;
     setInput('');
     setBanner('');
     setMessages((m) => [...m, { role: 'user', content: text }]);
     scrollDown();
     setSending(true);
 
+    // brand-new session? hint which entitlement to use. Continuing? pass sessionId.
+    const useKind = sessionId ? undefined : pendingKind;
+
     let res: ChatResult;
     try {
-      res = await sendChat(profile.id, text, sessionId ?? undefined);
+      res = await sendChat(profile.id, text, sessionId ?? undefined, useKind);
     } catch {
       res = { error: 'request_failed' };
     }
     setSending(false);
 
-    if (res.expired) {
-      setEnded(true);
-      setBanner('Your free minute is over.');
+    // needs a purchase before this message can be sent → restore text, open paywall
+    if (res.error === 'needs_purchase' || res.error === 'out_of_questions' || res.error === 'free_used') {
+      setMessages((m) => m.slice(0, -1)); // remove the optimistic user bubble
+      setInput(text);
+      if (res.session?.kind) setSessionKind(res.session.kind);
+      setShowPaywall(true);
       return;
     }
-    if (res.error === 'free_used') {
-      setFreeUsed(true);
-      setBanner('You’ve already used your free minute.');
+
+    if (res.expired) {
+      setEnded(true);
+      setShowPaywall(true);
+      setBanner('Your session has ended.');
       return;
     }
     if (res.error) {
@@ -105,11 +125,33 @@ export default function ChatScreen() {
     }
     if (res.session) {
       setSessionId(res.session.id);
-      if (res.session.expires_at) setExpiresAt(new Date(res.session.expires_at).getTime());
+      if (res.session.kind) setSessionKind(res.session.kind);
+      setExpiresAt(res.session.expires_at ? new Date(res.session.expires_at).getTime() : null);
+      setPendingKind(undefined);
     }
+    if (res.balance) setBalance(res.balance);
     if (res.reply) {
       setMessages((m) => [...m, { role: 'assistant', content: res.reply! }]);
       scrollDown();
+    }
+  }
+
+  function handlePurchased(kind: 'questions' | 'time', newBalance?: ChatBalance) {
+    if (newBalance) setBalance(newBalance);
+    else getBalance().then(setBalance);
+    setShowPaywall(false);
+    setBanner('');
+    setFreeUsed(true);
+
+    // Continue the same question session if we simply topped up questions.
+    const continueSame = sessionId && sessionKind === 'paid_questions' && kind === 'questions' && !ended;
+    if (!continueSame) {
+      setPendingKind(kind);
+      setSessionId(null);
+      setSessionKind(null);
+      setExpiresAt(null);
+      setRemaining(null);
+      setEnded(false);
     }
   }
 
@@ -132,6 +174,8 @@ export default function ChatScreen() {
   }
 
   const notStarted = messages.length === 0 && !sessionId;
+  const timed = sessionKind === 'free_minute' || sessionKind === 'paid_time';
+  const inputLocked = ended || showPaywall;
 
   return (
     <KeyboardAvoidingView
@@ -139,12 +183,15 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
     >
-      {/* header / timer */}
+      {/* header / status pill */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>✨ Ritham</Text>
-        {remaining !== null && !ended && (
-          <View style={styles.timerPill}>
-            <Text style={styles.timerText}>⏳ {mmss(remaining)}</Text>
+        {timed && remaining !== null && !ended && (
+          <View style={styles.pill}><Text style={styles.pillText}>⏳ {mmss(remaining)}</Text></View>
+        )}
+        {sessionKind === 'paid_questions' && !ended && balance && (
+          <View style={styles.pill}>
+            <Text style={styles.pillText}>❓ {balance.questions} left</Text>
           </View>
         )}
       </View>
@@ -156,7 +203,7 @@ export default function ChatScreen() {
         onContentSizeChange={scrollDown}
         keyboardShouldPersistTaps="handled"
       >
-        {notStarted && !freeUsed && (
+        {notStarted && !freeUsed && !showPaywall && (
           <View style={styles.introCard}>
             <Text style={styles.introTitle}>Your first minute is free 🎁</Text>
             <Text style={styles.introText}>
@@ -166,11 +213,13 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {notStarted && freeUsed && (
+        {notStarted && freeUsed && hasBalance && !showPaywall && (
           <View style={styles.introCard}>
-            <Text style={styles.introTitle}>Free minute used</Text>
+            <Text style={styles.introTitle}>You’re ready to chat</Text>
             <Text style={styles.introText}>
-              You’ve already had your free session. Chat packs to continue are coming soon.
+              {balance!.questions > 0 && `You have ${balance!.questions} question${balance!.questions > 1 ? 's' : ''}. `}
+              {balance!.seconds > 0 && `You have ${formatSeconds(balance!.seconds)} of talk time. `}
+              Send a message to begin.
             </Text>
           </View>
         )}
@@ -186,35 +235,43 @@ export default function ChatScreen() {
             <ActivityIndicator color={Colors.gold} />
           </View>
         )}
+
+        {/* Paywall — shown when the free minute / pack is exhausted, or on demand */}
+        {(showPaywall || (notStarted && freeUsed && !hasBalance)) && (
+          <Paywall
+            title={ended ? 'Your session ended' : 'Continue your reading'}
+            subtitle={
+              ended
+                ? 'Pick a pack to keep chatting with your astrologer.'
+                : 'Unlock more with a question or time pack.'
+            }
+            prefill={{ contact: user?.phone ?? '', name: profile?.name }}
+            onPurchased={handlePurchased}
+          />
+        )}
       </ScrollView>
 
-      {(ended || banner) ? (
-        <View style={styles.endedBanner}>
-          <Text style={styles.endedText}>
-            {ended ? 'Your free minute is over. ' : `${banner} `}Chat packs are coming soon.
-          </Text>
+      {!showPaywall && !(notStarted && freeUsed && !hasBalance) && (
+        <View style={styles.inputRow}>
+          <TextInput
+            style={styles.input}
+            placeholder={inputLocked ? 'Session ended' : 'Ask about your chart…'}
+            placeholderTextColor={Colors.textDim}
+            value={input}
+            onChangeText={setInput}
+            editable={!inputLocked}
+            multiline
+            onSubmitEditing={handleSend}
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, (sending || inputLocked) && styles.sendDisabled]}
+            onPress={handleSend}
+            disabled={sending || inputLocked}
+          >
+            <Text style={styles.sendText}>➤</Text>
+          </TouchableOpacity>
         </View>
-      ) : null}
-
-      <View style={styles.inputRow}>
-        <TextInput
-          style={styles.input}
-          placeholder={ended || freeUsed ? 'Free session ended' : 'Ask about your chart…'}
-          placeholderTextColor={Colors.textDim}
-          value={input}
-          onChangeText={setInput}
-          editable={!ended && !(freeUsed && notStarted)}
-          multiline
-          onSubmitEditing={handleSend}
-        />
-        <TouchableOpacity
-          style={[styles.sendBtn, (sending || ended || (freeUsed && notStarted)) && styles.sendDisabled]}
-          onPress={handleSend}
-          disabled={sending || ended || (freeUsed && notStarted)}
-        >
-          <Text style={styles.sendText}>➤</Text>
-        </TouchableOpacity>
-      </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -234,8 +291,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.bgCard,
   },
   headerTitle: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700' },
-  timerPill: { backgroundColor: Colors.bgMid, borderRadius: 20, paddingVertical: 4, paddingHorizontal: Spacing.md, borderWidth: 1, borderColor: Colors.gold },
-  timerText: { color: Colors.goldLight, fontSize: Fonts.size.sm, fontWeight: '700' },
+  pill: { backgroundColor: Colors.bgMid, borderRadius: 20, paddingVertical: 4, paddingHorizontal: Spacing.md, borderWidth: 1, borderColor: Colors.gold },
+  pillText: { color: Colors.goldLight, fontSize: Fonts.size.sm, fontWeight: '700' },
 
   scroll: { flex: 1 },
   scrollContent: { padding: Spacing.lg, gap: Spacing.sm },
@@ -249,9 +306,6 @@ const styles = StyleSheet.create({
   aiBubble: { alignSelf: 'flex-start', backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 4 },
   userText: { color: Colors.bg, fontSize: Fonts.size.md, lineHeight: 21 },
   aiText: { color: Colors.text, fontSize: Fonts.size.md, lineHeight: 22 },
-
-  endedBanner: { backgroundColor: Colors.bgMid, padding: Spacing.sm, alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border },
-  endedText: { color: Colors.textMuted, fontSize: Fonts.size.sm },
 
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm,

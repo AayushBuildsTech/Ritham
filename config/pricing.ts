@@ -9,11 +9,11 @@ export const SESSION_PLANS = [
 ] as const;
 
 export const QUESTION_PACKS = [
-  { id: 'bindu',     label: 'Bindu',     questions: 1,   price_paise: 500,  first_purchase_only: true },
-  { id: 'panch',     label: 'Panch',     questions: 5,   price_paise: 1900, first_purchase_only: false },
-  { id: 'darshan',   label: 'Darshan',   questions: 15,  price_paise: 4900, first_purchase_only: false, badge: 'most_popular' },
-  { id: 'gyan',      label: 'Gyan',      questions: 40,  price_paise: 11900, first_purchase_only: false },
-  { id: 'brahmanda', label: 'Brahmanda', questions: 100, price_paise: 27900, first_purchase_only: false },
+  { id: 'bindu',     label: 'Bindu',     questions: 1,   price_paise: 900,  first_purchase_only: false },
+  { id: 'panch',     label: 'Panch',     questions: 5,   price_paise: 3500, first_purchase_only: false },
+  { id: 'darshan',   label: 'Darshan',   questions: 15,  price_paise: 7900, first_purchase_only: false, badge: 'most_popular' },
+  { id: 'gyan',      label: 'Gyan',      questions: 40,  price_paise: 16900, first_purchase_only: false },
+  { id: 'brahmanda', label: 'Brahmanda', questions: 100, price_paise: 34900, first_purchase_only: false },
 ] as const;
 
 export const REPORT_PRICES = {

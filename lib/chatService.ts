@@ -9,25 +9,36 @@ import { supabase } from './supabase';
 // (To rename: deploy a function literally named `chat` and set this to 'chat'.)
 const CHAT_FUNCTION = 'bright-processor';
 
+export type SessionKind = 'free_minute' | 'paid_time' | 'paid_questions';
+
 export interface ChatSessionInfo {
   id: string;
+  kind?: SessionKind;
   expires_at: string | null;
+}
+
+export interface ChatBalance {
+  questions: number;
+  seconds: number;
 }
 
 export interface ChatResult {
   reply?: string;
   session?: ChatSessionInfo;
+  balance?: ChatBalance;
   expired?: boolean;
-  error?: string; // 'free_used' | 'kundli_missing' | ...
+  // 'needs_purchase' | 'out_of_questions' | 'kundli_missing' | 'request_failed' | ...
+  error?: string;
 }
 
 export async function sendChat(
   profileId: string,
   message: string,
   sessionId?: string,
+  useKind?: 'questions' | 'time',
 ): Promise<ChatResult> {
   const { data, error } = await supabase.functions.invoke(CHAT_FUNCTION, {
-    body: { profileId, message, sessionId },
+    body: { profileId, message, sessionId, useKind },
   });
   if (error) {
     // Supabase wraps non-2xx as FunctionsHttpError; surface a usable shape

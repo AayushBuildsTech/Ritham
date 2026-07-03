@@ -94,13 +94,16 @@ ritham/
 │   └── chatService.ts           ← Wraps the chat Edge Function (CHAT_FUNCTION slug)
 ├── supabase/
 │   ├── functions/
-│   │   └── chat/index.ts        ← Phase 3 Edge Function: calls Claude (deployed as `bright-processor`)
+│   │   ├── chat/index.ts        ← Phase 3 fn: Claude + entitlement consumption (deployed as `bright-processor`)
+│   │   ├── create-order/index.ts   ← Phase 4: creates a Razorpay order (server-side amount)
+│   │   └── verify-payment/index.ts ← Phase 4: HMAC verify → grants entitlement (idempotent)
 │   └── migrations/
 │       ├── 001_phase1_users.sql       ← users table + RLS + referral code trigger
 │       ├── 002_auth_user_sync.sql     ← auto-sync auth.users → public.users on OTP verify
 │       ├── 003_fix_referral_code_schema.sql ← fix signup 500 (gen_random_uuid)
 │       ├── 004_phase2_profiles.sql    ← profiles (birth details + cached Kundli) + RLS
-│       └── 005_phase3_chat.sql        ← chat_sessions + chat_messages + free-minute tracking
+│       ├── 005_phase3_chat.sql        ← chat_sessions + chat_messages + free-minute tracking
+│       └── 006_phase4_payments.sql    ← payment_orders + entitlements_ledger + RLS
 ├── .env.local                   ← REAL Supabase keys (user has filled this in)
 ├── .env.example                 ← Template (safe to commit)
 ├── .gitignore
@@ -122,6 +125,10 @@ ritham/
 - [x] Edge Function deployed (slug `bright-processor`; source `supabase/functions/chat`)
 - [ ] `ANTHROPIC_API_KEY` secret — NOT set yet (chat returns mock until added)
 - [ ] SMS provider (Twilio) — not needed until production launch (test numbers bypass it)
+- [x] **Phase 4:** migration `006_phase4_payments.sql` run (payment_orders + entitlements_ledger)
+- [x] **Phase 4:** Edge Functions `create-order` + `verify-payment` deployed; `chat` redeployed
+- [x] **Phase 4:** `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` (test keys) secrets set
+- [x] **Phase 4:** app rebuilt with native Razorpay module; running on device (paywall reached)
 
 ---
 
@@ -172,7 +179,7 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 1 | Skeleton + Auth (Expo scaffold, 4-tab nav, Supabase OTP) | **DONE — verified on device** (OTP login → Home tab works) |
 | 2 | Profile + Kundli (birth form, kundliService, chart storage) | **DONE — verified on device** (form + live geocoding + mock chart) |
 | 3 | Chat — hero feature (free 1-min, countdown, AI via Edge Function) | **DONE — verified on device** (mock reply; add API key for real AI) |
-| 4 | Payments + entitlements (Razorpay, ledger, paywall) | Not started |
+| 4 | Payments + entitlements (Razorpay, ledger, paywall) | **DEPLOYED — running on device** (functions live, secrets set, paywall reached; see §16) |
 | 5 | Home horoscopes (cached, daily/weekly/monthly) | Not started |
 | 6 | Notifications | **DROPPED for v1** |
 | 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | Not started |
@@ -207,11 +214,11 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 - Antariksh · 30 min · ₹179
 
 **Question packs:**
-- Bindu · 1 question · ₹5 (first purchase only)
-- Panch · 5 questions · ₹19
-- Darshan · 15 questions · ₹49 ← default / most popular
-- Gyan · 40 questions · ₹119
-- Brahmanda · 100 questions · ₹279
+- Bindu · 1 question · ₹9
+- Panch · 5 questions · ₹35
+- Darshan · 15 questions · ₹79 ← default / most popular
+- Gyan · 40 questions · ₹169
+- Brahmanda · 100 questions · ₹349
 
 **Reports:**
 - Vastu · ₹149
@@ -351,3 +358,84 @@ full control of the brand aesthetic. Report text narrated by Claude from Kundli 
 (rule #2: AI narrates, never computes). Cache each generated PDF in **Supabase Storage** —
 one purchase = one stored PDF (protect margins, rule #4). Delivery: in-app viewer +
 download/share. Gate behind verified payment (Phase 4 entitlements).
+
+---
+
+## 16. Phase 4 — Payments + entitlements (CODE DONE, deploy + test pending)
+
+The full money layer is coded. It mirrors the Phase 3 pattern: all charging and all
+entitlement grants happen server-side in Edge Functions; the client only opens the
+Razorpay sheet and reports the signed result back for verification.
+
+**Decisions locked (with the user):**
+- **Native Razorpay SDK** (`react-native-razorpay`), not WebView — best UPI UX.
+- **Both pack kinds** sold from day one via a **Questions | Time toggle** in the paywall.
+- **Test keys ready** — server returns `key_id` to the client; `key_secret` stays a secret.
+
+**What was built:**
+- Migration `006_phase4_payments.sql` — `payment_orders` (order audit) + `entitlements_ledger`
+  (one row per verified grant, rule #7) + RLS (clients read own; writes via service role).
+- Edge Function `create-order` — recomputes the amount from server-side pricing (rule #3),
+  enforces first-purchase-only (Bindu), creates the Razorpay order, records it `created`.
+- Edge Function `verify-payment` — HMAC-SHA256 signature check; on match flips the order to
+  `paid` and inserts the ledger grant. Idempotent via `unique(order_id)`.
+- `chat/index.ts` — once the free minute is used, starts a **paid_time** session (whole
+  time pack → countdown) or a **paid_questions** session (one question charged per reply).
+  Returns `needs_purchase` / `out_of_questions` for the client to open the paywall.
+- Client: `lib/paymentService.ts` (`purchasePack`, `getBalance`), `components/Paywall.tsx`
+  (toggle + pack grid + Razorpay flow), wired into `app/(tabs)/chat.tsx` (balance pills,
+  paywall on exhaustion). `types/react-native-razorpay.d.ts` supplies the missing types.
+- `npx tsc --noEmit` passes.
+
+### To go live (operational — must be done in the Supabase & Razorpay dashboards)
+1. **Migration:** run `supabase/migrations/006_phase4_payments.sql` in the SQL editor.
+2. **Deploy functions** (dashboard "Via Editor", the reliable path here):
+   - Deploy `create-order` and `verify-payment`. **Note the slugs Supabase assigns** — if
+     they aren't literally `create-order`/`verify-payment`, update `CREATE_ORDER_FN` /
+     `VERIFY_PAYMENT_FN` in `lib/paymentService.ts` (same gotcha as `bright-processor`).
+   - **Redeploy `chat`** (`bright-processor`) — it now consumes entitlements.
+3. **Secrets** (Edge Functions → Secrets): add `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET`
+   (test keys). They're read by both payment functions.
+4. **Rebuild the app:** `npx expo run:android` — the native Razorpay module needs a fresh
+   native build (it won't work over a JS-only reload).
+
+### On-device test checklist
+- Use the free minute → let it expire → paywall appears.
+- Buy **Darshan (15 Q)** with Razorpay **test UPI `success@razorpay`** → returns, "❓ 15 left",
+  chat works, count drops per reply. Run it to 0 → `out_of_questions` → paywall → top up.
+  ⚠️ Do NOT use test card `4111 1111 1111 1111` → Razorpay rejects it as an "international card"
+  (international payments are off by default). Use **UPI `success@razorpay`** (or domestic card
+  `5267 3181 8797 5449`, OTP `1111`). This is a Razorpay account setting, not a code bug.
+- Buy **Kiran (5 min)** → countdown pill starts; on expiry → paywall.
+- Cancel the Razorpay sheet → no charge, no grant, message text restored.
+- Verify in DB: `payment_orders.status='paid'` and a matching `entitlements_ledger` row.
+- Reset the free minute to re-test: `update public.users set free_minute_used_at = null where phone='<digits>';`
+
+### Pricing note (updated this session)
+Question packs are now **Bindu ₹9 · Panch ₹35 · Darshan ₹79 · Gyan ₹169 · Brahmanda ₹349**
+(paise: 900/3500/7900/16900/34900). **Bindu is a normal pack now** — the first-purchase-only
+restriction was removed (the guard code remains in `create-order` but is inert). Time/report
+prices unchanged. Source of truth is `config/pricing.ts`; the server copy in `create-order`
+must mirror it. **Any price change requires redeploying `create-order`** (the server computes
+the charged amount) — the client alone only changes the displayed number.
+
+### Dev-run gotcha that cost time (avoid next session)
+The device showed the red "Unable to load script" screen for a long while. Root cause was NOT
+the build — it was a **stale `debug_http_host` = `192.168.0.101:8081`** saved in the app's
+SharedPreferences (`/data/data/com.ritham.app/shared_prefs/com.ritham.app_preferences.xml`),
+an IP that doesn't exist. The PC's real LAN IP is **192.168.0.12**. Fixed by setting the host to
+**`localhost:8081`** (loads over USB via `adb reverse tcp:8081 tcp:8081`).
+- To edit that pref: force-stop the app first (it rewrites the file on exit), then
+  `cat prefs.xml | adb shell "run-as com.ritham.app sh -c 'cat > shared_prefs/com.ritham.app_preferences.xml'"`.
+- Windows Firewall blocks inbound 8081 for the LAN route and needs an **admin** rule to open
+  (`New-NetFirewallRule -DisplayName "Expo Metro 8081" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081`).
+  USB/localhost avoids all of it — prefer it.
+- **Wireless ADB is set up**: `adb tcpip 5555` then `adb connect 192.168.0.10:5555` (phone's Wi-Fi
+  IP on SSID `ACT_Aayush`), then `adb reverse` on that transport → runs cable-free. Re-run
+  `adb connect 192.168.0.10:5555` if the phone reboots / drops Wi-Fi.
+
+### Not yet done (follow-ups for Phase 4 polish)
+- No "restore/refresh balance" pull-to-refresh; balance loads on chat mount + after buys.
+- Razorpay **webhook** (server-to-server `payment.captured`) not added — verify-on-return is
+  enough for v1, but a webhook would catch app-killed-mid-payment cases. Add before launch.
+- The Store/Reports tabs still don't surface packs; paywall lives only in chat for now.

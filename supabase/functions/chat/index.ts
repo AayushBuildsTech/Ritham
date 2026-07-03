@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // service client for privileged reads/writes (bypasses RLS)
     const admin = createClient(supabaseUrl, serviceKey);
 
-    const { profileId, message, sessionId } = await req.json();
+    const { profileId, message, sessionId, useKind } = await req.json();
     if (!message || typeof message !== 'string' || !message.trim()) {
       return json({ error: 'empty_message' }, 400);
     }
@@ -64,34 +64,48 @@ Deno.serve(async (req) => {
     if (!profile.kundli_chart) return json({ error: 'kundli_missing' }, 400);
 
     // ── resolve or create the session ──────────────────────────────────────
+    // Session kinds:
+    //   free_minute / paid_time  → time-based (60s / pack duration); no per-msg cost
+    //   paid_questions           → each user message consumes one question
     let session;
     if (sessionId) {
       const { data: s } = await admin
         .from('chat_sessions').select('*')
         .eq('id', sessionId).eq('user_id', user.id).maybeSingle();
       if (!s) return json({ error: 'session_not_found' }, 404);
+      if (s.status === 'ended') return json({ expired: true });
       if (s.expires_at && new Date(s.expires_at).getTime() <= Date.now()) {
         await admin.from('chat_sessions').update({ status: 'ended' }).eq('id', s.id);
         return json({ expired: true });
       }
       session = s;
     } else {
-      // new free session — enforce one-per-phone entitlement
       const { data: u } = await admin
         .from('users').select('free_minute_used_at').eq('id', user.id).maybeSingle();
-      if (u?.free_minute_used_at) {
-        return json({ error: 'free_used' }); // Phase 4 paywall picks this up
+
+      if (!u?.free_minute_used_at) {
+        // free 1-minute session — one per phone (rule #5)
+        const now = Date.now();
+        const expiresAt = new Date(now + FREE_SECONDS * 1000).toISOString();
+        const { data: created, error: cErr } = await admin
+          .from('chat_sessions')
+          .insert({ user_id: user.id, profile_id: profileId, kind: 'free_minute', expires_at: expiresAt })
+          .select().single();
+        if (cErr) return json({ error: 'session_create_failed', detail: cErr.message }, 500);
+        session = created;
+        await admin.from('users').update({ free_minute_used_at: new Date(now).toISOString() }).eq('id', user.id);
+      } else {
+        // paid path — start a session backed by an entitlement (Phase 4)
+        session = await startPaidSession(admin, user.id, profileId, useKind);
+        if (!session) return json({ error: 'needs_purchase' }); // client opens the paywall
       }
-      const now = Date.now();
-      const expiresAt = new Date(now + FREE_SECONDS * 1000).toISOString();
-      const { data: created, error: cErr } = await admin
-        .from('chat_sessions')
-        .insert({ user_id: user.id, profile_id: profileId, kind: 'free_minute', expires_at: expiresAt })
-        .select().single();
-      if (cErr) return json({ error: 'session_create_failed', detail: cErr.message }, 500);
-      session = created;
-      // consume the free minute (one per phone)
-      await admin.from('users').update({ free_minute_used_at: new Date(now).toISOString() }).eq('id', user.id);
+    }
+
+    // paid question sessions charge one question per user message — check first
+    let questionEnt: any = null;
+    if (session.kind === 'paid_questions') {
+      questionEnt = await pickActiveQuestionEntitlement(admin, user.id);
+      if (!questionEnt) return json({ error: 'out_of_questions', session: sessionInfo(session) });
     }
 
     // store the user's message
@@ -106,14 +120,88 @@ Deno.serve(async (req) => {
 
     await admin.from('chat_messages').insert({ session_id: session.id, role: 'assistant', content: reply });
 
-    return json({
-      reply,
-      session: { id: session.id, expires_at: session.expires_at },
-    });
+    // consume one question AFTER a successful reply
+    if (questionEnt) {
+      const remaining = questionEnt.questions_remaining - 1;
+      await admin.from('entitlements_ledger')
+        .update({ questions_remaining: remaining, consumed_at: remaining <= 0 ? new Date().toISOString() : null })
+        .eq('id', questionEnt.id);
+    }
+
+    const balance = await computeBalance(admin, user.id);
+    return json({ reply, session: sessionInfo(session), balance });
   } catch (e) {
     return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
   }
 });
+
+// ── entitlement helpers (Phase 4) ──────────────────────────────────────────────
+
+// Start a paid session once the free minute is gone. Prefers the kind the client
+// asked for (useKind); otherwise time packs first, then question packs. A time
+// pack is consumed WHOLE into a countdown session; a question pack backs a
+// message-metered session and is decremented per reply.
+async function startPaidSession(admin: any, userId: string, profileId: string, useKind?: string) {
+  const wantTime = useKind === 'time';
+  const wantQuestions = useKind === 'questions';
+
+  // try a time pack (unless the client explicitly asked for questions)
+  if (!wantQuestions) {
+    const { data: t } = await admin
+      .from('entitlements_ledger').select('*')
+      .eq('user_id', userId).eq('kind', 'time').is('consumed_at', null)
+      .order('created_at', { ascending: true }).limit(1).maybeSingle();
+    if (t) {
+      const expiresAt = new Date(Date.now() + t.seconds_total * 1000).toISOString();
+      const { data: created } = await admin
+        .from('chat_sessions')
+        .insert({ user_id: userId, profile_id: profileId, kind: 'paid_time', expires_at: expiresAt })
+        .select().single();
+      await admin.from('entitlements_ledger')
+        .update({ consumed_at: new Date().toISOString() }).eq('id', t.id);
+      return created;
+    }
+    if (wantTime) return null; // asked for time, none left
+  }
+
+  // fall back to a question pack
+  const q = await pickActiveQuestionEntitlement(admin, userId);
+  if (q) {
+    const { data: created } = await admin
+      .from('chat_sessions')
+      .insert({ user_id: userId, profile_id: profileId, kind: 'paid_questions' })
+      .select().single();
+    return created;
+  }
+  return null;
+}
+
+async function pickActiveQuestionEntitlement(admin: any, userId: string) {
+  const { data } = await admin
+    .from('entitlements_ledger').select('*')
+    .eq('user_id', userId).eq('kind', 'questions').is('consumed_at', null)
+    .gt('questions_remaining', 0)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle();
+  return data ?? null;
+}
+
+async function computeBalance(admin: any, userId: string) {
+  const { data } = await admin
+    .from('entitlements_ledger')
+    .select('kind, questions_remaining, seconds_total, consumed_at')
+    .eq('user_id', userId);
+  let questions = 0, seconds = 0;
+  for (const r of data ?? []) {
+    if (r.consumed_at) continue;
+    if (r.kind === 'questions') questions += r.questions_remaining;
+    if (r.kind === 'time') seconds += r.seconds_total;
+  }
+  return { questions, seconds };
+}
+
+function sessionInfo(s: any) {
+  return { id: s.id, kind: s.kind, expires_at: s.expires_at ?? null };
+}
 
 // ── system prompt: anchor the astrologer to the chart facts ────────────────────
 function buildSystemPrompt(profile: any): string {
