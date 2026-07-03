@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { computeKundli, ProfileRow, BirthProfile } from '../lib/kundliService';
 import { generateMatchmaking, reportCredits, MatchPerson, ChartStyle } from '../lib/reportService';
 import { purchasePack } from '../lib/paymentService';
+import { track } from '../lib/analytics';
 import { REPORT_PRICES, paiseTo } from '../config/pricing';
 import { CITIES } from '../constants/cities';
 import { searchPlaces, GeoPlace } from '../lib/geocoding';
@@ -156,6 +157,7 @@ export default function MatchmakingIntake() {
       setGenerating(false);
 
       if (res.report_id) {
+        track('report_generated', { type: 'matchmaking' });
         router.replace({ pathname: '/report-view', params: { id: res.report_id } });
         return;
       }

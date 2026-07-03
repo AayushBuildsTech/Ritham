@@ -5,6 +5,8 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { friendlyAuthError } from '../../lib/authErrors';
+import { track } from '../../lib/analytics';
 import { Colors, Fonts, Spacing } from '../../constants/theme';
 
 export default function VerifyOtpScreen() {
@@ -30,7 +32,9 @@ export default function VerifyOtpScreen() {
     });
     setLoading(false);
     if (err) {
-      setError(err.message);
+      setError(friendlyAuthError(err));
+    } else {
+      track('login', { method: 'otp' });
     }
     // On success, AuthContext picks up the new session and RootGuard redirects to (tabs)
   };
@@ -42,7 +46,7 @@ export default function VerifyOtpScreen() {
     const { error: err } = await supabase.auth.signInWithOtp({ phone: phone ?? '' });
     setResending(false);
     if (err) {
-      setError(err.message);
+      setError(friendlyAuthError(err));
     } else {
       setResendMsg('OTP resent successfully.');
     }

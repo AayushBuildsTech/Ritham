@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { computeAndStoreKundli, ProfileRow, Kundli } from '../lib/kundliService';
+import { track } from '../lib/analytics';
 import { CITIES } from '../constants/cities';
 import { searchPlaces, GeoPlace } from '../lib/geocoding';
 import { SelectModal, Option } from '../components/SelectModal';
@@ -179,6 +180,7 @@ export default function ProfileScreen() {
       // compute + cache the Kundli via the single service entry point
       const kundli = await computeAndStoreKundli(row);
       if (wasNew) {
+        track('profile_created');
         // first-run onboarding: after creating the Kundli, go to Home
         router.replace('/(tabs)');
         return;

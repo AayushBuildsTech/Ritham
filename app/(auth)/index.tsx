@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { friendlyAuthError } from '../../lib/authErrors';
 import { Colors, Fonts, Spacing } from '../../constants/theme';
 
 export default function PhoneScreen() {
@@ -24,7 +25,7 @@ export default function PhoneScreen() {
     const { error: err } = await supabase.auth.signInWithOtp({ phone: cleaned });
     setLoading(false);
     if (err) {
-      setError(err.message);
+      setError(friendlyAuthError(err));
     } else {
       router.push({ pathname: '/(auth)/verify-otp', params: { phone: cleaned } });
     }
@@ -75,7 +76,10 @@ export default function PhoneScreen() {
           </TouchableOpacity>
 
           <Text style={styles.disclaimer}>
-            By continuing, you agree to our Terms of Service and Privacy Policy.
+            By continuing, you agree to our{' '}
+            <Text style={styles.link} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })}>Terms of Service</Text>
+            {' '}and{' '}
+            <Text style={styles.link} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })}>Privacy Policy</Text>.
           </Text>
         </View>
       </ScrollView>
@@ -120,5 +124,6 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  disclaimer: { fontSize: Fonts.size.xs, color: Colors.textDim, marginTop: Spacing.lg, textAlign: 'center', lineHeight: 16 },
+  disclaimer: { fontSize: Fonts.size.xs, color: Colors.textDim, marginTop: Spacing.lg, textAlign: 'center', lineHeight: 18 },
+  link: { color: Colors.goldLight, textDecorationLine: 'underline' },
 });

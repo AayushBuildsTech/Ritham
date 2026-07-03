@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { uploadFloorplan, generateVastu, reportCredits } from '../lib/reportService';
 import { purchasePack } from '../lib/paymentService';
+import { track } from '../lib/analytics';
 import { REPORT_PRICES, paiseTo } from '../config/pricing';
 import { Colors, Fonts, Spacing } from '../constants/theme';
 
@@ -83,6 +84,7 @@ export default function VastuIntake() {
     setGenerating(false);
 
     if (res.report_id) {
+      track('report_generated', { type: 'vastu' });
       router.replace({ pathname: '/report-view', params: { id: res.report_id } });
       return;
     }

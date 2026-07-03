@@ -12,6 +12,7 @@
 
 import RazorpayCheckout from 'react-native-razorpay';
 import { supabase } from './supabase';
+import { track } from './analytics';
 
 const CREATE_ORDER_FN = 'create-order';
 const VERIFY_PAYMENT_FN = 'verify-payment';
@@ -88,6 +89,7 @@ export async function purchasePack(
   );
   if (vErr || !v?.ok) return { ok: false, error: v?.error ?? vErr?.message ?? 'verify_failed' };
 
+  track('purchase', { kind, planId, amount_paise: data.amount });
   return { ok: true, balance: v.balance };
 }
 

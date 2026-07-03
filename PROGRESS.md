@@ -139,6 +139,7 @@ ritham/
 - [x] **Phase 7:** Edge Function `report` deployed (slug `report`); `create-order` redeployed (handles kind 'report')
 - [x] **Phase 7:** app rebuilt (image-picker / print / sharing / webview); **Vastu verified on device**
 - [x] **Phase 7:** Matchmaking added — `report` fn redeployed with the Ashtakoot engine; **verified on device** (JS-only client, no rebuild)
+- [ ] **Phase 10:** run migration `009_phase10_analytics.sql` (events table). Until run, `track()` no-ops silently — app works, no events recorded. No other deploy; rest is JS-only.
 
 ---
 
@@ -195,7 +196,7 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | **DONE — verified on device** (Vastu: floor-plan + Claude vision; Matchmaking: Ashtakoot Guna Milan + both charts. Both use fill→pay→generate; see §18) |
 | 8 | Store (Amazon affiliate) | **"Coming soon" for v1** — Amazon Associates needs a LIVE app before approving affiliate links, so the Store tab ships as a polished coming-soon previewing the planned product lines (**Rudraksha, gemstone bracelets, evil-eye/nazar charms**). Wire real products in post-approval. |
 | 9 | ~~Refer & Earn~~ | **REMOVED from plan** |
-| 10 | Polish + compliance (privacy policy, disclaimer, analytics) | Not started |
+| 10 | Polish + compliance (privacy policy, disclaimer, analytics) | **CODE DONE** — friendly auth errors, in-app Privacy/Terms/Disclaimer + Settings/About, disclaimer surfacing, analytics events. Needs migration `009` run; see §19 |
 
 > Note: Refer & Earn is dropped. The `referral_code` column + `generate_referral_code`
 > trigger in migration 001 are now vestigial (harmless; leave as-is, optional cleanup later).
@@ -578,3 +579,48 @@ with the user): the user uploads a floor plan + answers a questionnaire, and Cla
 - No report regeneration/edit; one purchase = one generated report. Failed generations leave a
   `failed` row and the entitlement stays unconsumed (user can retry from a fresh intake — a
   "retry" entry point from the Reports tab is a nice-to-have).
+
+---
+
+## 19. Phase 10 — Polish + compliance (CODE DONE; one migration pending)
+
+The pre-launch polish/compliance pass. All client-side except one analytics migration.
+
+**What was built:**
+- **Friendly auth errors** — `lib/authErrors.ts` maps raw Supabase messages (wrong/expired
+  OTP, 429 rate-limit, no-network, 5xx) to calm human copy; wired into `(auth)/index.tsx`
+  (send OTP) and `(auth)/verify-otp.tsx` (verify + resend). No more raw JSON on screen.
+- **In-app legal + Settings/About:**
+  - `constants/legal.ts` — full Privacy Policy, Terms of Service, and Astrology Disclaimer
+    copy (India/Play-Store-appropriate; good-faith template, NOT legal advice). Contact is
+    `rithamastro@gmail.com` (single `CONTACT_EMAIL` const, referenced across all docs +
+    Settings). `LEGAL_UPDATED` = "July 2026".
+  - `app/legal/[doc].tsx` — one branded viewer for all three docs (`/legal/[doc]` with
+    `doc` = privacy|terms|disclaimer). **Readable signed-out**: `AuthGate` in `app/_layout.tsx`
+    now treats `segments[0] === 'legal'` as a public route, so the sign-in screen's links work.
+  - `app/settings.tsx` — Settings/About: mobile number, Kundli link, the 3 legal docs,
+    contact email, app version (via `expo-constants`, currently v1.0.0), and **Sign Out**
+    (confirm dialog). Opened from a new ⚙ button in the Home header.
+  - Sign-in screen's "Terms / Privacy" line is now tappable (was plain text). Sign-out moved
+    off Home (was a dev stub) into Settings.
+- **Disclaimer surfacing** — "for guidance, not professional advice" on the Home footer and
+  the chat intro card (reports already carry footers).
+- **Analytics** — migration `009_phase10_analytics.sql` (`events` table + insert-own RLS; no
+  client SELECT — analysis via service role). `lib/analytics.ts` `track(name, props?)` is
+  fire-and-forget, resolves the uid from the cached session, and swallows all errors (never
+  blocks UX). Instrumented events: `login`, `profile_created`, `chat_message`, `purchase`
+  (choke-pointed in `paymentService.purchasePack`), `report_generated` (vastu + matchmaking).
+
+**To go live:** run `009_phase10_analytics.sql` in the SQL Editor. Everything else is JS-only
+(no Edge Function change; `expo-constants` was already installed → no rebuild). Reload the app.
+
+**Dev note:** dynamic route links use the typed form
+`router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })` — a plain
+`/legal/privacy` string fails expo-router's typed-routes check.
+
+### Not yet done (Phase 10 follow-ups)
+- No in-app account **deletion** flow yet (policy says "email us"); Play Store increasingly
+  wants an in-app path — add before/around store listing.
+- Legal copy is a template — have it reviewed and also **host it at a public URL** for the
+  Play Store data-safety/listing fields.
+- `track()` fires one row per event with no batching/offline queue — fine at launch volume.

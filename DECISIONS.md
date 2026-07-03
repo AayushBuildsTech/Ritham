@@ -132,3 +132,27 @@ purchase is reused, never double-charged). `purchasePack` awaits verification, s
 entitlement is present before generation (no race); cancelling Razorpay keeps the filled
 form. Rationale: users commit to the effort before paying, and we never take money for a
 report they haven't finished specifying.
+
+## Phase 10 — Polish + compliance
+
+### Legal docs live in-app as data, one dynamic viewer, public route
+Privacy/Terms/Disclaimer copy is data in `constants/legal.ts` rendered by a single
+`app/legal/[doc].tsx` viewer (not three screens), so wording changes never touch layout.
+The route is whitelisted in `AuthGate` (`segments[0] === 'legal'`) so it's readable while
+signed out — required because the sign-in screen links to Terms/Privacy before a session
+exists. Copy is a good-faith template (not legal advice) and should also be hosted at a
+public URL for the Play Store listing. Single `CONTACT_EMAIL` const drives every reference.
+
+### Analytics: append-only events table, insert-own RLS, fire-and-forget client
+`public.events(user_id, name, props jsonb, created_at)` with an insert-own RLS policy and
+**no client SELECT** — clients only write; analysis runs with the service role. `track()`
+is fire-and-forget (never awaited by callers), resolves the uid from the cached session (no
+extra network hop), and swallows every error so analytics can never break a user flow.
+Purchases are tracked at one choke point (`paymentService.purchasePack`) rather than per
+call-site. If the migration isn't run, inserts fail and are silently ignored — the app is
+unaffected.
+
+### Auth errors are always humanised
+Raw Supabase auth strings are never shown; `friendlyAuthError()` maps them (wrong/expired
+code, 429 rate-limit, network, 5xx) to calm copy. Leaking provider text reads like a bug and
+exposes internals.

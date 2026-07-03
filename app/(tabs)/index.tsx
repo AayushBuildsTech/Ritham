@@ -14,7 +14,7 @@ const PERIODS: { id: HoroscopePeriod; label: string }[] = [
 ];
 
 export default function HomeScreen() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const [entry, setEntry] = useState<Entry>('loading');
@@ -89,9 +89,14 @@ export default function HomeScreen() {
             <Text style={styles.phone}>{user?.phone ?? ''}</Text>
           )}
         </View>
-        <TouchableOpacity onPress={() => router.push('/profile')} style={styles.avatarBtn}>
-          <Text style={styles.avatarIcon}>◉</Text>
-        </TouchableOpacity>
+        <View style={styles.headerBtns}>
+          <TouchableOpacity onPress={() => router.push('/profile')} style={styles.avatarBtn}>
+            <Text style={styles.avatarIcon}>◉</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.avatarBtn}>
+            <Text style={styles.avatarIcon}>⚙</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {entry === 'need_kundli' ? (
@@ -143,10 +148,11 @@ export default function HomeScreen() {
         </>
       )}
 
-      {/* Dev sign-out */}
-      <TouchableOpacity onPress={signOut} style={styles.signOutBtn}>
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
+      {/* Astrology disclaimer */}
+      <Text style={styles.disclaimer}>
+        Horoscopes and readings are for guidance and reflection, not a substitute for
+        professional advice.
+      </Text>
     </ScrollView>
   );
 }
@@ -159,10 +165,11 @@ const styles = StyleSheet.create({
   greeting: { fontSize: Fonts.size.xl, color: Colors.text, fontWeight: '700' },
   rashi: { fontSize: Fonts.size.sm, color: Colors.goldLight, marginTop: 4 },
   phone: { fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 2 },
+  headerBtns: { flexDirection: 'row', gap: Spacing.sm, marginLeft: Spacing.md },
   avatarBtn: {
     width: 40, height: 40, borderRadius: 20,
     backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center', marginLeft: Spacing.md,
+    alignItems: 'center', justifyContent: 'center',
   },
   avatarIcon: { fontSize: 20, color: Colors.gold },
 
@@ -198,6 +205,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: Spacing.md,
   },
   ctaBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  signOutBtn: { padding: Spacing.lg, alignItems: 'center', marginTop: Spacing.md },
-  signOutText: { color: Colors.textDim, fontSize: Fonts.size.sm },
+  disclaimer: {
+    color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
+    textAlign: 'center', marginTop: Spacing.xl, paddingHorizontal: Spacing.md,
+  },
 });

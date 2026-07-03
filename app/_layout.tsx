@@ -18,11 +18,12 @@ function AuthGate() {
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === '(auth)';
+    const isPublic = segments[0] === 'legal'; // policy screens are readable signed-out
 
     if (session && inAuthGroup) {
       // Signed in but still on an auth screen → go to the app
       router.replace('/(tabs)');
-    } else if (!session && !inAuthGroup) {
+    } else if (!session && !inAuthGroup && !isPublic) {
       // Signed out but on a protected screen → go to auth
       router.replace('/(auth)');
     }

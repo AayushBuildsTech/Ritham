@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { sendChat, ChatResult, SessionKind, ChatBalance } from '../../lib/chatService';
 import { getBalance } from '../../lib/paymentService';
+import { track } from '../../lib/analytics';
 import Paywall from '../../components/Paywall';
 import { formatSeconds } from '../../config/pricing';
 import { Colors, Fonts, Spacing } from '../../constants/theme';
@@ -131,6 +132,7 @@ export default function ChatScreen() {
     }
     if (res.balance) setBalance(res.balance);
     if (res.reply) {
+      track('chat_message', { kind: res.session?.kind ?? sessionKind ?? undefined });
       setMessages((m) => [...m, { role: 'assistant', content: res.reply! }]);
       scrollDown();
     }
@@ -209,6 +211,9 @@ export default function ChatScreen() {
             <Text style={styles.introText}>
               Ask your AI Vedic astrologer anything — career, relationships, timing, remedies.
               Send a message to begin your free 1-minute session.
+            </Text>
+            <Text style={styles.introDisclaimer}>
+              For guidance and reflection — not a substitute for professional advice.
             </Text>
           </View>
         )}
@@ -300,6 +305,7 @@ const styles = StyleSheet.create({
   introCard: { backgroundColor: Colors.bgCard, borderRadius: 14, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm },
   introTitle: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700', marginBottom: Spacing.xs },
   introText: { fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 21 },
+  introDisclaimer: { fontSize: Fonts.size.xs, color: Colors.textDim, lineHeight: 16, marginTop: Spacing.sm, fontStyle: 'italic' },
 
   bubble: { maxWidth: '85%', borderRadius: 16, padding: Spacing.md },
   userBubble: { alignSelf: 'flex-end', backgroundColor: Colors.gold, borderBottomRightRadius: 4 },
