@@ -56,6 +56,31 @@ When the free minute is gone, `chat` starts a paid session from an entitlement
 Question sessions charge one question AFTER a successful reply; time sessions rely on
 `expires_at`. Client shows a `needs_purchase` / `out_of_questions` → Paywall.
 
-### First-purchase-only packs (Bindu ₹5)
-Enforced in `create-order`: reject if the user already has a `paid` order for that
-plan. Client also labels it "First purchase only".
+### First-purchase-only pack support (currently unused)
+`create-order` can reject a repeat purchase of a pack flagged `first_purchase_only`
+(rejects if the user already has a `paid` order for that plan). Bindu used this at ₹5
+but was **changed to a normal pack** (₹9); no pack sets the flag now. The guard code
+stays for future intro-pack use. Question pack prices: 9 / 35 / 79 / 169 / 349.
+
+## Phase 5 — Home horoscopes
+
+### Cached per Rashi (Moon sign), shared across users (rule #4)
+A horoscope is generated ONCE per `(sign, period, period_key)` and shared by every
+user with that Moon sign — at most 12 signs × 3 periods per bucket, not one per user.
+This is the margin-protecting choice: horoscopes are a FREE retention feature, so the
+generation cost must stay bounded. Trade-off: horoscopes are sign-level, not
+personalised to the full chart (that stays the paid chat/report layer).
+
+### Anchored to Moon sign (Rashi), not Sun sign
+Vedic (Jyotish) horoscopes are read by Moon sign, so `kundli_chart.moon_sign` is the
+key. The AI narrates general guidance for the sign — it is NOT given specific chart
+placements, and must not invent them (rule #2).
+
+### IST period buckets
+`period_key` is computed in Asia/Kolkata (all users are in India): daily `YYYY-MM-DD`,
+weekly ISO `YYYY-Www`, monthly `YYYY-MM`. A unique index on `(sign, period, period_key)`
+is the cache/upsert key; a concurrent miss falls back to re-reading the raced row.
+
+### Free, generated in an Edge Function (same pattern as chat)
+`horoscope` fn holds the Claude key and returns cached-or-generated text. Mock reply
+until `ANTHROPIC_API_KEY` is set — no code change to go live.

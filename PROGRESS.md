@@ -96,14 +96,16 @@ ritham/
 │   ├── functions/
 │   │   ├── chat/index.ts        ← Phase 3 fn: Claude + entitlement consumption (deployed as `bright-processor`)
 │   │   ├── create-order/index.ts   ← Phase 4: creates a Razorpay order (server-side amount)
-│   │   └── verify-payment/index.ts ← Phase 4: HMAC verify → grants entitlement (idempotent)
+│   │   ├── verify-payment/index.ts ← Phase 4: HMAC verify → grants entitlement (idempotent)
+│   │   └── horoscope/index.ts       ← Phase 5: cached per-sign daily/weekly/monthly horoscope
 │   └── migrations/
 │       ├── 001_phase1_users.sql       ← users table + RLS + referral code trigger
 │       ├── 002_auth_user_sync.sql     ← auto-sync auth.users → public.users on OTP verify
 │       ├── 003_fix_referral_code_schema.sql ← fix signup 500 (gen_random_uuid)
 │       ├── 004_phase2_profiles.sql    ← profiles (birth details + cached Kundli) + RLS
 │       ├── 005_phase3_chat.sql        ← chat_sessions + chat_messages + free-minute tracking
-│       └── 006_phase4_payments.sql    ← payment_orders + entitlements_ledger + RLS
+│       ├── 006_phase4_payments.sql    ← payment_orders + entitlements_ledger + RLS
+│       └── 007_phase5_horoscopes.sql  ← shared per-sign horoscope cache + RLS
 ├── .env.local                   ← REAL Supabase keys (user has filled this in)
 ├── .env.example                 ← Template (safe to commit)
 ├── .gitignore
@@ -129,6 +131,8 @@ ritham/
 - [x] **Phase 4:** Edge Functions `create-order` + `verify-payment` deployed; `chat` redeployed
 - [x] **Phase 4:** `RAZORPAY_KEY_ID` + `RAZORPAY_KEY_SECRET` (test keys) secrets set
 - [x] **Phase 4:** app rebuilt with native Razorpay module; **payment verified on device** (test card + netbanking → entitlement granted → chat consumes)
+- [x] **Phase 5:** migration `007_phase5_horoscopes.sql` run (shared horoscope cache)
+- [x] **Phase 5:** Edge Function `horoscope` deployed (slug `horoscope`); **verified rendering on device**
 
 ---
 
@@ -180,7 +184,7 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 2 | Profile + Kundli (birth form, kundliService, chart storage) | **DONE — verified on device** (form + live geocoding + mock chart) |
 | 3 | Chat — hero feature (free 1-min, countdown, AI via Edge Function) | **DONE — verified on device** (mock reply; add API key for real AI) |
 | 4 | Payments + entitlements (Razorpay, ledger, paywall) | **DONE — verified on device** (card + netbanking payment → verify → entitlement granted → chat consumes; see §16) |
-| 5 | Home horoscopes (cached, daily/weekly/monthly) | Not started |
+| 5 | Home horoscopes (cached, daily/weekly/monthly) | **DONE — verified on device** (migration + `horoscope` fn live; Moon-sign horoscope renders, mock text until API key; see §17) |
 | 6 | Notifications | **DROPPED for v1** |
 | 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | Not started |
 | 8 | Store (Amazon affiliate) | Not started |
@@ -430,12 +434,57 @@ an IP that doesn't exist. The PC's real LAN IP is **192.168.0.12**. Fixed by set
 - Windows Firewall blocks inbound 8081 for the LAN route and needs an **admin** rule to open
   (`New-NetFirewallRule -DisplayName "Expo Metro 8081" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8081`).
   USB/localhost avoids all of it — prefer it.
-- **Wireless ADB is set up**: `adb tcpip 5555` then `adb connect 192.168.0.10:5555` (phone's Wi-Fi
-  IP on SSID `ACT_Aayush`), then `adb reverse` on that transport → runs cable-free. Re-run
-  `adb connect 192.168.0.10:5555` if the phone reboots / drops Wi-Fi.
+- **Wireless ADB** (run cable-free): plug in USB, then `adb tcpip 5555` → `adb connect <phone-ip>:5555`
+  → `adb -s <phone-ip>:5555 reverse tcp:8081 tcp:8081`, then unplug. ⚠️ The phone's Wi-Fi IP is
+  **DHCP and changes** (seen: .10 → .4 on SSID `ACT_Aayush`) — get the current one with
+  `adb shell ip -o -4 addr show wlan0`. If the link goes `offline` (phone slept / IP changed),
+  replug briefly and redo the tcpip→connect→reverse sequence with the new IP.
 
 ### Not yet done (follow-ups for Phase 4 polish)
 - No "restore/refresh balance" pull-to-refresh; balance loads on chat mount + after buys.
 - Razorpay **webhook** (server-to-server `payment.captured`) not added — verify-on-return is
   enough for v1, but a webhook would catch app-killed-mid-payment cases. Add before launch.
 - The Store/Reports tabs still don't surface packs; paywall lives only in chat for now.
+
+---
+
+## 17. Phase 5 — Home horoscopes (CODE DONE, deploy + test pending)
+
+Free daily/weekly/monthly horoscopes on the Home tab, anchored to the user's Moon sign
+(Rashi). Follows the chat pattern: text is generated only in an Edge Function, and
+cached hard to protect margins.
+
+**What was built:**
+- Migration `007_phase5_horoscopes.sql` — `horoscopes` cache table, unique on
+  `(sign, period, period_key)`, RLS (any signed-in user reads; only service role writes).
+- Edge Function `horoscope` — resolves the user's `moon_sign`, computes the IST period
+  bucket, returns the cached row or generates via Claude (mock until `ANTHROPIC_API_KEY`),
+  then stores it. **Shared per sign** — 12 signs × 3 periods max per bucket, not per user.
+- `lib/horoscopeService.ts` (`getHoroscope(profileId, period)`).
+- `app/(tabs)/index.tsx` — Home rebuilt: greeting + "🌙 Moon in <sign>", Daily/Weekly/
+  Monthly toggle, per-period cache, loading/retry states, `need_kundli` fallback.
+- `npx tsc --noEmit` passes.
+
+**Design decisions:** see DECISIONS.md → Phase 5. Horoscopes are FREE and sign-level
+(not personalised to the full chart — that stays the paid chat/report layer).
+
+### To go live
+1. **Migration:** run `007_phase5_horoscopes.sql` in the SQL editor.
+2. **Deploy** the `horoscope` Edge Function (dashboard "Via Editor"). **Note the slug** —
+   if it isn't literally `horoscope`, update `HOROSCOPE_FUNCTION` in `lib/horoscopeService.ts`
+   (same `bright-processor` gotcha). **No app rebuild** — the client change is JS-only and
+   loads on reload.
+3. No new secrets. It reuses `ANTHROPIC_API_KEY` (still unset → mock horoscope, which is
+   fine for dev, same policy as chat: add the real key near launch).
+
+### On-device test
+- Open Home → header shows "🌙 Moon in <your sign>" → a horoscope renders (mock preview text).
+- Switch Daily / Weekly / Monthly → each loads once and caches; switching back is instant.
+- DB check: `select sign, period, period_key from public.horoscopes order by created_at desc;`
+  — one row per sign+period+bucket; a second user with the same sign should NOT add a row
+  (cache hit). Bucket keys are IST (`YYYY-MM-DD`, `YYYY-Www`, `YYYY-MM`).
+
+### Not yet done (Phase 5 follow-ups)
+- No pull-to-refresh; horoscopes load on mount and cache in component state for the session.
+- No scheduled pre-warm — first reader of a sign/period each bucket pays the generation
+  latency. Fine for launch; a cron pre-warm could be added later.
