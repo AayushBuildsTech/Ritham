@@ -17,6 +17,7 @@ export default function ReportsScreen() {
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [vastuCredits, setVastuCredits] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [showReports, setShowReports] = useState(false);
 
   const load = useCallback(async () => {
     const [rs, credits] = await Promise.all([listReports(), reportCredits('vastu')]);
@@ -66,19 +67,32 @@ export default function ReportsScreen() {
           </View>
         </View>
 
-        {/* existing generated reports */}
-        {vastuReports.map((r) => (
-          <TouchableOpacity
-            key={r.id}
-            style={styles.reportRow}
-            onPress={() => router.push({ pathname: '/report-view', params: { id: r.id } })}
-          >
-            <Text style={styles.reportRowText}>
-              📄 Vaastu Report{r.score != null ? ` · ${r.score}/100` : ''}
-            </Text>
-            <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString('en-IN')}</Text>
-          </TouchableOpacity>
-        ))}
+        {/* past reports — hidden behind a toggle so the card stays uncluttered */}
+        {vastuReports.length > 0 && (
+          <>
+            <TouchableOpacity
+              style={styles.myReportsBtn}
+              onPress={() => setShowReports((s) => !s)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.myReportsText}>📄 My Reports ({vastuReports.length})</Text>
+              <Text style={styles.myReportsChevron}>{showReports ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+
+            {showReports && vastuReports.map((r) => (
+              <TouchableOpacity
+                key={r.id}
+                style={styles.reportRow}
+                onPress={() => router.push({ pathname: '/report-view', params: { id: r.id } })}
+              >
+                <Text style={styles.reportRowText}>
+                  📄 Vaastu Report{r.score != null ? ` · ${r.score}/100` : ''}
+                </Text>
+                <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString('en-IN')}</Text>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
 
         {/* CTA: create (has credit) or buy */}
         {vastuCredits > 0 ? (
@@ -130,6 +144,15 @@ const styles = StyleSheet.create({
   cardIcon: { fontSize: 34 },
   cardTitle: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700', marginBottom: 4 },
   cardDesc: { fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20 },
+
+  myReportsBtn: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.bgMid, borderRadius: 10, paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md, borderWidth: 1, borderColor: Colors.border,
+    marginBottom: Spacing.sm,
+  },
+  myReportsText: { color: Colors.goldLight, fontSize: Fonts.size.sm, fontWeight: '700' },
+  myReportsChevron: { color: Colors.textMuted, fontSize: Fonts.size.xs },
 
   reportRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
