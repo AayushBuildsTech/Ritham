@@ -9,21 +9,24 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } fr
 import {
   SESSION_PLANS, QUESTION_PACKS, paiseTo, formatSeconds,
 } from '../config/pricing';
-import { purchasePack, PackKind, Balance } from '../lib/paymentService';
+import { purchasePack, Balance } from '../lib/paymentService';
 import { Colors, Fonts, Spacing } from '../constants/theme';
+
+// The chat paywall only sells chat packs (never reports).
+type PaywallKind = 'questions' | 'time';
 
 interface Props {
   title?: string;
   subtitle?: string;
   prefill?: { contact?: string; email?: string; name?: string };
-  onPurchased: (kind: PackKind, balance?: Balance) => void;
+  onPurchased: (kind: PaywallKind, balance?: Balance) => void;
 }
 
 export default function Paywall({ title, subtitle, prefill, onPurchased }: Props) {
-  const [tab, setTab] = useState<PackKind>('questions');
+  const [tab, setTab] = useState<PaywallKind>('questions');
   const [buyingId, setBuyingId] = useState<string | null>(null);
 
-  async function buy(kind: PackKind, planId: string) {
+  async function buy(kind: PaywallKind, planId: string) {
     if (buyingId) return;
     setBuyingId(planId);
     const res = await purchasePack(kind, planId, prefill);

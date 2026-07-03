@@ -16,7 +16,7 @@ import { supabase } from './supabase';
 const CREATE_ORDER_FN = 'create-order';
 const VERIFY_PAYMENT_FN = 'verify-payment';
 
-export type PackKind = 'questions' | 'time';
+export type PackKind = 'questions' | 'time' | 'report';
 
 export interface Balance {
   questions: number; // remaining questions across active question packs

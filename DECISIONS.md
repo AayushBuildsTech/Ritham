@@ -84,3 +84,32 @@ is the cache/upsert key; a concurrent miss falls back to re-reading the raced ro
 ### Free, generated in an Edge Function (same pattern as chat)
 `horoscope` fn holds the Claude key and returns cached-or-generated text. Mock reply
 until `ANTHROPIC_API_KEY` is set — no code change to go live.
+
+## Phase 7 — Paid reports (Vastu first)
+
+### Vastu is property-based, not chart-based
+Decided with the user: the Vastu report is a real Vaastu consultancy of the *home*,
+not the birth chart. The user uploads a **floor plan image** + answers a short
+questionnaire (facing, room directions, focus). No Kundli/birth chart is shown.
+(Matchmaking — later — is the chart-based one and needs a partner's birth details +
+Guna Milan; chart diagram style is user-selectable North/South there.)
+
+### Claude VISION reads the floor plan
+The `report` Edge Function downloads the floor plan from Storage, base64-encodes it,
+and sends it as an image block to Claude alongside the questionnaire. Claude returns
+structured JSON (overview, zones[], score, remedies[]) which we render into the
+branded HTML — AI narrates/interprets, never fabricates measurements (rule #2).
+
+### PDF: server generates + caches branded HTML; app exports the PDF on-device
+Supabase Edge Functions run Deno and can't run headless Chromium, so true server-side
+HTML→PDF isn't practical. Instead the function stores the branded **HTML** on the
+`reports` row (rule #4: one purchase = one cached report), the app views it in a
+`react-native-webview`, and **`expo-print`** turns that HTML into a real PDF on the
+device for download/share (`expo-sharing`). Same premium look, works within the stack.
+
+### Reports reuse the Phase 4 money layer (kind 'report')
+`create-order`/`verify-payment` gained a `report` kind (prices in `create-order`:
+vastu 14900, matchmaking 19900). A purchase grants a `report` entitlement row
+(rule #7); the `report` function consumes it only on a successful generation. Migration
+008 widens the `kind` CHECK on payment_orders + entitlements_ledger and adds the
+`reports` table + a private `reports` Storage bucket (user-scoped by first folder).

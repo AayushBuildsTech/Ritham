@@ -25,7 +25,14 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ritham needs access to your photos so you can upload your floor plan for the Vaastu report."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

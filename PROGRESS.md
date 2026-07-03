@@ -97,7 +97,8 @@ ritham/
 │   │   ├── chat/index.ts        ← Phase 3 fn: Claude + entitlement consumption (deployed as `bright-processor`)
 │   │   ├── create-order/index.ts   ← Phase 4: creates a Razorpay order (server-side amount)
 │   │   ├── verify-payment/index.ts ← Phase 4: HMAC verify → grants entitlement (idempotent)
-│   │   └── horoscope/index.ts       ← Phase 5: cached per-sign daily/weekly/monthly horoscope
+│   │   ├── horoscope/index.ts       ← Phase 5: cached per-sign daily/weekly/monthly horoscope
+│   │   └── report/index.ts          ← Phase 7: Vastu report via Claude vision on floor plan
 │   └── migrations/
 │       ├── 001_phase1_users.sql       ← users table + RLS + referral code trigger
 │       ├── 002_auth_user_sync.sql     ← auto-sync auth.users → public.users on OTP verify
@@ -105,7 +106,8 @@ ritham/
 │       ├── 004_phase2_profiles.sql    ← profiles (birth details + cached Kundli) + RLS
 │       ├── 005_phase3_chat.sql        ← chat_sessions + chat_messages + free-minute tracking
 │       ├── 006_phase4_payments.sql    ← payment_orders + entitlements_ledger + RLS
-│       └── 007_phase5_horoscopes.sql  ← shared per-sign horoscope cache + RLS
+│       ├── 007_phase5_horoscopes.sql  ← shared per-sign horoscope cache + RLS
+│       └── 008_phase7_reports.sql     ← reports table + 'report' kind + Storage bucket + RLS
 ├── .env.local                   ← REAL Supabase keys (user has filled this in)
 ├── .env.example                 ← Template (safe to commit)
 ├── .gitignore
@@ -133,6 +135,9 @@ ritham/
 - [x] **Phase 4:** app rebuilt with native Razorpay module; **payment verified on device** (test card + netbanking → entitlement granted → chat consumes)
 - [x] **Phase 5:** migration `007_phase5_horoscopes.sql` run (shared horoscope cache)
 - [x] **Phase 5:** Edge Function `horoscope` deployed (slug `horoscope`); **verified rendering on device**
+- [ ] **Phase 7:** run migration `008_phase7_reports.sql` (reports table + 'report' kind + Storage bucket)
+- [ ] **Phase 7:** deploy Edge Function `report`; **redeploy `create-order`** (now handles kind 'report')
+- [ ] **Phase 7:** rebuild app (`npx expo run:android`) — adds image-picker / print / sharing / webview
 
 ---
 
@@ -186,7 +191,7 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 4 | Payments + entitlements (Razorpay, ledger, paywall) | **DONE — verified on device** (card + netbanking payment → verify → entitlement granted → chat consumes; see §16) |
 | 5 | Home horoscopes (cached, daily/weekly/monthly) | **DONE — verified on device** (migration + `horoscope` fn live; Moon-sign horoscope renders, mock text until API key; see §17) |
 | 6 | Notifications | **DROPPED for v1** |
-| 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | Not started |
+| 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | **Vastu CODE DONE — needs deploy + rebuild + test** (floor-plan + Claude vision; Matchmaking still TODO; see §18) |
 | 8 | Store (Amazon affiliate) | Not started |
 | 9 | ~~Refer & Earn~~ | **REMOVED from plan** |
 | 10 | Polish + compliance (privacy policy, disclaimer, analytics) | Not started |
@@ -488,3 +493,55 @@ cached hard to protect margins.
 - No pull-to-refresh; horoscopes load on mount and cache in component state for the session.
 - No scheduled pre-warm — first reader of a sign/period each bucket pays the generation
   latency. Fine for launch; a cron pre-warm could be added later.
+
+---
+
+## 18. Phase 7 — Reports (Vastu CODE DONE; deploy + rebuild + test pending)
+
+Vastu is built end-to-end; Matchmaking is still TODO. **Vastu is property-based** (decided
+with the user): the user uploads a floor plan + answers a questionnaire, and Claude's
+**vision** reads the plan to produce a room-by-room Vaastu consultancy. No birth chart.
+
+**What was built:**
+- Migration `008_phase7_reports.sql` — `reports` table (working data + cached HTML) + RLS;
+  widens `kind` CHECK on payment_orders + entitlements_ledger to allow `report`; creates a
+  **private `reports` Storage bucket** (user-scoped by first folder) + storage policies.
+- Edge Function `report` — checks a paid `report` entitlement, downloads the floor plan from
+  Storage, sends image + questionnaire to Claude (vision) → structured JSON → branded HTML
+  stored on the row; consumes the entitlement only on success. Mock report until
+  `ANTHROPIC_API_KEY` is set.
+- `create-order` — now accepts `kind: 'report'` (prices vastu 14900 / matchmaking 19900).
+  `verify-payment` unchanged (already grants a generic ledger row; migration allows the kind).
+- Client: `lib/reportService.ts` (upload floor plan to Storage via `base64-arraybuffer`,
+  generate, list, credits), Reports tab rebuilt (buy → intake), `app/report-vastu.tsx`
+  (questionnaire + `expo-image-picker` floor-plan upload), `app/report-view.tsx`
+  (`react-native-webview` viewer + `expo-print`/`expo-sharing` PDF export).
+- New deps (native → needs rebuild): `expo-image-picker`, `expo-print`, `expo-sharing`,
+  `expo-file-system`, `react-native-webview`; plus `base64-arraybuffer` (JS). `expo-image-picker`
+  added to `app.json` plugins (photo permission). `npx tsc --noEmit` passes.
+
+**Design decisions:** see DECISIONS.md → Phase 7.
+
+### To go live
+1. **Migration:** run `008_phase7_reports.sql` in the SQL editor (also creates the Storage bucket).
+2. **Deploy** the new `report` Edge Function AND **redeploy `create-order`** (it now handles the
+   `report` kind). Note the `report` slug — if renamed, update `REPORT_FUNCTION` in
+   `lib/reportService.ts`. `verify-payment` does not need redeploying.
+3. **Rebuild the app** (`npx expo run:android`) — native modules were added.
+4. No new secrets (reuses `ANTHROPIC_API_KEY` → mock report text until the key is set).
+
+### On-device test (Vastu)
+- Reports tab → **Get Vaastu Report ₹149** → pay (test netbanking → Success, or domestic card
+  `5267 3181 8797 5449`; NOT `4111…` → "international").
+- After payment → intake screen → upload a floor plan photo + pick directions → **Generate**.
+- Lands on the report viewer (branded indigo/gold WebView) → **Download** exports/shares a PDF.
+- DB check: `select type, status, score from public.reports order by created_at desc;` (status
+  `ready`); the `report` entitlement row should now have `consumed_at` set.
+
+### Not yet done (Phase 7 follow-ups)
+- **Matchmaking** report not built (needs a partner birth-details form + Guna Milan + the
+  user-selectable North/South chart diagram). `reports` table already has `partner` + `chart_style`
+  columns for it.
+- No report regeneration/edit; one purchase = one generated report. Failed generations leave a
+  `failed` row and the entitlement stays unconsumed (user can retry from a fresh intake — a
+  "retry" entry point from the Reports tab is a nice-to-have).

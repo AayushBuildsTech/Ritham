@@ -34,6 +34,10 @@ const SESSION_PLANS: Record<string, { price_paise: number; seconds: number }> = 
   nakshatra: { price_paise: 9900,  seconds: 900 },
   antariksh: { price_paise: 17900, seconds: 1800 },
 };
+const REPORT_PRICES: Record<string, { price_paise: number }> = {
+  vastu:       { price_paise: 14900 },
+  matchmaking: { price_paise: 19900 },
+};
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -61,9 +65,12 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { kind, planId } = await req.json();
-    if (kind !== 'questions' && kind !== 'time') return json({ error: 'bad_kind' }, 400);
+    if (kind !== 'questions' && kind !== 'time' && kind !== 'report') return json({ error: 'bad_kind' }, 400);
 
-    const plan = kind === 'questions' ? QUESTION_PACKS[planId] : SESSION_PLANS[planId];
+    const plan =
+      kind === 'questions' ? QUESTION_PACKS[planId] :
+      kind === 'time'      ? SESSION_PLANS[planId] :
+                             REPORT_PRICES[planId];
     if (!plan) return json({ error: 'unknown_plan' }, 400);
 
     // first-purchase-only guard (e.g. Bindu ₹5): reject if already bought once.
