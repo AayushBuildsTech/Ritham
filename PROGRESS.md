@@ -193,7 +193,7 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 5 | Home horoscopes (cached, daily/weekly/monthly) | **DONE — verified on device** (migration + `horoscope` fn live; Moon-sign horoscope renders, mock text until API key; see §17) |
 | 6 | Notifications | **DROPPED for v1** |
 | 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | **DONE — verified on device** (Vastu: floor-plan + Claude vision; Matchmaking: Ashtakoot Guna Milan + both charts. Both use fill→pay→generate; see §18) |
-| 8 | Store (Amazon affiliate) | Not started |
+| 8 | Store (Amazon affiliate) | **"Coming soon" for v1** — Amazon Associates needs a LIVE app before approving affiliate links, so the Store tab ships as a polished coming-soon previewing the planned product lines (**Rudraksha, gemstone bracelets, evil-eye/nazar charms**). Wire real products in post-approval. |
 | 9 | ~~Refer & Earn~~ | **REMOVED from plan** |
 | 10 | Polish + compliance (privacy policy, disclaimer, analytics) | Not started |
 
