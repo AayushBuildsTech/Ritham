@@ -5,7 +5,9 @@ import {
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
-import { uploadFloorplan, generateVastu } from '../lib/reportService';
+import { uploadFloorplan, generateVastu, reportCredits } from '../lib/reportService';
+import { purchasePack } from '../lib/paymentService';
+import { REPORT_PRICES, paiseTo } from '../config/pricing';
 import { Colors, Fonts, Spacing } from '../constants/theme';
 
 const DIRECTIONS = ['North', 'North-East', 'East', 'South-East', 'South', 'South-West', 'West', 'North-West'];
@@ -26,7 +28,8 @@ export default function VastuIntake() {
   const [concern, setConcern] = useState('General well-being');
 
   const [image, setImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
-  const [generating, setGenerating] = useState(false);
+  const [busy, setBusy] = useState(false);      // validating / payment step
+  const [generating, setGenerating] = useState(false); // report generation
 
   async function pickFloorplan() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -45,18 +48,33 @@ export default function VastuIntake() {
   }
 
   async function generate() {
-    if (!user) return;
+    if (!user || busy || generating) return;
     if (!facing) { Alert.alert('Almost there', 'Please select which direction your home faces.'); return; }
     if (!image) { Alert.alert('Floor plan needed', 'Please upload a photo of your floor plan.'); return; }
 
-    setGenerating(true);
+    // fill-first, pay-at-end: only charge if there isn't already an unused credit
+    setBusy(true);
+    const credits = await reportCredits('vastu');
+    if (credits < 1) {
+      const pay = await purchasePack('report', 'vastu', { contact: user.phone ?? '' });
+      if (!pay.ok) {
+        setBusy(false);
+        if (pay.error !== 'cancelled') {
+          Alert.alert('Payment not completed', 'Something went wrong. Please try again in a moment.');
+        }
+        return;
+      }
+    }
+
     const up = await uploadFloorplan(user.id, image.base64, image.mimeType);
     if (up.error || !up.path) {
-      setGenerating(false);
+      setBusy(false);
       Alert.alert('Upload failed', 'We couldn’t upload your floor plan. Please try again.');
       return;
     }
 
+    setBusy(false);
+    setGenerating(true);
     const answers: Record<string, string> = {
       name: name.trim() || 'Your Home',
       facing, shape, kitchen, master_bedroom: masterBedroom, pooja, toilets, concern,
@@ -69,7 +87,7 @@ export default function VastuIntake() {
       return;
     }
     if (res.error === 'needs_purchase') {
-      Alert.alert('Purchase needed', 'Your report credit wasn’t found. Please buy the report again from Reports.');
+      Alert.alert('Purchase needed', 'Your report credit wasn’t found. Please try again from Reports.');
       return;
     }
     Alert.alert('Generation failed', 'We couldn’t generate your report just now. Please try again in a moment.');
@@ -125,10 +143,12 @@ export default function VastuIntake() {
       <ChipField label="Toilets" options={DIRECTIONS} value={toilets} onChange={setToilets} />
       <ChipField label="Focus of the reading" options={CONCERNS} value={concern} onChange={setConcern} />
 
-      <TouchableOpacity style={styles.generateBtn} onPress={generate}>
-        <Text style={styles.generateText}>Generate my Vaastu Report</Text>
+      <TouchableOpacity style={[styles.generateBtn, busy && styles.btnDisabled]} onPress={generate} disabled={busy}>
+        {busy
+          ? <ActivityIndicator color={Colors.bg} />
+          : <Text style={styles.generateText}>Continue · {paiseTo(REPORT_PRICES.vastu.price_paise)}</Text>}
       </TouchableOpacity>
-      <Text style={styles.note}>This uses your purchased report. It won’t charge you again.</Text>
+      <Text style={styles.note}>You’ll pay only after your details are ready. One report per purchase.</Text>
     </ScrollView>
   );
 }
@@ -200,5 +220,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: Spacing.xl,
   },
   generateText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
+  btnDisabled: { opacity: 0.6 },
   note: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
 });

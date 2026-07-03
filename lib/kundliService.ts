@@ -152,6 +152,16 @@ function buildSummary(
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
+ * Compute a Kundli from raw birth details WITHOUT persisting it. Used for a
+ * matchmaking partner, who has no profile row of their own. Still routed through
+ * this service so rule #1 (one entry point for chart data) holds — when the real
+ * provider is wired in, it swaps at `fetchKundliFromProvider` for this path too.
+ */
+export async function computeKundli(birth: BirthProfile): Promise<Kundli> {
+  return fetchKundliFromProvider(birth);
+}
+
+/**
  * Returns the Kundli for a profile row. Uses the cached chart if present;
  * otherwise computes it, stores it on the row, and returns it.
  */

@@ -135,9 +135,10 @@ ritham/
 - [x] **Phase 4:** app rebuilt with native Razorpay module; **payment verified on device** (test card + netbanking → entitlement granted → chat consumes)
 - [x] **Phase 5:** migration `007_phase5_horoscopes.sql` run (shared horoscope cache)
 - [x] **Phase 5:** Edge Function `horoscope` deployed (slug `horoscope`); **verified rendering on device**
-- [ ] **Phase 7:** run migration `008_phase7_reports.sql` (reports table + 'report' kind + Storage bucket)
-- [ ] **Phase 7:** deploy Edge Function `report`; **redeploy `create-order`** (now handles kind 'report')
-- [ ] **Phase 7:** rebuild app (`npx expo run:android`) — adds image-picker / print / sharing / webview
+- [x] **Phase 7:** migration `008_phase7_reports.sql` run (reports table + 'report' kind + Storage bucket)
+- [x] **Phase 7:** Edge Function `report` deployed (slug `report`); `create-order` redeployed (handles kind 'report')
+- [x] **Phase 7:** app rebuilt (image-picker / print / sharing / webview); **Vastu verified on device**
+- [x] **Phase 7:** Matchmaking added — `report` fn redeployed with the Ashtakoot engine; **verified on device** (JS-only client, no rebuild)
 
 ---
 
@@ -191,7 +192,7 @@ default in SDK 57). Keep the phone unlocked/plugged in; accept any install promp
 | 4 | Payments + entitlements (Razorpay, ledger, paywall) | **DONE — verified on device** (card + netbanking payment → verify → entitlement granted → chat consumes; see §16) |
 | 5 | Home horoscopes (cached, daily/weekly/monthly) | **DONE — verified on device** (migration + `horoscope` fn live; Moon-sign horoscope renders, mock text until API key; see §17) |
 | 6 | Notifications | **DROPPED for v1** |
-| 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | **Vastu CODE DONE — needs deploy + rebuild + test** (floor-plan + Claude vision; Matchmaking still TODO; see §18) |
+| 7 | Reports — premium branded PDF (Vastu + Matchmaking) — see §15 spec | **DONE — verified on device** (Vastu: floor-plan + Claude vision; Matchmaking: Ashtakoot Guna Milan + both charts. Both use fill→pay→generate; see §18) |
 | 8 | Store (Amazon affiliate) | Not started |
 | 9 | ~~Refer & Earn~~ | **REMOVED from plan** |
 | 10 | Polish + compliance (privacy policy, disclaimer, analytics) | Not started |
@@ -496,9 +497,39 @@ cached hard to protect margins.
 
 ---
 
-## 18. Phase 7 — Reports (Vastu CODE DONE; deploy + rebuild + test pending)
+## 18. Phase 7 — Reports (Vastu + Matchmaking — DONE, verified on device)
 
-Vastu is built end-to-end; Matchmaking is still TODO. **Vastu is property-based** (decided
+Both paid reports are live. **Vastu is property-based**: the user uploads a floor plan +
+answers a questionnaire, and Claude **vision** reads the plan to produce a room-by-room
+Vaastu consultancy (no birth chart). **Matchmaking is chart-based**: it compares the user's
+own chart with a partner's via a **deterministic Ashtakoot Guna Milan** (36 gunas), renders
+both birth charts (North/South, user-selectable), and Claude narrates the computed result.
+
+### Order flow (updated with the user): fill → pay → generate
+Both reports now collect the full questionnaire FIRST, then charge, then generate — NOT
+buy-first. Payment moved out of the Reports tab into the end of each intake screen
+(`app/report-vastu.tsx`, `app/report-matchmaking.tsx`): the "Continue · ₹149/₹199" button
+checks `reportCredits(type)` and only opens Razorpay if there's no unused credit (so an
+abandoned-then-retried purchase never double-charges). `purchasePack` awaits server-side
+verification, so the entitlement exists before generation runs (no race). Cancelling the
+sheet leaves the form intact. The Reports-tab buttons are now pure navigation.
+
+### Matchmaking specifics
+- **Guna Milan is COMPUTED** in the `report` Edge Function (rule #2: numbers computed, AI
+  only narrates). All 8 kootas (Varna/Vashya/Tara/Yoni/Graha Maitri/Gana/Bhakoot/Nadi) sum
+  to /36; Nadi/Bhakoot/Mangal doshas detected. Score stored as a compatibility %.
+- **Partner chart** has no profile row, so `kundliService.computeKundli(birth)` computes it
+  WITHOUT persisting (still the single entry point, rule #1). The user's own chart comes
+  from their cached profile Kundli. If the user has no profile yet, the intake prompts them
+  to create one first.
+- Charts rendered as branded HTML: North Indian = SVG diamond; South Indian = fixed 4×4
+  sign grid. Reuses the same money layer (kind 'report', plan 'matchmaking' @ ₹199) and the
+  WebView viewer / `expo-print` PDF export — **no new native modules, no rebuild** for the
+  Matchmaking add; only a `report` Edge Function redeploy.
+
+--- (original Vastu build notes below) ---
+
+**Vastu is property-based** (decided
 with the user): the user uploads a floor plan + answers a questionnaire, and Claude's
 **vision** reads the plan to produce a room-by-room Vaastu consultancy. No birth chart.
 
@@ -539,9 +570,11 @@ with the user): the user uploads a floor plan + answers a questionnaire, and Cla
   `ready`); the `report` entitlement row should now have `consumed_at` set.
 
 ### Not yet done (Phase 7 follow-ups)
-- **Matchmaking** report not built (needs a partner birth-details form + Guna Milan + the
-  user-selectable North/South chart diagram). `reports` table already has `partner` + `chart_style`
-  columns for it.
+- Guna Milan runs on the **mock** Kundli (deterministic, not a real ephemeris). It's correct
+  in structure and fully computed; real astronomical charts arrive at the single
+  `kundliService.fetchKundliFromProvider` swap point (rule #1) — Matchmaking then upgrades
+  automatically. Same policy as the rest of the app's mock charts.
+- Report narration is still **mock** until `ANTHROPIC_API_KEY` is set (scores/charts are real).
 - No report regeneration/edit; one purchase = one generated report. Failed generations leave a
   `failed` row and the entitlement stays unconsumed (user can retry from a fresh intake — a
   "retry" entry point from the Reports tab is a nice-to-have).

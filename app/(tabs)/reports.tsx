@@ -1,49 +1,36 @@
 import { useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useAuth } from '../../context/AuthContext';
-import { listReports, reportCredits, ReportRow } from '../../lib/reportService';
-import { purchasePack } from '../../lib/paymentService';
+import { listReports, reportCredits, ReportRow, ReportType } from '../../lib/reportService';
 import { REPORT_PRICES, paiseTo } from '../../config/pricing';
 import { Colors, Fonts, Spacing } from '../../constants/theme';
 
 export default function ReportsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [vastuCredits, setVastuCredits] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [showReports, setShowReports] = useState(false);
+  const [matchCredits, setMatchCredits] = useState(0);
+  const [open, setOpen] = useState<ReportType | null>(null); // which "My Reports" list is expanded
 
   const load = useCallback(async () => {
-    const [rs, credits] = await Promise.all([listReports(), reportCredits('vastu')]);
+    const [rs, vc, mc] = await Promise.all([
+      listReports(), reportCredits('vastu'), reportCredits('matchmaking'),
+    ]);
     setReports(rs.filter((r) => r.status === 'ready'));
-    setVastuCredits(credits);
+    setVastuCredits(vc);
+    setMatchCredits(mc);
     setLoading(false);
   }, []);
 
-  // refresh whenever the tab regains focus (after buying / generating / viewing)
+  // refresh whenever the tab regains focus (after generating / viewing)
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  async function buyVastu() {
-    if (busy) return;
-    setBusy(true);
-    const res = await purchasePack('report', 'vastu', { contact: user?.phone ?? '' });
-    setBusy(false);
-    if (res.ok) {
-      setVastuCredits((c) => c + 1);
-      router.push('/report-vastu');
-      return;
-    }
-    if (res.error === 'cancelled') return;
-    Alert.alert('Payment not completed', 'Something went wrong. Please try again in a moment.');
-  }
-
   const vastuReports = reports.filter((r) => r.type === 'vastu');
+  const matchReports = reports.filter((r) => r.type === 'matchmaking');
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>;
@@ -67,64 +54,75 @@ export default function ReportsScreen() {
           </View>
         </View>
 
-        {/* past reports — hidden behind a toggle so the card stays uncluttered */}
-        {vastuReports.length > 0 && (
-          <>
-            <TouchableOpacity
-              style={styles.myReportsBtn}
-              onPress={() => setShowReports((s) => !s)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.myReportsText}>📄 My Reports ({vastuReports.length})</Text>
-              <Text style={styles.myReportsChevron}>{showReports ? '▲' : '▼'}</Text>
-            </TouchableOpacity>
+        <PastReports
+          label="Vaastu Report" items={vastuReports}
+          expanded={open === 'vastu'} onToggle={() => setOpen((o) => (o === 'vastu' ? null : 'vastu'))}
+          onOpen={(id) => router.push({ pathname: '/report-view', params: { id } })}
+        />
 
-            {showReports && vastuReports.map((r) => (
-              <TouchableOpacity
-                key={r.id}
-                style={styles.reportRow}
-                onPress={() => router.push({ pathname: '/report-view', params: { id: r.id } })}
-              >
-                <Text style={styles.reportRowText}>
-                  📄 Vaastu Report{r.score != null ? ` · ${r.score}/100` : ''}
-                </Text>
-                <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString('en-IN')}</Text>
-              </TouchableOpacity>
-            ))}
-          </>
-        )}
-
-        {/* CTA: create (has credit) or buy */}
-        {vastuCredits > 0 ? (
-          <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/report-vastu')}>
-            <Text style={styles.primaryBtnText}>Create your Vaastu Report →</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={[styles.primaryBtn, busy && styles.btnDisabled]} onPress={buyVastu} disabled={busy}>
-            {busy
-              ? <ActivityIndicator color={Colors.bg} />
-              : <Text style={styles.primaryBtnText}>Get Vaastu Report · {paiseTo(REPORT_PRICES.vastu.price_paise)}</Text>}
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/report-vastu')}>
+          <Text style={styles.primaryBtnText}>
+            {vastuCredits > 0
+              ? 'Create your Vaastu Report →'
+              : `Get Vaastu Report · ${paiseTo(REPORT_PRICES.vastu.price_paise)}`}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* ── Matchmaking (coming soon) ─────────────────────────────────────────── */}
-      <View style={[styles.card, styles.cardMuted]}>
+      {/* ── Matchmaking ───────────────────────────────────────────────────────── */}
+      <View style={styles.card}>
         <View style={styles.cardHead}>
           <Text style={styles.cardIcon}>💞</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>Matchmaking Report</Text>
             <Text style={styles.cardDesc}>
-              Guna Milan compatibility between two charts, doshas, and remedies.
-              {paiseTo(REPORT_PRICES.matchmaking.price_paise)}.
+              Ashtakoot Guna Milan between your chart and your partner’s — 36-guna score,
+              doshas, both birth charts, and remedies.
             </Text>
           </View>
         </View>
-        <View style={styles.soonPill}><Text style={styles.soonText}>Coming soon</Text></View>
+
+        <PastReports
+          label="Matchmaking Report" items={matchReports}
+          expanded={open === 'matchmaking'} onToggle={() => setOpen((o) => (o === 'matchmaking' ? null : 'matchmaking'))}
+          onOpen={(id) => router.push({ pathname: '/report-view', params: { id } })}
+        />
+
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/report-matchmaking')}>
+          <Text style={styles.primaryBtnText}>
+            {matchCredits > 0
+              ? 'Create your Matchmaking Report →'
+              : `Get Matchmaking Report · ${paiseTo(REPORT_PRICES.matchmaking.price_paise)}`}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.secureNote}>🔒 Reports are generated privately and stored only for you.</Text>
     </ScrollView>
+  );
+}
+
+// Collapsible list of a user's past reports of one type.
+function PastReports({ label, items, expanded, onToggle, onOpen }: {
+  label: string; items: ReportRow[]; expanded: boolean; onToggle: () => void; onOpen: (id: string) => void;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <>
+      <TouchableOpacity style={styles.myReportsBtn} onPress={onToggle} activeOpacity={0.8}>
+        <Text style={styles.myReportsText}>📄 My Reports ({items.length})</Text>
+        <Text style={styles.myReportsChevron}>{expanded ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+
+      {expanded && items.map((r) => (
+        <TouchableOpacity key={r.id} style={styles.reportRow} onPress={() => onOpen(r.id)}>
+          <Text style={styles.reportRowText}>
+            📄 {label}{r.score != null ? ` · ${r.score}${r.type === 'matchmaking' ? '%' : '/100'}` : ''}
+          </Text>
+          <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString('en-IN')}</Text>
+        </TouchableOpacity>
+      ))}
+    </>
   );
 }
 
@@ -139,7 +137,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgCard, borderRadius: 16, padding: Spacing.lg,
     borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md,
   },
-  cardMuted: { opacity: 0.75 },
   cardHead: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.md },
   cardIcon: { fontSize: 34 },
   cardTitle: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700', marginBottom: 4 },
@@ -167,13 +164,6 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: Spacing.xs,
   },
   primaryBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  btnDisabled: { opacity: 0.6 },
-
-  soonPill: {
-    alignSelf: 'flex-start', backgroundColor: Colors.bgMid, borderRadius: 20,
-    paddingVertical: 4, paddingHorizontal: Spacing.md, borderWidth: 1, borderColor: Colors.border,
-  },
-  soonText: { color: Colors.textMuted, fontSize: Fonts.size.xs, fontWeight: '700' },
 
   secureNote: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.md },
 });

@@ -113,3 +113,22 @@ vastu 14900, matchmaking 19900). A purchase grants a `report` entitlement row
 (rule #7); the `report` function consumes it only on a successful generation. Migration
 008 widens the `kind` CHECK on payment_orders + entitlements_ledger and adds the
 `reports` table + a private `reports` Storage bucket (user-scoped by first folder).
+
+### Matchmaking: Guna Milan is COMPUTED server-side, AI only narrates (rule #2)
+The Ashtakoot (8-koota, /36) score is computed deterministically inside the `report`
+Edge Function from the two charts' Moon signs + Nakshatras — Varna, Vashya, Tara, Yoni,
+Graha Maitri, Gana, Bhakoot, Nadi — plus Mangal/Nadi/Bhakoot dosha detection. Claude is
+handed the finished numbers and only narrates their meaning; it never changes a score.
+The stored `score` is the compatibility %. The partner (who has no profile row) is charted
+via `kundliService.computeKundli`, a non-persisting variant of the single chart entry point
+(rule #1) — so real ephemeris later upgrades both people at one swap point. Charts render as
+branded HTML (North = SVG diamond, South = 4×4 sign grid), user-selectable per §15.
+
+### Report order flow: fill the questionnaire FIRST, then pay (both reports)
+Changed with the user from buy-first to **fill → pay → generate**. Payment lives at the end
+of each intake screen, not on the Reports tab. Before charging, the screen checks
+`reportCredits(type)` and skips payment if an unused credit already exists (an abandoned
+purchase is reused, never double-charged). `purchasePack` awaits verification, so the
+entitlement is present before generation (no race); cancelling Razorpay keeps the filled
+form. Rationale: users commit to the effort before paying, and we never take money for a
+report they haven't finished specifying.
