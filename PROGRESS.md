@@ -618,9 +618,30 @@ The pre-launch polish/compliance pass. All client-side except one analytics migr
 `router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })` — a plain
 `/legal/privacy` string fails expo-router's typed-routes check.
 
+### Account deletion (DONE — code; deploy pending) ← added this session
+In-app "Delete Account" path (Play Store / data-safety requirement — not just "email us").
+- Edge Function `supabase/functions/delete-account/index.ts` — authenticates the caller
+  from their JWT (only ever deletes that user) and, via the service role: (1) removes their
+  `reports/<uid>/` Storage objects, (2) deletes the `public.users` row — which **cascades**
+  profiles / chat_sessions / chat_messages / payment_orders / entitlements_ledger / reports
+  (all FK `on delete cascade`; `events.user_id` is `on delete set null` → past analytics
+  survive but are anonymised), (3) deletes the `auth.users` identity (no FK between the two,
+  so it must be deleted explicitly). No new secrets, no new migration.
+- Client `lib/accountService.ts` (`deleteAccount()`, slug `delete-account`).
+- `app/settings.tsx` — DANGER ZONE → "Delete Account" with a **two-step** confirm, busy
+  spinner, then `signOut()` (AuthGate returns to sign-in). Sign-out disabled mid-delete.
+- Privacy Policy §5 (`constants/legal.ts`) now points users to Settings → Delete Account.
+- `npx tsc --noEmit` passes.
+  **To go live:** deploy the `delete-account` Edge Function (dashboard "Via Editor"). Note the
+  assigned slug — if not literally `delete-account`, update `DELETE_ACCOUNT_FN` in
+  `lib/accountService.ts` (same `bright-processor` gotcha). No rebuild (JS-only client change),
+  no migration, no new secrets.
+  **On-device test:** Settings → Delete Account → confirm twice → returns to sign-in. DB check:
+  the user's rows are gone from `public.users`/`profiles`/`chat_*`/`payment_orders`/
+  `entitlements_ledger`/`reports`; `events` rows for that uid now have `user_id = null`; the
+  `reports` Storage folder is empty; the phone can sign up fresh (new `auth.users` row).
+
 ### Not yet done (Phase 10 follow-ups)
-- No in-app account **deletion** flow yet (policy says "email us"); Play Store increasingly
-  wants an in-app path — add before/around store listing.
 - Legal copy is a template — have it reviewed and also **host it at a public URL** for the
   Play Store data-safety/listing fields.
 - `track()` fires one row per event with no batching/offline queue — fine at launch volume.

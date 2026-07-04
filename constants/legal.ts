@@ -63,8 +63,10 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
       {
         heading: '5. Data retention & deletion',
         body:
-          `We keep your data for as long as your account is active. You may request deletion ` +
-          `of your account and associated data at any time by contacting us at ` +
+          `We keep your data for as long as your account is active. You can permanently delete ` +
+          `your account and all associated data at any time from within the app: go to ` +
+          `Settings → Delete Account. This erases your profile, chats, purchases, and reports ` +
+          `and cannot be undone. You may also request deletion by contacting us at ` +
           `${CONTACT_EMAIL}.`,
       },
       {

@@ -1,7 +1,9 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
+import { deleteAccount } from '../lib/accountService';
 import { CONTACT_EMAIL } from '../constants/legal';
 import { Colors, Fonts, Spacing } from '../constants/theme';
 
@@ -9,12 +11,52 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const version = Constants.expoConfig?.version ?? '1.0.0';
+  const [deleting, setDeleting] = useState(false);
 
   function confirmSignOut() {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
     ]);
+  }
+
+  async function runDelete() {
+    setDeleting(true);
+    const res = await deleteAccount();
+    if (res.ok) {
+      // Account is gone server-side; clear the local session → AuthGate returns to sign-in.
+      await signOut();
+      return; // component unmounts on redirect; leave the spinner up
+    }
+    setDeleting(false);
+    Alert.alert(
+      'Couldn’t delete account',
+      'Something went wrong. Please check your connection and try again, or email us at ' + CONTACT_EMAIL + '.',
+    );
+  }
+
+  function confirmDelete() {
+    // Two-step confirmation — deletion is permanent and irreversible.
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account and all your data — your Kundli, chats, purchases, and reports. This cannot be undone. Any unused packs or credits are forfeited.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(
+              'Are you sure?',
+              'Last chance — your account and data will be erased and cannot be recovered.',
+              [
+                { text: 'Keep my account', style: 'cancel' },
+                { text: 'Delete forever', style: 'destructive', onPress: runDelete },
+              ],
+            ),
+        },
+      ],
+    );
   }
 
   return (
@@ -47,9 +89,27 @@ export default function SettingsScreen() {
           <Row label="Contact us" value={CONTACT_EMAIL} last />
         </View>
 
-        <TouchableOpacity style={styles.signOutBtn} onPress={confirmSignOut}>
+        <TouchableOpacity style={styles.signOutBtn} onPress={confirmSignOut} disabled={deleting}>
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
+
+        {/* Danger zone */}
+        <Text style={styles.sectionLabel}>DANGER ZONE</Text>
+        <TouchableOpacity
+          style={[styles.deleteBtn, deleting && styles.deleteBtnBusy]}
+          onPress={confirmDelete}
+          disabled={deleting}
+          activeOpacity={0.7}
+        >
+          {deleting ? (
+            <ActivityIndicator color={Colors.error} />
+          ) : (
+            <Text style={styles.deleteText}>Delete Account</Text>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.deleteHint}>
+          Permanently erases your account and all data. This can’t be undone.
+        </Text>
 
         <Text style={styles.version}>Ritham · v{version}</Text>
         <Text style={styles.tagline}>Made with care for seekers of clarity ✦</Text>
@@ -101,6 +161,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', marginTop: Spacing.xl,
   },
   signOutText: { color: Colors.error, fontSize: Fonts.size.md, fontWeight: '700' },
+
+  deleteBtn: {
+    backgroundColor: Colors.error, borderRadius: 12, padding: Spacing.md,
+    alignItems: 'center', justifyContent: 'center', minHeight: 52,
+  },
+  deleteBtnBusy: { opacity: 0.7 },
+  deleteText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
+  deleteHint: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
 
   version: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.xl },
   tagline: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: 4 },
