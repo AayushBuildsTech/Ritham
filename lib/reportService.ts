@@ -115,3 +115,5 @@ export async function reportCredits(type: ReportType): Promise<number> {
     .eq('kind', 'report').eq('plan_id', type).is('consumed_at', null);
   return (data ?? []).length;
 }
+
+

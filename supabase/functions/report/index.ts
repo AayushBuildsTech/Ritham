@@ -13,6 +13,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
 const MODEL = 'claude-sonnet-5';
 
+
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -74,7 +76,7 @@ Deno.serve(async (req) => {
         user_id: user.id, order_id: ent.order_id, entitlement_id: ent.id,
         type, status: 'generating', answers, floorplan_path: floorplanPath,
       };
-    } else {
+    } else if (type === 'matchmaking') {
       const { self, partner, chartStyle } = body;
       if (!isPerson(self) || !isPerson(partner)) return json({ error: 'missing_people' }, 400);
       style = chartStyle === 'south' ? 'south' : 'north';
@@ -91,12 +93,12 @@ Deno.serve(async (req) => {
 
     try {
       let html: string;
-      let score: number;
+      let score: number | null = null;
       if (type === 'vastu') {
         const analysis = await generateVastu(admin, body.floorplanPath, body.answers);
         html = renderVastuHtml(body.answers, analysis);
         score = analysis.score;
-      } else {
+      } else if (type === 'matchmaking') {
         const milan = computeMilan(body.self, body.partner);
         const analysis = await generateMatch(body.self, body.partner, milan);
         html = renderMatchHtml(body.self, body.partner, milan, analysis, style);
@@ -988,3 +990,5 @@ function renderMatchHtml(a: Person, b: Person, m: Milan, x: MatchAnalysis, style
 
 </body></html>`;
 }
+
+

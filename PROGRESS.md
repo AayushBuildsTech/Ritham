@@ -139,6 +139,7 @@ ritham/
 - [x] **Phase 7:** Edge Function `report` deployed (slug `report`); `create-order` redeployed (handles kind 'report')
 - [x] **Phase 7:** app rebuilt (image-picker / print / sharing / webview); **Vastu verified on device**
 - [x] **Phase 7:** Matchmaking added — `report` fn redeployed with the Ashtakoot engine; **verified on device** (JS-only client, no rebuild)
+- [x] **Phase 7b — Chart-based reports (5 new) — REVERTED.** Back to 2 reports (Vastu + Matchmaking). removed `app/report-chart.tsx`, `ChartReportType`, `generateChartReport`, `computeChartFacts`, `generateChartNarration`, `renderChartReportHtml`. Reports tab simplified to 2 cards. No migration needed.
 - [ ] **Phase 10:** run migration `009_phase10_analytics.sql` (events table). Until run, `track()` no-ops silently — app works, no events recorded. No other deploy; rest is JS-only.
 - [ ] **Free Home features:** run migration `010_panchang_numerology.sql` (panchang_cache + profiles.numerology) AND deploy the `panchang` Edge Function. No new secrets. Numerology needs no deploy (client-only). See §20.
 - [ ] **Shubh Muhurat Finder:** run migration `011_muhurat.sql` (muhurat_cache) AND deploy the `muhurat` Edge Function. No new secrets. See §21.

@@ -25,6 +25,23 @@ export type SessionPlanId = typeof SESSION_PLANS[number]['id'];
 export type QuestionPackId = typeof QUESTION_PACKS[number]['id'];
 export type ReportType = keyof typeof REPORT_PRICES;
 
+// UI metadata for the Reports section (single source of truth for cards).
+export interface ReportMeta {
+  type: ReportType;
+  title: string;
+  desc: string;   // one-line description
+  icon: string;
+  group: 'property';
+  route: string;  // where the card navigates
+}
+
+export const REPORT_META: ReportMeta[] = [
+  { type: 'vastu', title: 'Vaastu Report', icon: '🏠', group: 'property', route: '/report-vastu',
+    desc: 'Upload your floor plan for a room-by-room Vaastu consultancy with score & remedies.' },
+  { type: 'matchmaking', title: 'Matchmaking Report', icon: '💞', group: 'property', route: '/report-matchmaking',
+    desc: 'Ashtakoot Guna Milan with your partner — 36-guna score, doshas, both charts, remedies.' },
+];
+
 export function paiseTo(paise: number): string {
   return `₹${(paise / 100).toFixed(0)}`;
 }

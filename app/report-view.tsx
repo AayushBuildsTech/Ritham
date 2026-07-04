@@ -29,7 +29,7 @@ export default function ReportView() {
     try {
       const { uri } = await Print.printToFileAsync({ html: report.html });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Your Vaastu Report' });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Your Report' });
       } else {
         Alert.alert('Saved', `PDF saved to: ${uri}`);
       }
