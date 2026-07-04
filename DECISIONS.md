@@ -156,3 +156,117 @@ unaffected.
 Raw Supabase auth strings are never shown; `friendlyAuthError()` maps them (wrong/expired
 code, 429 rate-limit, network, 5xx) to calm copy. Leaking provider text reads like a bug and
 exposes internals.
+
+## Free Home features — Panchang + Numerology (computed, never AI)
+
+### Both features cost ₹0 at runtime — COMPUTED + cached, zero LLM calls
+Panchang and Numerology are free retention features on Home. Neither makes any
+Claude/OpenAI call, ever. Panchang is pure astronomy; Numerology is pure arithmetic +
+a static text library. This keeps a growing free surface from adding any marginal cost
+(rule #4 taken to its limit — the cost isn't just bounded, it's zero).
+
+### Panchang: computed in pure code (no provider), cached per city per day
+There is no real astrology provider wired in (`kundliService` is a deterministic mock with
+no Panchang endpoint), so the "simpler working option" per the brief is to COMPUTE the
+almanac directly. The `panchang` Edge Function derives Sun/Moon ecliptic longitudes (Meeus
+low-precision, truncated ELP for the Moon) at local sunrise, then the five limbs — tithi
+(12° elongation), nakshatra (sidereal Moon, Lahiri ayanamsa), yoga (sidereal Sun+Moon),
+karana (6° half-tithis), vaara (weekday) — plus sunrise/sunset (Almanac-for-Computers
+algorithm) and the muhurta windows (Rahu Kaal / Yamaganda / Gulika from the standard weekday
+part-tables; Abhijit around solar noon). It is GENERIC, not personalised: identical for
+everyone in the same city on the same day. Cached in `panchang_cache` keyed by
+`(place_key, date_key)` where `place_key` = lat/lng rounded to 1 decimal (~11 km → a whole
+city collapses to one row) and `date_key` = the IST day. Cache hit → instant; miss → compute
++ store (23505 race falls back to re-reading), same shape as the horoscope cache. A daily
+cron could pre-warm cities later; none exists, so on-demand generation covers it. City is
+taken from the user's profile birth-place lat/lng (we don't collect a separate current
+location in v1).
+
+### Numerology: fully client-side pure math + a fixed text library
+No Edge Function at all. `lib/numerology.ts` computes the Life Path (from DOB, component
+method) and Expression/Destiny (from the full name via the Pythagorean letter map), preserving
+master numbers 11/22/33. The MEANINGS are a hand-written static table in `constants/numerology.ts`
+(one entry per 1–9, 11, 22, 33; Life-Path and Expression framings) — never AI-generated.
+`numerologyService.getNumerology` computes once and persists the numbers to `profiles.numerology`
+(jsonb), so it isn't recomputed each view; the text is looked up from the static library at
+render (so copy can be edited without a re-store). Doing this on-device means literally zero
+server/AI cost.
+
+### Home layout: horoscope stays the hero; Panchang + Numerology are secondary cards
+Below the daily/weekly/monthly horoscope sit two compact, tappable cards ("Today's Panchang",
+"Your Numerology") under a quiet "More for you" label — present but not competing with the hero,
+Home not overcrowded. Each card opens a full detail screen (`app/panchang.tsx`, `app/numerology.tsx`).
+
+### Soft funnel hooks into Chat (gentle, not pushy)
+Each detail screen ends with one optional nudge into the paid Chat ("Curious what today holds
+for you specifically? Ask the astrologer" / "See how your birth chart shapes this — start a
+chat"). Clicks fire `home_hook_clicked {source}`. Views fire `panchang_viewed` /
+`numerology_viewed`. These reuse the existing fire-and-forget `track()` (no new analytics infra;
+`events.name` is free text, so no migration for the event names).
+
+## Free Home tool — Shubh Muhurat Finder (computed, never AI)
+
+### Rule-matching over the Panchang engine — zero AI, zero provider
+The Muhurat Finder is pure rule-matching, not AI. `config/muhuratRules.ts` is the single source
+of truth: each of 7 activities (Griha Pravesh, Marriage, Vehicle, Business, Naming, Property,
+Travel) carries a fixed set of favourable nakshatras + weekdays. The `muhurat` Edge Function
+iterates each day in the range, COMPUTES that day's Panchang with the same self-contained
+astronomy as `panchang/index.ts` (no provider — the mock kundliService has no endpoint), and
+keeps a day when its nakshatra + weekday are favourable and the tithi isn't Rikta (4/9/14) or
+Amavasya. No Claude/OpenAI call anywhere.
+
+### Rules duplicated server-side (same constraint as pricing)
+The canonical rules live in `config/muhuratRules.ts` for the client (activity list, labels,
+funnel targets). The Edge Function can't import that file through the dashboard "Via Editor"
+deploy, so it holds a MIRROR of the rule data — the same pattern as the pricing tables in
+`create-order`/`verify-payment`. Keep the two in sync; a rule change means redeploying `muhurat`.
+
+### v1 time-window simplification (noted per the brief)
+Exact per-activity time windows (choghadiya-level) are deferred. v1 returns favourable DATES
+plus the universally-auspicious **Abhijit Muhurta** window for each (computed from that day's
+sunrise/sunset). A day qualifies on its sunrise-time nakshatra/weekday/tithi; intra-day
+nakshatra changes are not sub-divided. Good enough for a free finder; a real ephemeris/provider
+can sharpen it later at the same boundary (rule #1's single swap point).
+
+### Cached per (activity, city, date-range) for the day
+`muhurat_cache` unique on `(activity, place_key, range_key)` — `place_key` = lat/lng rounded to
+1 decimal (same city grid as `panchang_cache`), `range_key` = `START_END` IST ISO dates. Default
+range is today…+45 (capped at +90). Because `range_key` starts at today, the cache naturally
+rolls over each day. Cache hit → instant; miss → compute + store (23505 race re-reads).
+
+### Placement + soft funnel to the matching paid product
+A "Shubh Muhurat Finder" card sits with the other secondary Home cards, below the horoscope hero
+→ `app/muhurat.tsx` (activity picker → results). Each result set ends with ONE gentle,
+activity-aware nudge: Griha Pravesh/Property → Vastu report; Marriage → Matchmaking report;
+others → Chat. Events: `muhurat_opened`, `muhurat_activity_selected {activity}`,
+`muhurat_results_viewed {activity}`, `muhurat_funnel_clicked {target}`. A disclaimer reminds
+users to confirm important muhurats with a priest/astrologer.
+
+## Free Home tool — Live Darshan (deep-link directory, v1)
+
+### Deep-link OUT, never embed/host (deliberate legal-safety choice)
+v1 is a curated directory that links OUT to each temple's OFFICIAL YouTube live page
+(`Linking.openURL` → external YouTube app/browser). Ritham does not host, embed, download or
+re-stream any content — YouTube bears all streaming cost and the temple owns the stream. This
+sidesteps both bandwidth cost and content-licensing risk. No AI/LLM anywhere.
+
+### Static config, official channels only
+`config/temples.ts` is the single source of truth (8 well-known temples: name, location, deity,
+icon, timings, official `streamUrl`, `source`, `mode`, `verified`). A prominent CRITICAL-RULE
+comment enforces official-only sources (shrine board / trust / devasthanam) — never fan
+re-uploads, aggregators, or mirrors. URLs use the channel `/live` suffix so we never hardcode an
+expiring video id; the button opens the current live stream if running, else the channel. All 8
+URLs were verified against each temple board's own channel/site (2026-07-04) and marked
+`verified: true`. Most are official YouTube channels; **Mahakaleshwar has no official YouTube
+channel**, so it links to its official MP-Government live-darshan page (`source: 'website'`) — the
+`source` field lets the UI say "official YouTube channel" vs "official temple website" accurately.
+
+### Staged upgrade path baked into the data model
+Each temple carries `mode: 'link' | 'embed'`, all `'link'` in v1. A future v2 can flip a single
+temple to `'embed'` (official YouTube IFrame player in-app) ONLY after that temple grants written
+permission. Embedding is not built yet — the field just reserves the seam.
+
+### Free, unmonetised, no implied endorsement
+No Ritham ads around/over the darshan links; the disclaimer explicitly states the streams are the
+temples' official channels, that Ritham does not own/host the content, and that Ritham is not
+affiliated with or endorsed by any temple. Events: `darshan_opened`, `darshan_temple_clicked {temple}`.
