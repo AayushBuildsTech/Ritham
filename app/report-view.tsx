@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getReport, ReportRow } from '../lib/reportService';
+import { track } from '../lib/analytics';
 import { Colors, Fonts, Spacing } from '../constants/theme';
 
 export default function ReportView() {
@@ -28,6 +29,7 @@ export default function ReportView() {
     setExporting(true);
     try {
       const { uri } = await Print.printToFileAsync({ html: report.html });
+      track('report_downloaded', { type: report.type });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Your Report' });
       } else {

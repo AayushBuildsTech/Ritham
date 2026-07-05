@@ -11,7 +11,10 @@ import { supabase } from './supabase';
 
 const REPORT_FUNCTION = 'report';
 
-export type ReportType = 'vastu' | 'matchmaking';
+// The five chart reports (life/career/love/health/education) plus the two
+// original reports (vastu, property-based; matchmaking, two-person).
+export type ChartReportType = 'life' | 'career' | 'love' | 'health' | 'education';
+export type ReportType = 'vastu' | 'matchmaking' | ChartReportType;
 
 export interface ReportRow {
   id: string;
@@ -84,6 +87,21 @@ export async function generateMatchmaking(
 ): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke<GenerateResult>(REPORT_FUNCTION, {
     body: { type: 'matchmaking', self, partner, chartStyle },
+  });
+  if (error) return { error: data?.error ?? error.message ?? 'request_failed' };
+  return data ?? { error: 'request_failed' };
+}
+
+// Generate a single-person chart report (life/career/love/health/education).
+// `self` is the user's own chart built from their cached Kundli (rule #1 — the
+// chart comes from kundliService; the Edge Function only derives facts + narrates).
+// Requires a paid, unconsumed 'report' entitlement with plan_id === type.
+export async function generateChartReport(
+  type: ChartReportType,
+  self: MatchPerson,
+): Promise<GenerateResult> {
+  const { data, error } = await supabase.functions.invoke<GenerateResult>(REPORT_FUNCTION, {
+    body: { type, self },
   });
   if (error) return { error: data?.error ?? error.message ?? 'request_failed' };
   return data ?? { error: 'request_failed' };

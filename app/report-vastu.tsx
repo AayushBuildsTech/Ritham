@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert,
 } from 'react-native';
@@ -31,6 +31,8 @@ export default function VastuIntake() {
   const [image, setImage] = useState<{ uri: string; base64: string; mimeType: string } | null>(null);
   const [busy, setBusy] = useState(false);      // validating / payment step
   const [generating, setGenerating] = useState(false); // report generation
+
+  useEffect(() => { track('report_started', { type: 'vastu' }); }, []);
 
   async function pickFloorplan() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -65,6 +67,7 @@ export default function VastuIntake() {
         }
         return;
       }
+      track('report_purchased', { type: 'vastu' });
     }
 
     const up = await uploadFloorplan(user.id, image.base64, image.mimeType);

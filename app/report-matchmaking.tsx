@@ -61,6 +61,8 @@ export default function MatchmakingIntake() {
   const [place, setPlace] = useState<SelectedPlace | null>(null);
   const [chartStyle, setChartStyle] = useState<ChartStyle>('north');
 
+  useEffect(() => { track('report_started', { type: 'matchmaking' }); }, []);
+
   // ── load the user's own chart (needed for both sides of the match) ──────────
   useEffect(() => {
     (async () => {
@@ -142,6 +144,7 @@ export default function MatchmakingIntake() {
           }
           return;
         }
+        track('report_purchased', { type: 'matchmaking' });
       }
 
       setBusy(false);

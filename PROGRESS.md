@@ -143,6 +143,7 @@ ritham/
 - [ ] **Phase 10:** run migration `009_phase10_analytics.sql` (events table). Until run, `track()` no-ops silently — app works, no events recorded. No other deploy; rest is JS-only.
 - [ ] **Free Home features:** run migration `010_panchang_numerology.sql` (panchang_cache + profiles.numerology) AND deploy the `panchang` Edge Function. No new secrets. Numerology needs no deploy (client-only). See §20.
 - [ ] **Shubh Muhurat Finder:** run migration `011_muhurat.sql` (muhurat_cache) AND deploy the `muhurat` Edge Function. No new secrets. See §21.
+- [ ] **5 new chart reports (Life/Career/Love/Health/Education):** run migration `012_chart_reports.sql` (widens `reports.type`), redeploy the `report` Edge Function (single-file `index.ts` — the chart engine is inlined as `namespace Chart`), and redeploy `create-order` (new prices). No rebuild, no new secrets. See §23.
 
 ---
 
@@ -790,3 +791,76 @@ RULE in `config/temples.ts`).
 ### Upgrade path (v2 — do NOT build yet)
 Each temple has `mode` reserved. After a temple grants WRITTEN permission, flip its `mode` to
 `'embed'` to render the official YouTube IFrame player in-app for that temple only.
+
+---
+
+## 23. Five new premium chart reports (CODE DONE; UI verified on device; backend deploy pending)
+
+> **UI verified on device (2026-07-05):** app rebundled over wireless ADB; the regrouped Reports tab
+> (Comprehensive/Focused/Home, flagship badged) and the shared `report-chart` intake render correctly.
+> End-to-end purchase+generation is blocked only on the three deploy steps below (migration 012 +
+> `report` + `create-order`) — until `create-order` is redeployed, "Continue" returns `unknown_plan`
+> for the new plan ids.
+
+
+Added five single-person, chart-based PDF reports alongside the existing Vastu + Matchmaking. They
+reuse the SAME money layer, viewer, PDF export and brand styling. **All astrology is COMPUTED
+deterministically (rule #2); Claude only narrates; the chart comes from `kundliService` (rule #1).**
+
+**New reports & fixed prices** (paise in `config/pricing.ts` + `create-order`):
+- **Complete Kundli Analysis (Life Report) — ₹399** (flagship; all 12 houses, planets, yogas, full
+  Mahadasha timeline, life-area outlook, remedies, life-path summary — the deepest report).
+- **Career & Finance — ₹149** · **Love & Relationship — ₹129** · **Health & Wellbeing — ₹99**
+  (explicit "not medical advice") · **Education & Career (Students) — ₹99**.
+Existing **Vastu ₹149** and **Matchmaking ₹199** unchanged.
+
+**What was built:**
+- Chart-report engine — houses + lords + strengths, yoga detection (Gajakesari, Budha-Aditya,
+  Chandra-Mangala, 5× Pancha-Mahapurusha, exalt/debil), Vimshottari dasha timeline (Maha + Antar,
+  current/upcoming), thematic scores, per-type Claude narration + thorough mock fallback, and the
+  branded multi-page HTML renderer. It is **inlined into `report/index.ts` as `namespace Chart`**
+  (single-file deploy — the dashboard editor's `./chart.ts` import failed to bundle, so it was merged
+  into one file; verified it bundles with esbuild). A standalone pure copy lives in the scratchpad for
+  regenerating samples.
+- `supabase/functions/report/index.ts` — carries the engine; dispatch now accepts the 5 chart types,
+  gates on a paid `report` entitlement (plan_id = type), computes → narrates → renders → stores,
+  consumes the entitlement on success. **Vastu/Matchmaking code untouched.**
+- `config/pricing.ts` — 5 new `REPORT_PRICES`, `CHART_REPORT_TYPES`/`isChartReport`, regrouped
+  `REPORT_META` (`flagship` | `personal` | `home`) + `REPORT_GROUPS`. `create-order` prices mirrored.
+- `migrations/012_chart_reports.sql` — widens `reports.type` CHECK to the 5 new types (kind stays
+  `report`, plan_id free text). *(This file already existed from the reverted 7b attempt and is exactly
+  what's needed — it was NOT run before; run it now.)*
+- Client: `lib/reportService.ts` (`ChartReportType`, `generateChartReport`), `app/report-chart.tsx`
+  (one shared intake for all 5 — shows scope + a single "Continue · ₹price"; fill-first/pay-at-end),
+  regrouped Reports tab (flagship badged), analytics `report_started`/`report_purchased`/
+  `report_downloaded` wired across all report intakes + the viewer.
+- `npx tsc --noEmit` passes. Sample HTML+PDF for all 5 generated from test-chart data (see below).
+
+### To go live
+1. **Migration:** run `012_chart_reports.sql` in the SQL editor.
+2. **Deploy** the `report` function — **single file** `index.ts` (the chart engine is inlined as
+   `namespace Chart`; nothing else to upload). Keep the slug `report` (else update `REPORT_FUNCTION`
+   in `lib/reportService.ts`). **Redeploy `create-order`** (new report prices). `verify-payment` unchanged.
+3. **No app rebuild** (no new native modules — reuses expo-print/webview) and **no new secrets**
+   (reuses `ANTHROPIC_API_KEY` → mock narration until set; scores/houses/dasha/yogas are real regardless).
+
+### On-device test
+- Reports tab → **Complete Kundli Analysis ₹399** → intake shows the scope → Continue → pay
+  (netbanking Success, or domestic card `5267 3181 8797 5449`; NOT `4111…`) → report opens (branded
+  indigo/gold WebView) → **Download** exports the PDF. Repeat for a ₹99–149 focused report.
+- DB check: `select type, status, score from public.reports order by created_at desc;` (status `ready`);
+  the `report` entitlement row has `consumed_at` set. `select name, props from public.events where
+  name like 'report_%';` shows started/purchased/generated/downloaded.
+
+### Sample outputs (generated offline from the mock path, this session)
+`C:\Users\user\Desktop\Ritham\report-samples\sample-{life,career,love,health,education}.{html,pdf}`
+— test chart "Ananya Sharma" (Leo lagna; Budha-Aditya + Gajakesari + exalted Jupiter + Shasha yogas).
+The life report is clearly the deepest (all 12 houses, 7 narrated sections). These are exactly what
+the in-app WebView renders and what `expo-print` exports.
+
+### Not yet done (follow-ups)
+- Narration is mock until `ANTHROPIC_API_KEY` is set (same policy as chat/horoscope/other reports).
+- Dasha balance uses a deterministic fraction of the birth nakshatra (the mock chart has no exact
+  Moon longitude); it sharpens automatically when a real ephemeris arrives at the `kundliService`
+  swap point (rule #1), same as every other mock-chart feature.
+- Chart diagram is North-Indian only in these reports (Matchmaking still offers North/South).

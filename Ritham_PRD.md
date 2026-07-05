@@ -130,3 +130,60 @@ content-risk by linking out to temples' own official streams.
 ### Hard rules
 - **Zero runtime cost** — static config + external links only; no AI, no hosting, no bandwidth
   cost to us (YouTube bears streaming).
+
+---
+
+## Premium Reports (7 total: 2 existing + 5 new)
+
+### Why
+Reports are the highest-value paid layer — branded, multi-page PDF readings the user keeps and
+re-downloads forever. Each must feel genuinely worth its price: detailed, specific to the user's
+own chart, well-structured. Never thin or generic.
+
+### The catalogue (fixed, fair pricing — do NOT overcharge)
+**Comprehensive (flagship)**
+- **Complete Kundli Analysis (Life Report) — ₹399.** The deepest report: full birth chart, all 12
+  houses, planetary positions, key yogas, complete Mahadasha/Antardasha timeline with
+  interpretation, life-area outlook (career, wealth, marriage, health, family), personality,
+  strengths/challenges, remedies, overall life-path summary. Clearly the longest & most complete.
+
+**Focused single-person readings (from the user's own chart)**
+- **Career & Finance — ₹149.** 10th-house & wealth analysis, suitable fields, job-vs-business,
+  wealth yogas, favourable/weak financial periods, practical guidance.
+- **Love & Relationship — ₹129.** 5th/7th-house reading of an *individual's* love life (not
+  two-person matching): patterns, timing, what to seek in a partner, guidance.
+- **Health & Wellbeing — ₹99.** Constitutional tendencies, areas to care for, periods needing
+  care, lifestyle guidance. Gentle, non-alarming; explicit "not medical advice" note.
+- **Education & Career for Students — ₹99.** Favourable fields, academic strengths, exam/competition
+  timing, guidance for students & parents.
+
+**Home & compatibility (existing, unchanged)**
+- **Vaastu — ₹149** (property-based, floor-plan + Claude vision).
+- **Matchmaking — ₹199** (two-person Ashtakoot Guna Milan).
+
+### Fair-value rules
+- Prices are FIXED as above; no hidden charges, no aggressive in-report upsell.
+- Content depth must match price — the ₹399 flagship is substantially more comprehensive than the
+  ₹99–149 focused reports. Real chart-based depth, never padding.
+- One purchase = one report, saved to the account for **unlimited re-download** (no re-payment).
+
+### How (reuses the Phase 7 pipeline)
+Pay (server-verified Razorpay) → the `report` Edge Function **computes** the astrology deterministically
+(houses, house lords, Vimshottari dasha, yogas, thematic strength — rule #2) → Claude **narrates** around
+the computed facts → branded HTML → stored in `public.reports` → viewed in-app → exported to PDF via
+`expo-print`. The chart itself always comes from `kundliService` (rule #1). Mock narration until
+`ANTHROPIC_API_KEY` is set (scores, houses, dasha and yogas are real regardless).
+
+### UI
+Reports tab groups cards as **Comprehensive** (flagship, badged), **Focused Readings**, and
+**Home & Compatibility**. The five chart reports share one intake screen (`app/report-chart.tsx`)
+that shows the report's scope and a single "Continue · ₹price" button (fill-first, pay-at-end).
+
+### Analytics (`lib/analytics.ts`)
+Added `report_started {type}`, `report_purchased {type}`, `report_downloaded {type}` (plus the
+existing `report_generated`). Free-text `events.name`; no analytics migration.
+
+### Hard rules
+- AI narrates only; every score, house, yoga and dasha date is computed in code (rule #2).
+- All chart data flows through `kundliService` (rule #1).
+- Generation only after server-side payment verification (rule #3); each grant is one ledger row (rule #7).

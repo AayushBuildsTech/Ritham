@@ -146,3 +146,47 @@ Added: `darshan_opened`, `darshan_temple_clicked` (free-text `events.name`, no m
 Deep-link only; no host/embed/download/re-stream. Free & unmonetised (no ads around darshan
 links). Every non-Tirupati `youtubeUrl` must be human-verified and flipped to `verified: true`
 before launch.
+
+---
+
+## Premium Reports — build spec (7 types)
+
+Seven paid reports share ONE pipeline and ONE visual style (indigo/gold/serif, branded cover +
+disclaimer). Prices (paise, single source of truth `config/pricing.ts`, mirrored in
+`create-order`): life 39900 · career 14900 · love 12900 · health 9900 · education 9900 ·
+vastu 14900 · matchmaking 19900.
+
+### Types & flow
+- **Chart reports** (`life`, `career`, `love`, `health`, `education`) — single-person, driven by the
+  user's own cached Kundli. One intake screen `app/report-chart.tsx` (`?type=`), no extra input.
+- **Vastu** — property-based (floor plan + Claude vision), `app/report-vastu.tsx`.
+- **Matchmaking** — two-person Ashtakoot, `app/report-matchmaking.tsx`.
+
+### Chart-report engine — inlined in `report/index.ts` as `namespace Chart` (single-file deploy)
+Deterministically COMPUTES from the placements it is handed (never fetches a chart — rule #1):
+- **Houses** (1–12): sign, ruling lord + where the lord sits, occupants, and a 0–100 strength score.
+- **Yogas**: Gajakesari, Budha-Aditya, Chandra-Mangala, the five Pancha-Mahapurusha (Ruchaka/Bhadra/
+  Hamsa/Malavya/Shasha), plus exalted/debilitated flags.
+- **Vimshottari dasha**: nakshatra → starting Mahadasha; deterministic balance; full Maha timeline +
+  the running Maha's Antardashas; current & upcoming periods dated.
+- **Thematic score**: weighted average of the report's focus houses (`CHART_META[type].focus`).
+Claude then NARRATES a unified JSON shape (`overview`, `sections[]`, `timing`, `guidance[]`,
+`remedies[]`, `verdict`) — depth scales by type (flagship `life` = 7–8 sections, all 12 houses;
+focused = 4–5 sections, focus houses only). Mock narration (thorough, fact-driven) until
+`ANTHROPIC_API_KEY` is set. `renderChartHtml` emits the branded multi-page HTML.
+`index.ts` wraps the engine in `namespace Chart` and wires entitlement/Storage/DB around it (Vastu &
+Matchmaking paths unchanged). **Deploy note:** the `report` function is a SINGLE file — a `./chart.ts`
+import failed to bundle in the dashboard editor, so the engine was inlined (verified with esbuild).
+
+### DB
+Migration `012_chart_reports.sql` widens `reports.type` CHECK to include the 5 new types. `kind`
+stays `report`; `plan_id` is the report type (free text) — no change to payment_orders /
+entitlements_ledger.
+
+### Analytics
+`report_started {type}` (intake mount), `report_purchased {type}` (after verified pay),
+`report_downloaded {type}` (PDF export in `report-view.tsx`), plus existing `report_generated`.
+
+### Deploy (see PROGRESS.md §23)
+Run migration `012`; redeploy `report` (single file — engine inlined) and redeploy `create-order`
+(new prices). No app rebuild (chart reports add no native modules), no new secrets.

@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { listReports, reportCredits, ReportRow, ReportType } from '../../lib/reportService';
-import { REPORT_META, paiseTo, REPORT_PRICES } from '../../config/pricing';
+import { REPORT_META, REPORT_GROUPS, paiseTo, REPORT_PRICES } from '../../config/pricing';
 import { Colors, Fonts, Spacing } from '../../constants/theme';
 
 export default function ReportsScreen() {
@@ -48,63 +48,72 @@ export default function ReportsScreen() {
       <Text style={styles.h1}>Reports</Text>
       <Text style={styles.sub}>Premium, personalised readings — beautifully presented.</Text>
 
-      <View style={styles.groupSection}>
-        {REPORT_META.map((meta) => {
-          const priceObj = (REPORT_PRICES as any)[meta.type];
-          const price = priceObj ? paiseTo(priceObj.price_paise) : '';
-          const hasCredits = (credits[meta.type] || 0) > 0;
-          const pastReports = pastByType[meta.type] || [];
+      {REPORT_GROUPS.map((group) => {
+        const items = REPORT_META.filter((m) => m.group === group.key);
+        if (items.length === 0) return null;
+        return (
+          <View key={group.key} style={styles.groupSection}>
+            <Text style={styles.groupLabel}>{group.label}</Text>
+            {items.map((meta) => {
+              const priceObj = (REPORT_PRICES as any)[meta.type];
+              const price = priceObj ? paiseTo(priceObj.price_paise) : '';
+              const hasCredits = (credits[meta.type] || 0) > 0;
+              const pastReports = pastByType[meta.type] || [];
+              const flagship = meta.group === 'flagship';
 
-          return (
-            <View key={meta.type} style={styles.card}>
-              <View style={styles.cardHead}>
-                <Text style={styles.cardIcon}>{meta.icon}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{meta.title}</Text>
-                  <Text style={styles.cardDesc}>{meta.desc}</Text>
-                </View>
-              </View>
+              return (
+                <View key={meta.type} style={[styles.card, flagship && styles.cardFlagship]}>
+                  <View style={styles.cardHead}>
+                    <Text style={styles.cardIcon}>{meta.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.cardTitleRow}>
+                        <Text style={styles.cardTitle}>{meta.title}</Text>
+                        {flagship && <Text style={styles.flagBadge}>FLAGSHIP</Text>}
+                      </View>
+                      <Text style={styles.cardDesc}>{meta.desc}</Text>
+                    </View>
+                  </View>
 
-              {pastReports.length > 0 && (
-                <>
+                  {pastReports.length > 0 && (
+                    <>
+                      <TouchableOpacity
+                        style={styles.myReportsBtn}
+                        onPress={() => setOpen((o) => (o === meta.type ? null : meta.type as any))}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.myReportsText}>📄 My Reports ({pastReports.length})</Text>
+                        <Text style={styles.myReportsChevron}>{open === meta.type ? '▲' : '▼'}</Text>
+                      </TouchableOpacity>
+
+                      {open === meta.type && pastReports.map((r) => (
+                        <TouchableOpacity
+                          key={r.id}
+                          style={styles.reportRow}
+                          onPress={() => router.push({ pathname: '/report-view', params: { id: r.id } })}
+                        >
+                          <Text style={styles.reportRowText}>
+                            📄 {meta.title}{r.score != null ? ` · ${r.score}${meta.type === 'matchmaking' ? '%' : '/100'}` : ''}
+                          </Text>
+                          <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString('en-IN')}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  )}
+
                   <TouchableOpacity
-                    style={styles.myReportsBtn}
-                    onPress={() => setOpen((o) => (o === meta.type ? null : meta.type as any))}
-                    activeOpacity={0.8}
+                    style={[styles.primaryBtn, flagship && styles.primaryBtnFlagship]}
+                    onPress={() => router.push({ pathname: meta.route as any, params: { type: meta.type } })}
                   >
-                    <Text style={styles.myReportsText}>📄 My Reports ({pastReports.length})</Text>
-                    <Text style={styles.myReportsChevron}>{open === meta.type ? '▲' : '▼'}</Text>
+                    <Text style={styles.primaryBtnText}>
+                      {hasCredits ? `Create Report →` : `Get Report · ${price}`}
+                    </Text>
                   </TouchableOpacity>
-
-                  {open === meta.type && pastReports.map((r) => (
-                    <TouchableOpacity
-                      key={r.id}
-                      style={styles.reportRow}
-                      onPress={() => router.push({ pathname: '/report-view', params: { id: r.id } })}
-                    >
-                      <Text style={styles.reportRowText}>
-                        📄 {meta.title}{r.score != null ? ` · ${r.score}${meta.type === 'matchmaking' ? '%' : '/100'}` : ''}
-                      </Text>
-                      <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString('en-IN')}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </>
-              )}
-
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() => router.push({ pathname: meta.route as any, params: { type: meta.type } })}
-              >
-                <Text style={styles.primaryBtnText}>
-                  {hasCredits
-                    ? `Create Report →`
-                    : `Get Report · ${price}`}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-      </View>
+                </View>
+              );
+            })}
+          </View>
+        );
+      })}
 
       <Text style={styles.secureNote}>🔒 Reports are generated privately and stored for unlimited re-download.</Text>
     </ScrollView>
@@ -128,9 +137,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgCard, borderRadius: 16, padding: Spacing.lg,
     borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md,
   },
+  cardFlagship: { borderColor: Colors.gold, backgroundColor: Colors.bgMid },
   cardHead: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.md },
   cardIcon: { fontSize: 34 },
-  cardTitle: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700', marginBottom: 4 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 4, flexWrap: 'wrap' },
+  cardTitle: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700' },
+  flagBadge: {
+    color: Colors.bg, backgroundColor: Colors.gold, fontSize: 9, fontWeight: '800',
+    letterSpacing: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, overflow: 'hidden',
+  },
   cardDesc: { fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20 },
 
   myReportsBtn: {
@@ -154,6 +169,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.md,
     alignItems: 'center', marginTop: Spacing.xs,
   },
+  primaryBtnFlagship: { paddingVertical: Spacing.md + 2 },
   primaryBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
 
   secureNote: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.md },

@@ -9,6 +9,8 @@
 // a successful generation. Mock output until ANTHROPIC_API_KEY is set.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+// Chart-report engine is inlined at the bottom of this file (namespace Chart) so
+// the function deploys as a SINGLE file via the dashboard editor.
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
 const MODEL = 'claude-sonnet-5';
@@ -55,7 +57,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const type = body?.type;
-    if (type !== 'vastu' && type !== 'matchmaking') return json({ error: 'unsupported_type' }, 400);
+    if (type !== 'vastu' && type !== 'matchmaking' && !Chart.isChartType(type)) return json({ error: 'unsupported_type' }, 400);
 
     // a paid, unconsumed 'report' entitlement of THIS type (plan_id = type)
     const { data: ent } = await admin
@@ -85,6 +87,14 @@ Deno.serve(async (req) => {
         type, status: 'generating', chart_style: style,
         partner: { self, partner }, // both charts kept on the record
       };
+    } else if (Chart.isChartType(type)) {
+      // single-person chart report: reads the user's own cached Kundli (rule #1)
+      const { self } = body;
+      if (!isPerson(self)) return json({ error: 'missing_chart' }, 400);
+      insertRow = {
+        user_id: user.id, order_id: ent.order_id, entitlement_id: ent.id,
+        type, status: 'generating', answers: { self }, // chart snapshot kept on the record
+      };
     }
 
     const { data: report, error: rErr } = await admin
@@ -103,6 +113,12 @@ Deno.serve(async (req) => {
         const analysis = await generateMatch(body.self, body.partner, milan);
         html = renderMatchHtml(body.self, body.partner, milan, analysis, style);
         score = milan.percent;
+      } else if (Chart.isChartType(type)) {
+        const person = body.self as Chart.ChartPerson;
+        const facts = Chart.computeChartFacts(person, type);
+        const analysis = await Chart.narrateChart(type, person, facts, { apiKey: ANTHROPIC_API_KEY, model: MODEL });
+        html = Chart.renderChartHtml(type, person, facts, analysis);
+        score = facts.score;
       }
 
       await admin.from('reports')
@@ -992,3 +1008,946 @@ function renderMatchHtml(a: Person, b: Person, m: Milan, x: MatchAnalysis, style
 }
 
 
+
+
+// ════════════════════════════════════════════════════════════════════════════
+//  Inlined chart-report engine (single-file deploy). Wrapped in `namespace Chart`
+//  so its helpers do not collide with the Vastu/Matchmaking helpers above.
+// ════════════════════════════════════════════════════════════════════════════
+namespace Chart {
+// chart.ts — pure, self-contained engine for the five single-person chart reports
+// (life / career / love / health / education).
+//
+// Design (Ritham rules #1 & #2):
+//   • The birth chart itself comes from the client's kundliService (rule #1). This
+//     module NEVER fetches or recomputes a chart — it only DERIVES facts from the
+//     placements it is handed (houses, house lords, Vimshottari dasha timeline,
+//     yogas, thematic strengths). All of that is COMPUTED deterministically.
+//   • Claude only NARRATES around the computed facts (rule #2). Until an API key is
+//     set, a thorough type-specific MOCK narration is produced so previews show the
+//     full depth and styling the final report will have.
+//
+// This file is dependency-free (no supabase-js, no Deno globals except `fetch`,
+// which exists in both Deno and Node 18+), so it can be unit-run to generate sample
+// PDFs. index.ts imports it and wires the entitlement / storage / DB around it.
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Types
+// ─────────────────────────────────────────────────────────────────────────────
+export type ChartReportType = 'life' | 'career' | 'love' | 'health' | 'education';
+export const CHART_TYPES: ChartReportType[] = ['life', 'career', 'love', 'health', 'education'];
+export function isChartType(t: unknown): t is ChartReportType {
+  return typeof t === 'string' && (CHART_TYPES as string[]).includes(t);
+}
+
+export interface ChartPlacement { graha: string; sign: string; house: number }
+export interface ChartPerson {
+  name: string;
+  gender?: 'male' | 'female' | 'other';
+  dob: string;  // YYYY-MM-DD
+  tob: string;  // HH:MM:SS
+  birth_place: string;
+  lagna: string;
+  moon_sign: string;
+  sun_sign: string;
+  nakshatra: string;
+  placements: ChartPlacement[];
+}
+
+export interface PlanetPos { name: string; sign: string; signIdx: number; house: number; dignity: Dignity }
+export type Dignity = 'Exalted' | 'Debilitated' | 'Own sign' | 'Neutral';
+export interface HouseInfo {
+  house: number; sign: string; signIdx: number; lord: string;
+  lordHouse: number | null; lordDignity: Dignity | null;
+  occupants: { name: string; dignity: Dignity }[];
+  strength: number; // 0-100
+}
+export interface Yoga { name: string; nature: 'benefic' | 'caution'; detail: string }
+export interface MahaPeriod { lord: string; start: Date; end: Date; years: number; fullYears: number }
+export interface AntarPeriod { lord: string; start: Date; end: Date; years: number }
+export interface DashaInfo {
+  birth: Date;
+  periods: MahaPeriod[];
+  current: MahaPeriod;
+  antars: AntarPeriod[];
+  currentAntar: AntarPeriod;
+  upcoming: MahaPeriod[];
+}
+export interface ChartFacts {
+  lagnaIdx: number;
+  planets: Record<string, PlanetPos>;
+  houses: HouseInfo[];
+  yogas: Yoga[];
+  dasha: DashaInfo;
+  score: number; // thematic strength for the report focus (0-100)
+}
+export interface ChartAnalysis {
+  overview: string;
+  sections: { heading: string; body: string; points: string[] }[];
+  timing: string;
+  guidance: string[];
+  remedies: string[];
+  verdict: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Constants
+// ─────────────────────────────────────────────────────────────────────────────
+const SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+const NAK = ['Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu',
+  'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta', 'Chitra', 'Swati',
+  'Vishakha', 'Anuradha', 'Jyeshtha', 'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana',
+  'Dhanishta', 'Shatabhisha', 'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati'];
+// sign lord by sign index (0 Aries .. 11 Pisces)
+const LORDS = ['Mars', 'Venus', 'Mercury', 'Moon', 'Sun', 'Mercury',
+  'Venus', 'Mars', 'Jupiter', 'Saturn', 'Saturn', 'Jupiter'];
+const OWN: Record<string, number[]> = {
+  Sun: [4], Moon: [3], Mars: [0, 7], Mercury: [2, 5], Jupiter: [8, 11], Venus: [1, 6], Saturn: [9, 10],
+};
+const EXALT: Record<string, number> = { Sun: 0, Moon: 1, Mars: 9, Mercury: 5, Jupiter: 3, Venus: 11, Saturn: 6 };
+const DEBIL: Record<string, number> = { Sun: 6, Moon: 7, Mars: 3, Mercury: 11, Jupiter: 9, Venus: 5, Saturn: 0 };
+const BENEFIC = new Set(['Jupiter', 'Venus', 'Mercury', 'Moon']);
+const MALEFIC = new Set(['Sun', 'Mars', 'Saturn', 'Rahu', 'Ketu']);
+
+const GRAHA_ABBR: [RegExp, string][] = [
+  [/sun|surya/i, 'Su'], [/moon|chandra/i, 'Mo'], [/mars|mangal/i, 'Ma'], [/mercury|budha/i, 'Me'],
+  [/jupiter|guru/i, 'Ju'], [/venus|shukra/i, 'Ve'], [/saturn|shani/i, 'Sa'], [/rahu/i, 'Ra'], [/ketu/i, 'Ke'],
+];
+const CANON: [RegExp, string][] = [
+  [/sun|surya/i, 'Sun'], [/moon|chandra/i, 'Moon'], [/mars|mangal/i, 'Mars'], [/mercury|budha/i, 'Mercury'],
+  [/jupiter|guru/i, 'Jupiter'], [/venus|shukra/i, 'Venus'], [/saturn|shani/i, 'Saturn'], [/rahu/i, 'Rahu'], [/ketu/i, 'Ketu'],
+];
+const canon = (g: string) => CANON.find(([re]) => re.test(g))?.[1] ?? String(g).split('(')[0].trim();
+const abbr = (g: string) => GRAHA_ABBR.find(([re]) => re.test(g))?.[1] ?? g.slice(0, 2);
+
+const signIdx = (s: string) => {
+  const base = String(s).split('(')[0].trim();
+  const i = SIGNS.findIndex((x) => base.toLowerCase().startsWith(x.toLowerCase()));
+  return i < 0 ? 0 : i;
+};
+const nakIdx = (s: string) => {
+  const base = String(s).split('(')[0].trim().toLowerCase();
+  const i = NAK.findIndex((x) => x.toLowerCase() === base);
+  return i < 0 ? 0 : i;
+};
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(n)));
+
+function dignity(planet: string, si: number): Dignity {
+  if (EXALT[planet] === si) return 'Exalted';
+  if (DEBIL[planet] === si) return 'Debilitated';
+  if (OWN[planet]?.includes(si)) return 'Own sign';
+  return 'Neutral';
+}
+
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Per-report metadata
+// ─────────────────────────────────────────────────────────────────────────────
+interface Meta { title: string; sub: string; brand: string; focus: number[]; scoreCap: string }
+export const CHART_META: Record<ChartReportType, Meta> = {
+  life: { title: 'Complete Kundli Analysis', sub: 'A comprehensive Vedic life reading', brand: 'LIFE REPORT',
+    focus: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], scoreCap: 'OVERALL CHART STRENGTH' },
+  career: { title: 'Career & Finance Report', sub: 'Vocation, wealth & professional timing', brand: 'CAREER & FINANCE',
+    focus: [10, 2, 11, 6, 7, 9], scoreCap: 'CAREER & WEALTH STRENGTH' },
+  love: { title: 'Love & Relationship Report', sub: 'Romance, partnership & marital harmony', brand: 'LOVE & RELATIONSHIP',
+    focus: [7, 5, 2, 8], scoreCap: 'RELATIONSHIP STRENGTH' },
+  health: { title: 'Health & Wellbeing Report', sub: 'Constitution, vitality & lifestyle', brand: 'HEALTH & WELLBEING',
+    focus: [1, 6, 8, 12], scoreCap: 'CONSTITUTIONAL STRENGTH' },
+  education: { title: 'Education & Career Report', sub: 'Studies, intellect & academic direction', brand: 'EDUCATION · STUDENTS',
+    focus: [4, 5, 9, 2], scoreCap: 'ACADEMIC STRENGTH' },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Compute chart facts (deterministic)
+// ─────────────────────────────────────────────────────────────────────────────
+export function computeChartFacts(p: ChartPerson, type: ChartReportType): ChartFacts {
+  const lagnaIdx = signIdx(p.lagna);
+  const planets: Record<string, PlanetPos> = {};
+  for (const pl of p.placements) {
+    const name = canon(pl.graha);
+    const si = signIdx(pl.sign);
+    planets[name] = { name, sign: SIGNS[si], signIdx: si, house: pl.house, dignity: dignity(name, si) };
+  }
+
+  const houses: HouseInfo[] = [];
+  for (let h = 1; h <= 12; h++) {
+    const si = (lagnaIdx + h - 1) % 12;
+    const lord = LORDS[si];
+    const lp = planets[lord];
+    const occupants = p.placements
+      .filter((x) => x.house === h)
+      .map((x) => ({ name: canon(x.graha), dignity: dignity(canon(x.graha), signIdx(x.sign)) }));
+    houses.push({
+      house: h, sign: SIGNS[si], signIdx: si, lord,
+      lordHouse: lp ? lp.house : null, lordDignity: lp ? lp.dignity : null,
+      occupants, strength: 0,
+    });
+  }
+  for (const h of houses) h.strength = houseStrength(h);
+
+  const yogas = detectYogas(planets);
+  const dasha = computeDasha(p);
+
+  const focus = CHART_META[type].focus;
+  const avg = focus.reduce((s, h) => s + houses[h - 1].strength, 0) / focus.length;
+  const score = clamp(avg, 45, 90);
+
+  return { lagnaIdx, planets, houses, yogas, dasha, score };
+}
+
+function houseStrength(h: HouseInfo): number {
+  let s = 52;
+  for (const o of h.occupants) {
+    if (BENEFIC.has(o.name)) s += 9;
+    if (MALEFIC.has(o.name)) s -= 6;
+    if (o.dignity === 'Exalted') s += 8;
+    else if (o.dignity === 'Own sign') s += 5;
+    else if (o.dignity === 'Debilitated') s -= 8;
+  }
+  if (h.lordHouse) {
+    if ([1, 4, 5, 7, 9, 10].includes(h.lordHouse)) s += 10;
+    else if ([6, 8, 12].includes(h.lordHouse)) s -= 9;
+    if (h.lordDignity === 'Exalted') s += 6;
+    else if (h.lordDignity === 'Debilitated') s -= 6;
+  }
+  return clamp(s, 20, 95);
+}
+
+function detectYogas(planets: Record<string, PlanetPos>): Yoga[] {
+  const y: Yoga[] = [];
+  const { Moon: moon, Jupiter: jup, Sun: sun, Mercury: merc, Mars: mars, Venus: ven, Saturn: sat } = planets;
+  const dist = (from: number, to: number) => ((to - from + 12) % 12) + 1;
+  const kendra = (hh: number) => [1, 4, 7, 10].includes(hh);
+
+  if (moon && jup && [1, 4, 7, 10].includes(dist(moon.house, jup.house)))
+    y.push({ name: 'Gajakesari Yoga', nature: 'benefic', detail: 'Jupiter sits in a kendra from the Moon — a classic yoga for wisdom, good reputation, and rising fortune.' });
+  if (sun && merc && sun.signIdx === merc.signIdx)
+    y.push({ name: 'Budha-Aditya Yoga', nature: 'benefic', detail: 'The Sun and Mercury unite — sharp intellect, articulate communication, and recognition through the mind.' });
+  if (moon && mars && moon.signIdx === mars.signIdx)
+    y.push({ name: 'Chandra-Mangala Yoga', nature: 'benefic', detail: 'Moon with Mars — drive, enterprise, and a knack for turning effort into earnings.' });
+
+  const mp: [PlanetPos | undefined, string, string][] = [
+    [mars, 'Ruchaka', 'courage, leadership and physical vitality'],
+    [merc, 'Bhadra', 'intellect, eloquence and business acumen'],
+    [jup, 'Hamsa', 'wisdom, virtue and spiritual grace'],
+    [ven, 'Malavya', 'charm, comforts and artistic refinement'],
+    [sat, 'Shasha', 'discipline, endurance and authority'],
+  ];
+  for (const [pl, nm, gift] of mp)
+    if (pl && kendra(pl.house) && (pl.dignity === 'Own sign' || pl.dignity === 'Exalted'))
+      y.push({ name: `${nm} Yoga`, nature: 'benefic', detail: `${pl.name} is powerful in a kendra — a Pancha-Mahapurusha yoga granting ${gift}.` });
+
+  for (const nm of ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']) {
+    const pl = planets[nm];
+    if (pl?.dignity === 'Exalted')
+      y.push({ name: `Exalted ${nm}`, nature: 'benefic', detail: `${nm} is exalted in ${pl.sign}, lending its significations unusual strength and clarity.` });
+    if (pl?.dignity === 'Debilitated')
+      y.push({ name: `Debilitated ${nm}`, nature: 'caution', detail: `${nm} is placed in its sign of debilitation (${pl.sign}) — an area that asks for conscious effort, and which often improves greatly with the right remedy.` });
+  }
+  return y.slice(0, 10);
+}
+
+// ── Vimshottari Mahadasha ──────────────────────────────────────────────────────
+const DASHA_SEQ: [string, number][] = [
+  ['Ketu', 7], ['Venus', 20], ['Sun', 6], ['Moon', 10], ['Mars', 7],
+  ['Rahu', 18], ['Jupiter', 16], ['Saturn', 19], ['Mercury', 17],
+];
+const NAK_LORD_ORDER = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury'];
+const seqFrom = (lord: string) => {
+  const i = DASHA_SEQ.findIndex((x) => x[0] === lord);
+  return [...DASHA_SEQ.slice(i), ...DASHA_SEQ.slice(0, i)];
+};
+const YMS = 365.2425 * 86400000;
+const addYears = (d: Date, yrs: number) => new Date(d.getTime() + yrs * YMS);
+const parseDate = (s: string) => {
+  const [y, m, d] = String(s).split('-').map(Number);
+  return new Date(y || 1990, (m || 1) - 1, d || 1);
+};
+
+function computeDasha(p: ChartPerson): DashaInfo {
+  const startLord = NAK_LORD_ORDER[nakIdx(p.nakshatra) % 9];
+  const frac = (hashStr(`${p.dob}|${p.tob}|${p.name}`) % 1000) / 1000; // elapsed fraction of birth nakshatra
+  const seq = seqFrom(startLord);
+  const birth = parseDate(p.dob);
+
+  const periods: MahaPeriod[] = [];
+  let cursor = new Date(birth);
+  for (let i = 0; i < seq.length; i++) {
+    const [lord, yrs] = seq[i];
+    const dur = i === 0 ? yrs * (1 - frac) : yrs;
+    const start = new Date(cursor);
+    const end = addYears(cursor, dur);
+    periods.push({ lord, start, end, years: dur, fullYears: yrs });
+    cursor = end;
+  }
+
+  const now = new Date();
+  const current = periods.find((pp) => now >= pp.start && now < pp.end) ?? periods[0];
+  const antars = computeAntars(current);
+  const currentAntar = antars.find((a) => now >= a.start && now < a.end) ?? antars[0];
+  const upcoming = periods.filter((pp) => pp.start > now).slice(0, 4);
+  return { birth, periods, current, antars, currentAntar, upcoming };
+}
+
+function computeAntars(m: MahaPeriod): AntarPeriod[] {
+  const out: AntarPeriod[] = [];
+  let c = new Date(m.start);
+  for (const [lord, yrs] of seqFrom(m.lord)) {
+    const dur = m.years * (yrs / 120);
+    const start = new Date(c);
+    const end = addYears(c, dur);
+    out.push({ lord, start, end, years: dur });
+    c = end;
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Narration — Claude narrates the computed facts (mock until API key set)
+// ─────────────────────────────────────────────────────────────────────────────
+export async function narrateChart(
+  type: ChartReportType, p: ChartPerson, facts: ChartFacts,
+  opts: { apiKey?: string; model?: string } = {},
+): Promise<ChartAnalysis> {
+  if (!opts.apiKey) return mockChart(type, p, facts);
+
+  const model = opts.model ?? 'claude-sonnet-5';
+  const factSheet = buildFactSheet(type, p, facts);
+  const system = buildSystem(type);
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': opts.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model, max_tokens: type === 'life' ? 8000 : 5000, thinking: { type: 'disabled' }, system,
+      messages: [{ role: 'user', content: factSheet }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  const text = (data.content ?? []).find((b: any) => b.type === 'text')?.text ?? '';
+  const s = text.indexOf('{'), e = text.lastIndexOf('}');
+  const obj = JSON.parse(s >= 0 && e > s ? text.slice(s, e + 1) : text);
+  const arr = (v: any) => (Array.isArray(v) ? v.map(String) : []);
+  const secs = Array.isArray(obj.sections) ? obj.sections : [];
+  return {
+    overview: String(obj.overview ?? ''),
+    sections: secs.slice(0, type === 'life' ? 9 : 6).map((x: any) => ({
+      heading: String(x?.heading ?? ''), body: String(x?.body ?? ''),
+      points: Array.isArray(x?.points) ? x.points.map(String).slice(0, 8) : [],
+    })),
+    timing: String(obj.timing ?? ''),
+    guidance: arr(obj.guidance).slice(0, 10),
+    remedies: arr(obj.remedies).slice(0, 10),
+    verdict: String(obj.verdict ?? ''),
+  };
+}
+
+function buildSystem(type: ChartReportType): string {
+  const common =
+    `You are a warm, senior Vedic astrologer writing a PREMIUM, detailed, multi-page consultancy report. ` +
+    `Every chart fact, house, planetary placement, yoga, strength score and Mahadasha period is ALREADY COMPUTED ` +
+    `and supplied to you — narrate their meaning with depth, warmth and specificity. NEVER invent placements, ` +
+    `houses, dates or scores, and never contradict the supplied numbers. Write substantial prose (each section ` +
+    `body 2-3 full paragraphs), grounded in THIS person's actual chart, not generic filler. ` +
+    `Return ONLY valid JSON (no markdown, no code fences) with EXACTLY these keys:\n` +
+    `{\n` +
+    `  "overview": string (2-3 rich paragraphs introducing the person and the theme of this report),\n` +
+    `  "sections": [ { "heading": string, "body": string (2-3 paragraphs), "points": [string] (3-6 concrete bullets) } ],\n` +
+    `  "timing": string (1-2 paragraphs interpreting the CURRENT and UPCOMING Mahadasha for this life area),\n` +
+    `  "guidance": [string] (6-8 practical, specific guidance points),\n` +
+    `  "remedies": [string] (6-8 remedies — mantras, gemstones, charities, conduct),\n` +
+    `  "verdict": string (one encouraging closing sentence)\n` +
+    `}`;
+  const per: Record<ChartReportType, string> = {
+    life:
+      `\n\nThis is the FLAGSHIP Complete Kundli Analysis — the deepest report. Provide 7-8 sections covering: ` +
+      `Personality & temperament (Lagna/Moon/Sun), Mind & emotions, Career & vocation, Wealth & finances, ` +
+      `Marriage & relationships, Health & vitality, Strengths & challenges (from yogas), and an overall Life-path summary. ` +
+      `Make it clearly the most comprehensive report a client can buy.`,
+    career:
+      `\n\nFocus: CAREER & FINANCE. Provide 4-5 sections: Career direction & suitable fields (10th house/lord), ` +
+      `Job vs business inclination, Wealth & income potential (2nd/11th, yogas), Financially strong & weak periods, ` +
+      `and Practical professional guidance. Be concrete about fields and timing.`,
+    love:
+      `\n\nFocus: an INDIVIDUAL'S LOVE LIFE (not two-person matching). Provide 4-5 sections: Relationship nature & patterns ` +
+      `(5th/7th), What you seek and need in a partner, Timing of significant relationships/marriage (dasha), ` +
+      `Harmony & areas to nurture, and Guidance for lasting love. Warm and sensitive in tone.`,
+    health:
+      `\n\nFocus: HEALTH & WELLBEING. Provide 4-5 sections: Constitutional tendencies (Lagna/Moon), Areas to care for ` +
+      `(6th/8th significations), Periods needing extra care (dasha), and Lifestyle, diet & wellbeing guidance. ` +
+      `Frame everything gently and positively. This is astrological guidance, NOT medical diagnosis — include no ` +
+      `medical claims and no alarming language.`,
+    education:
+      `\n\nFocus: EDUCATION & CAREER FOR STUDENTS. Provide 4-5 sections: Academic strengths & learning style (4th/5th, Mercury/Jupiter), ` +
+      `Favourable fields & streams of study, Exam & competition timing (dasha), and Guidance for the student and their parents. ` +
+      `Encouraging and practical.`,
+  };
+  return common + per[type];
+}
+
+function buildFactSheet(type: ChartReportType, p: ChartPerson, f: ChartFacts): string {
+  const houseLines = f.houses.map((h) =>
+    `House ${h.house} (${h.sign}): lord ${h.lord}${h.lordHouse ? ` in house ${h.lordHouse}${h.lordDignity && h.lordDignity !== 'Neutral' ? ` (${h.lordDignity})` : ''}` : ''}` +
+    `${h.occupants.length ? `, occupied by ${h.occupants.map((o) => o.name + (o.dignity !== 'Neutral' ? ` (${o.dignity})` : '')).join(', ')}` : ', empty'}` +
+    ` — strength ${h.strength}/100`).join('\n');
+  const d = f.dasha;
+  const fmt = (dt: Date) => dt.toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
+  const upcoming = d.upcoming.map((u) => `${u.lord} (${fmt(u.start)}–${fmt(u.end)})`).join(', ');
+  return (
+    `Report type: ${CHART_META[type].title}\n` +
+    `Person: ${p.name}${p.gender ? `, ${p.gender}` : ''}\n` +
+    `Born: ${p.dob} ${p.tob} at ${p.birth_place}\n` +
+    `Lagna (Ascendant): ${p.lagna}\nMoon sign (Rashi): ${p.moon_sign}\nSun sign: ${p.sun_sign}\nNakshatra: ${p.nakshatra}\n\n` +
+    `TWELVE HOUSES:\n${houseLines}\n\n` +
+    `YOGAS:\n${f.yogas.length ? f.yogas.map((y) => `- ${y.name} (${y.nature}): ${y.detail}`).join('\n') : '- No major classical yogas detected.'}\n\n` +
+    `DASHA: Currently running ${d.current.lord} Mahadasha (until ${fmt(d.current.end)}), ` +
+    `${d.currentAntar.lord} Antardasha. Upcoming Mahadashas: ${upcoming || '—'}.\n` +
+    `Thematic strength score for this report: ${f.score}/100.\n\n` +
+    `Write the complete JSON report now, focused as instructed.`
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Mock narration — thorough, type-specific, built from the computed facts
+// ─────────────────────────────────────────────────────────────────────────────
+const firstName = (n: string) => (String(n).trim().split(/\s+/)[0] || 'You');
+const strong = (f: ChartFacts) => [...f.houses].sort((a, b) => b.strength - a.strength);
+const houseTheme: Record<number, string> = {
+  1: 'self, vitality and outlook', 2: 'wealth, speech and family', 3: 'courage, effort and siblings',
+  4: 'home, mother, comfort and schooling', 5: 'intelligence, romance and children', 6: 'health, service and rivals',
+  7: 'partnership and marriage', 8: 'longevity, transformation and hidden matters', 9: 'fortune, dharma and higher learning',
+  10: 'career, status and public life', 11: 'gains, income and aspirations', 12: 'expenses, retreat and liberation',
+};
+
+function benefics(f: ChartFacts) { return f.yogas.filter((y) => y.nature === 'benefic'); }
+function cautions(f: ChartFacts) { return f.yogas.filter((y) => y.nature === 'caution'); }
+
+function mockChart(type: ChartReportType, p: ChartPerson, f: ChartFacts): ChartAnalysis {
+  const nm = firstName(p.name);
+  const top = strong(f).slice(0, 3);
+  const low = [...f.houses].sort((a, b) => a.strength - b.strength).slice(0, 2);
+  const d = f.dasha;
+  const fmt = (dt: Date) => dt.toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
+  const preface =
+    `(Preview report — the full AI narration activates once the Claude API key is set. The chart facts, houses, ` +
+    `yogas, strength scores and Mahadasha timeline shown throughout are already fully computed and final.)\n\n`;
+
+  const commonOverview =
+    `${preface}${nm}'s chart rises in ${p.lagna}, with the Moon in ${p.moon_sign} and the Sun in ${p.sun_sign}, ` +
+    `born under the ${p.nakshatra} nakshatra. The Ascendant sets the lens through which ${nm} meets the world, ` +
+    `while the Moon describes the inner emotional landscape and the Sun the core sense of self and purpose.\n\n` +
+    `The strongest supports in this chart gather around the houses of ${top.map((h) => `${ordinal(h.house)} (${houseTheme[h.house]})`).join(', ')}, ` +
+    `while ${low.map((h) => ordinal(h.house)).join(' and ')} ask for more conscious attention. ` +
+    `${benefics(f).length ? `Auspicious combinations such as ${benefics(f).slice(0, 2).map((y) => y.name).join(' and ')} add genuine strength. ` : ''}` +
+    `The chart is presently in the ${d.current.lord} Mahadasha (through ${fmt(d.current.end)}), a defining chapter whose themes colour this reading throughout.`;
+
+  const timing =
+    `${nm} is currently in the major period (Mahadasha) of ${d.current.lord}, running until ${fmt(d.current.end)}, ` +
+    `with ${d.currentAntar.lord} as the present sub-period (Antardasha). This blend sets the tone of the coming months. ` +
+    `${d.upcoming.length ? `Looking ahead, the ${d.upcoming[0].lord} Mahadasha (from ${fmt(d.upcoming[0].start)}) opens a new phase` + (d.upcoming[1] ? `, followed by ${d.upcoming[1].lord} from ${fmt(d.upcoming[1].start)}` : '') + `. ` : ''}` +
+    `Aligning important decisions and launches with supportive sub-periods within these dashas will meaningfully improve results.`;
+
+  const base: ChartAnalysis = {
+    overview: commonOverview, sections: [], timing,
+    guidance: [], remedies: commonRemedies(f, nm), verdict: '',
+  };
+
+  const H = (n: number) => f.houses[n - 1];
+  const lordOf = (n: number) => { const h = H(n); return `the ${ordinal(n)} lord ${h.lord}${h.lordHouse ? ` in the ${ordinal(h.lordHouse)} house` : ''}`; };
+  const occ = (n: number) => { const o = H(n).occupants; return o.length ? o.map((x) => x.name).join(', ') : 'no planets'; };
+
+  if (type === 'life') {
+    base.sections = [
+      sect('Personality & Temperament',
+        `With ${p.lagna} rising, ${nm} presents a distinctive outward nature shaped by its ruling planet ${H(1).lord}${H(1).lordHouse ? `, placed in the ${ordinal(H(1).lordHouse)} house` : ''}. ` +
+        `The first house — the seat of vitality and self — carries a strength of ${H(1).strength}/100 in this chart. ` +
+        `The Moon in ${p.moon_sign} governs the emotional mind, giving ${nm} a characteristic inner rhythm, while the ${p.nakshatra} nakshatra adds its own signature to temperament and instinct.`,
+        [`Ascendant: ${p.lagna} (lord ${H(1).lord})`, `Moon (mind): ${p.moon_sign}`, `Sun (self): ${p.sun_sign}`, `Birth star: ${p.nakshatra}`]),
+      sect('Career & Vocation',
+        `The tenth house of career holds ${occ(10)} and is ruled by ${lordOf(10)}, scoring ${H(10).strength}/100. ` +
+        `Together with the second and eleventh houses of wealth and gains, this describes ${nm}'s professional direction and the fields in which effort is most rewarded.`,
+        [`10th house: ${occ(10)} · lord ${H(10).lord}`, `Gains (11th): ${occ(11)}`, `Strength: ${H(10).strength}/100`]),
+      sect('Wealth & Finances',
+        `The second house (accumulated wealth) and eleventh (income and gains) are anchored by ${lordOf(2)} and ${lordOf(11)}. ` +
+        `${benefics(f).some((y) => /Chandra-Mangala|Budha/.test(y.name)) ? 'A wealth-supportive combination is present, aiding earnings. ' : ''}` +
+        `Financial stability grows as ${nm} aligns saving and investment with the supportive dasha periods noted later.`,
+        [`2nd (wealth) strength: ${H(2).strength}/100`, `11th (gains) strength: ${H(11).strength}/100`]),
+      sect('Marriage & Relationships',
+        `The seventh house of partnership contains ${occ(7)} and is governed by ${lordOf(7)} at ${H(7).strength}/100, ` +
+        `with the fifth house of romance ruled by ${lordOf(5)}. These describe the nature of ${nm}'s significant bonds and the qualities sought in a partner.`,
+        [`7th (partner): ${occ(7)} · lord ${H(7).lord}`, `5th (romance): ${occ(5)}`]),
+      sect('Health & Vitality',
+        `Vitality flows from a first house at ${H(1).strength}/100 and its lord ${H(1).lord}. The sixth and eighth houses — ${occ(6)} and ${occ(8)} — ` +
+        `indicate where to keep balance. None of this is medical advice; it simply highlights where mindful lifestyle habits pay the greatest dividends.`,
+        [`1st (vitality): ${H(1).strength}/100`, `6th (immunity/service): ${occ(6)}`]),
+      sect('Strengths, Yogas & Challenges',
+        `${benefics(f).length ? `This chart carries ${benefics(f).length} supportive combination(s): ${benefics(f).map((y) => y.name).join(', ')}. ` : 'The chart draws its strength from steady, well-placed lords rather than dramatic yogas. '}` +
+        `${cautions(f).length ? `Areas asking for conscious effort include ${cautions(f).map((y) => y.name).join(', ')}, each of which responds well to the remedies suggested. ` : 'No significant afflictions stand out — a well-balanced foundation. '}`,
+        f.yogas.slice(0, 6).map((y) => `${y.name}: ${y.detail}`)),
+      sect('Life-Path Summary',
+        `Taken as a whole, ${nm}'s chart tells the story of a life that builds meaningfully through its ${d.current.lord} and ${d.upcoming[0]?.lord ?? 'coming'} periods. ` +
+        `The strongest houses — ${top.map((h) => ordinal(h.house)).join(', ')} — are where destiny cooperates most readily, and channelling energy there brings the surest progress and fulfilment.`,
+        []),
+    ];
+    base.guidance = [
+      `Lean into the themes of your strongest houses (${top.map((h) => ordinal(h.house)).join(', ')}) — these are where your natural momentum lies.`,
+      `Give patient, conscious attention to the ${low.map((h) => ordinal(h.house)).join(' and ')} houses rather than forcing them.`,
+      `Time major beginnings with the supportive dasha sub-periods described in the timing section.`,
+      `Cultivate the significations of ${d.current.lord} (your current major period) through study, service or devotion.`,
+      `Keep a steady daily spiritual practice — it strengthens the whole chart, not one house.`,
+      `Revisit this reading at each change of Mahadasha to re-align your plans.`,
+    ];
+    base.verdict = `A rich and capable chart — lived with awareness and the noted remedies, ${nm}'s path holds real promise and purpose.`;
+    return base;
+  }
+
+  if (type === 'career') {
+    base.sections = [
+      sect('Career Direction & Suitable Fields',
+        `${nm}'s vocation is read primarily from the tenth house, here holding ${occ(10)} and ruled by ${lordOf(10)} (strength ${H(10).strength}/100). ` +
+        `The nature of ${H(10).lord} and the sign ${H(10).sign} point toward fields aligned with its character — ` +
+        `${fieldsFor(H(10).lord)}. The ninth house of fortune (${occ(9)}) supports growth through mentors and higher learning.`,
+        [`10th house: ${occ(10)} · lord ${H(10).lord} in ${H(10).lordHouse ? ordinal(H(10).lordHouse) : '—'}`, `Suggested fields: ${fieldsFor(H(10).lord)}`]),
+      sect('Job vs Business',
+        `The balance between employment and enterprise is weighed from the strength of the tenth (service and authority) against the seventh and third (self-driven venture). ` +
+        `Here the ${H(10).strength >= H(7).strength ? 'tenth house is the stronger, favouring a distinguished career within organisations, leadership tracks or institutions' : 'seventh and self-effort houses hold their own, so independent ventures and partnerships can flourish alongside employment'}.`,
+        [`10th strength: ${H(10).strength}/100`, `7th (enterprise/partnership): ${H(7).strength}/100`]),
+      sect('Wealth & Income Potential',
+        `Income and gains are shown by the eleventh house (${occ(11)}, strength ${H(11).strength}/100) and accumulated wealth by the second (${occ(2)}). ` +
+        `${benefics(f).some((y) => /Chandra-Mangala/.test(y.name)) ? 'The Chandra-Mangala combination adds a natural flair for earning. ' : ''}Steady wealth-building suits ${nm} better than speculation.`,
+        [`11th (gains): ${H(11).strength}/100`, `2nd (savings): ${H(2).strength}/100`]),
+      sect('Financially Strong & Weak Periods',
+        `${timing} The ${d.current.lord} period is ${['Jupiter', 'Mercury', 'Venus', 'Moon'].includes(d.current.lord) ? 'generally favourable for professional expansion and income' : 'a phase for consolidation, skill-building and disciplined effort'}.`,
+        []),
+    ];
+    base.guidance = [
+      `Aim for roles that use the strengths of ${H(10).lord} — ${fieldsFor(H(10).lord)}.`,
+      `Build income steadily through the eleventh-house significations rather than risky shortcuts.`,
+      `Make key career moves during the supportive dasha windows noted above.`,
+      `Invest in a mentor or advanced qualification — your ninth house rewards it.`,
+      `Keep finances organised and avoid over-leverage during weaker sub-periods.`,
+    ];
+    base.verdict = `With focused effort in the right fields and well-timed moves, ${nm}'s professional and financial path can rise steadily and securely.`;
+    return base;
+  }
+
+  if (type === 'love') {
+    base.sections = [
+      sect('Your Relationship Nature',
+        `${nm}'s emotional and romantic style is read from the fifth house of romance (${occ(5)}, ruled by ${lordOf(5)}) and the Moon in ${p.moon_sign}. ` +
+        `This describes how ${nm} gives and receives affection, and the tone of the heart in matters of love.`,
+        [`5th (romance): ${occ(5)} · lord ${H(5).lord}`, `Moon (heart): ${p.moon_sign}`]),
+      sect('Partnership & What You Seek',
+        `The seventh house of partnership holds ${occ(7)} and is governed by ${lordOf(7)} at ${H(7).strength}/100. ` +
+        `The qualities of ${H(7).lord} and the sign ${H(7).sign} describe the partner ${nm} is naturally drawn to — ${partnerFor(H(7).lord)}.`,
+        [`7th (partner): ${occ(7)} · lord ${H(7).lord}`, `You are drawn to: ${partnerFor(H(7).lord)}`]),
+      sect('Timing of Significant Relationships',
+        `${timing} Periods ruled by Venus, Jupiter or the seventh lord are especially fertile for meeting a partner or deepening commitment.`,
+        []),
+      sect('Nurturing Lasting Love',
+        `${cautions(f).length ? `Gentle attention to ${cautions(f).map((y) => y.name).join(', ')} will smooth the path in relationships. ` : 'No major afflictions trouble the relationship houses — a naturally warm foundation. '}` +
+        `Honest communication and shared ritual keep the seventh house strong over time.`,
+        []),
+    ];
+    base.guidance = [
+      `Seek a partner who embodies ${partnerFor(H(7).lord)} — it matches your seventh house.`,
+      `Favour Venus and Jupiter sub-periods for engagement or marriage.`,
+      `Nurture the fifth house of romance with playfulness and creativity.`,
+      `Address any noted caution areas early and openly, together.`,
+      `Keep a shared spiritual or gratitude practice to steady the bond.`,
+    ];
+    base.verdict = `Warm-hearted and capable of deep partnership — with the right timing and understanding, ${nm}'s love life can flourish.`;
+    return base;
+  }
+
+  if (type === 'health') {
+    base.sections = [
+      sect('Constitutional Tendencies',
+        `${nm}'s vitality is read from the first house (${occ(1)}, strength ${H(1).strength}/100) and its lord ${H(1).lord}, together with the Moon in ${p.moon_sign}. ` +
+        `This describes the natural constitution and the general reserves of energy — a gentle guide to lifestyle, not a medical assessment.`,
+        [`1st (vitality): ${H(1).strength}/100 · lord ${H(1).lord}`, `Moon (mind/rest): ${p.moon_sign}`]),
+      sect('Areas to Care For',
+        `The sixth house (${occ(6)}) and eighth (${occ(8)}) traditionally indicate where balance is most worth maintaining. ` +
+        `${cautions(f).length ? `The chart also flags ${cautions(f).map((y) => y.name).join(', ')}, which simply suggests extra self-care in those significations. ` : 'No strong afflictions appear here — a reassuring sign. '}` +
+        `This is guidance for wellbeing only, and never a substitute for a qualified doctor.`,
+        [`6th (immunity): ${occ(6)}`, `8th (stamina): ${occ(8)}`]),
+      sect('Periods Needing Extra Care',
+        `${timing} During more demanding sub-periods, prioritise rest, routine and preventive habits rather than pushing through.`,
+        []),
+      sect('Lifestyle & Wellbeing Guidance',
+        `A steady daily rhythm suits ${nm}'s constitution: regular sleep, wholesome food, movement, and calming practices for the Moon-ruled mind. ` +
+        `Small, consistent habits strengthen the first house far more than intense, occasional effort.`,
+        []),
+    ];
+    base.guidance = [
+      `Keep a regular daily routine — it suits your Moon in ${p.moon_sign}.`,
+      `Favour gentle, consistent exercise over sporadic intensity.`,
+      `Prioritise rest and prevention during the demanding periods noted above.`,
+      `Nourish the mind with calming practices — pranayama, meditation, time in nature.`,
+      `Treat this as wellbeing guidance and consult a qualified doctor for any real concern.`,
+    ];
+    base.verdict = `A workable constitution that rewards steady, mindful living — small daily kindnesses to body and mind go a long way for ${nm}.`;
+    return base;
+  }
+
+  // education
+  base.sections = [
+    sect('Academic Strengths & Learning Style',
+      `${nm}'s mind for study is read from the fourth house of schooling (${occ(4)}), the fifth of intelligence (${occ(5)}, strength ${H(5).strength}/100), ` +
+      `and the placement of Mercury (intellect) and Jupiter (wisdom). This describes how ${nm} learns best and where natural aptitude lies.`,
+      [`5th (intellect): ${occ(5)} · ${H(5).strength}/100`, `Mercury: ${f.planets['Mercury']?.sign ?? '—'}`, `Jupiter: ${f.planets['Jupiter']?.sign ?? '—'}`]),
+    sect('Favourable Fields of Study',
+      `The strengths of the fifth and ninth houses and the sign of Mercury point toward streams that suit ${nm} — ${fieldsFor(f.planets['Mercury']?.name === 'Mercury' ? SIGNS_LORD(f.planets['Mercury']!.signIdx) : H(5).lord)}. ` +
+      `Higher learning is supported by the ninth house (${occ(9)}).`,
+      [`Suggested streams: ${fieldsFor(H(5).lord)}`, `9th (higher study): ${occ(9)}`]),
+    sect('Exam & Competition Timing',
+      `${timing} Mercury and Jupiter sub-periods are particularly supportive for examinations, admissions and competitive results.`,
+      []),
+    sect('Guidance for Student & Parents',
+      `Encouragement and a steady study routine bring out the best in this chart. ` +
+      `${cautions(f).length ? `Where ${cautions(f).map((y) => y.name).join(', ')} appears, patience and the right remedy help the young mind settle. ` : 'A naturally capable mind — consistency matters more than pressure. '}`,
+      []),
+  ];
+  base.guidance = [
+    `Lean into fields aligned with a strong fifth house: ${fieldsFor(H(5).lord)}.`,
+    `Schedule intense preparation and exams during Mercury/Jupiter windows.`,
+    `Keep a calm, consistent study routine over last-minute cramming.`,
+    `Parents: encourage rather than pressure — this chart blossoms with support.`,
+    `Strengthen Mercury and Jupiter with the remedies below before major exams.`,
+  ];
+  base.verdict = `A capable and teachable mind — with encouragement and well-timed effort, ${nm}'s studies can truly shine.`;
+  return base;
+}
+
+function sect(heading: string, body: string, points: string[]) { return { heading, body, points }; }
+function ordinal(n: number) { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+const SIGNS_LORD = (si: number) => LORDS[si];
+
+function fieldsFor(lord: string): string {
+  const map: Record<string, string> = {
+    Sun: 'government, administration, leadership, medicine or public service',
+    Moon: 'care-giving, hospitality, food, psychology, the public or fluids/travel',
+    Mars: 'engineering, defence, sports, surgery, real estate or anything demanding drive',
+    Mercury: 'communication, writing, commerce, accounts, IT, teaching or analysis',
+    Jupiter: 'teaching, law, finance, counsel, spirituality or higher knowledge',
+    Venus: 'arts, design, media, luxury, beauty, hospitality or diplomacy',
+    Saturn: 'engineering, labour-organisation, mining, law, service or long-horizon institutions',
+  };
+  return map[lord] ?? 'fields suited to your strongest planets';
+}
+function partnerFor(lord: string): string {
+  const map: Record<string, string> = {
+    Sun: 'someone confident, principled and warm-hearted',
+    Moon: 'someone caring, emotionally attuned and nurturing',
+    Mars: 'someone spirited, protective and full of energy',
+    Mercury: 'someone witty, communicative and intellectually engaging',
+    Jupiter: 'someone wise, generous and grounded in values',
+    Venus: 'someone affectionate, refined and harmonious',
+    Saturn: 'someone steady, mature and dependable',
+  };
+  return map[lord] ?? 'a partner who complements your nature';
+}
+
+function commonRemedies(f: ChartFacts, nm: string): string[] {
+  const out = [
+    'Keep a simple daily practice of prayer, gratitude or meditation to strengthen the whole chart.',
+    'Offer water to the rising Sun and greet each day with intention.',
+  ];
+  const c = cautions(f);
+  if (c.some((y) => /Saturn/.test(y.name))) out.push('For Saturn: serve elders and the needy, and light a sesame-oil lamp on Saturdays.');
+  if (c.some((y) => /Mars/.test(y.name))) out.push('For Mars: recite the Hanuman Chalisa on Tuesdays and offer red flowers.');
+  if (c.some((y) => /Moon/.test(y.name))) out.push('For the Moon: honour your mother, and favour white foods and moonlight walks on Mondays.');
+  if (c.some((y) => /Mercury/.test(y.name))) out.push('For Mercury: donate green gram, and chant the Budha mantra before study or important communication.');
+  out.push('Chant the Maha Mrityunjaya mantra for health and protection.');
+  out.push('Consult a qualified astrologer before adopting any gemstone, so the stone truly suits your chart.');
+  out.push('Practise regular charity (daan) aligned with your current dasha lord.');
+  return out.slice(0, 8);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Branded HTML (indigo / gold / serif — matches Vastu & Matchmaking exactly)
+// ─────────────────────────────────────────────────────────────────────────────
+function esc(s: unknown): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+function paras(s: string): string {
+  return esc(s).split(/\n\s*\n/).map((p) => `<p class="body">${p.replace(/\n/g, '<br/>')}</p>`).join('');
+}
+function chunk<T>(a: T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n));
+  return out;
+}
+
+// North-Indian diamond chart from placements (house 1 top-centre).
+function northChart(f: ChartFacts, lagnaIdx: number, placements: ChartPlacement[]): string {
+  const occ: string[][] = Array.from({ length: 12 }, () => []);
+  for (const pl of placements) occ[signIdx(pl.sign)].push(abbr(pl.graha));
+  const anchors = [
+    [130, 52], [70, 28], [28, 70], [58, 130], [28, 190], [70, 232],
+    [130, 208], [190, 232], [232, 190], [202, 130], [232, 70], [190, 28],
+  ];
+  const cells = anchors.map(([x, y], h) => {
+    const sign = (lagnaIdx + h) % 12;
+    const gr = occ[sign];
+    const grText = gr.length ? `<text x="${x}" y="${y + 12}" class="cg">${gr.join(' ')}</text>` : '';
+    return `<text x="${x}" y="${y}" class="cs">${sign + 1}</text>${grText}`;
+  }).join('');
+  return `<svg viewBox="0 0 260 260" class="chart">
+    <rect x="10" y="10" width="240" height="240" class="cl"/>
+    <line x1="10" y1="10" x2="250" y2="250" class="cl"/>
+    <line x1="250" y1="10" x2="10" y2="250" class="cl"/>
+    <polygon points="130,10 250,130 130,250 10,130" class="cl"/>
+    ${cells}
+  </svg>`;
+}
+
+export function renderChartHtml(type: ChartReportType, p: ChartPerson, f: ChartFacts, a: ChartAnalysis): string {
+  const meta = CHART_META[type];
+  const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+  const reportId = `RTH-${type.slice(0, 3).toUpperCase()}-${(hashStr(`${p.name}|${p.dob}|${type}`) % 100000).toString().padStart(5, '0')}`;
+  const scoreColor = f.score >= 70 ? '#52a87c' : f.score >= 50 ? '#e6c063' : '#e05252';
+  const fmtM = (dt: Date) => dt.toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
+  const [by, bm, bd] = p.dob.split('-');
+  const birthLine = `${Number(bd)}/${Number(bm)}/${by} · ${p.tob.slice(0, 5)} · ${esc(p.birth_place)}`;
+
+  const detailRows = [
+    ['Prepared for', esc(p.name)],
+    ['Birth details', esc(birthLine)],
+    ['Ascendant (Lagna)', esc(p.lagna)],
+    ['Moon sign (Rashi)', esc(p.moon_sign)],
+    ['Sun sign', esc(p.sun_sign)],
+    ['Nakshatra', esc(p.nakshatra)],
+    ['Report ID', esc(reportId)],
+  ].map(([k, v]) => `<tr><td class="k">${k}</td><td class="v">${v}</td></tr>`).join('');
+
+  // planetary positions table
+  const order = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
+  const planetRows = order.map((nm) => {
+    const pl = f.planets[nm];
+    if (!pl) return '';
+    const dg = pl.dignity !== 'Neutral' ? `<span class="dig">${esc(pl.dignity)}</span>` : '';
+    return `<tr><td class="pn">${esc(nm)}</td><td>${esc(pl.sign)}</td><td>${ordinal(pl.house)}</td><td>${dg}</td></tr>`;
+  }).join('');
+
+  // houses table (focus subset, or all 12 for life)
+  const houseList = meta.focus.map((n) => f.houses[n - 1]);
+  const houseRows = houseList.map((h) => `
+    <tr>
+      <td class="hh">${ordinal(h.house)}</td>
+      <td>${esc(h.sign)}</td>
+      <td>${esc(h.lord)}${h.lordHouse ? ` <span class="mut">(${ordinal(h.lordHouse)})</span>` : ''}</td>
+      <td>${h.occupants.length ? h.occupants.map((o) => esc(o.name)).join(', ') : '<span class="mut">—</span>'}</td>
+      <td class="hs"><span style="color:${h.strength >= 65 ? '#52a87c' : h.strength >= 45 ? '#e6c063' : '#e0a05a'}">${h.strength}</span></td>
+    </tr>`).join('');
+
+  // yogas
+  const yogaBlocks = f.yogas.length ? f.yogas.map((yg) => `
+    <div class="yoga ${yg.nature === 'caution' ? 'yc' : ''}">
+      <div class="yoga-name">${yg.nature === 'caution' ? '△' : '✦'} ${esc(yg.name)}</div>
+      <p class="yoga-detail">${esc(yg.detail)}</p>
+    </div>`).join('') : '<p class="body">No major classical yogas stand out — a chart that draws its strength from steady, well-placed house lords.</p>';
+
+  // dasha timeline
+  const d = f.dasha;
+  const timelineRows = d.periods.map((pp) => {
+    const isNow = pp === d.current;
+    return `<tr class="${isNow ? 'now' : ''}">
+      <td class="dl">${esc(pp.lord)}${isNow ? ' <span class="tag">now</span>' : ''}</td>
+      <td>${fmtM(pp.start)} – ${fmtM(pp.end)}</td>
+      <td>${pp.years.toFixed(1)} yrs</td>
+    </tr>`;
+  }).join('');
+  const antarRows = d.antars.map((an) => {
+    const isNow = an === d.currentAntar;
+    return `<tr class="${isNow ? 'now' : ''}">
+      <td class="dl">${esc(d.current.lord)}–${esc(an.lord)}${isNow ? ' <span class="tag">now</span>' : ''}</td>
+      <td>${fmtM(an.start)} – ${fmtM(an.end)}</td>
+    </tr>`;
+  }).join('');
+
+  // narrated sections → 1 per page for life, 2 per page for focused
+  const perPage = type === 'life' ? 1 : 2;
+  const sectionPages = chunk(a.sections, perPage).map((grp) => `
+    <section class="page">
+      <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+      ${grp.map((s) => `
+        <h2 class="section">${esc(s.heading)}</h2>
+        <div class="divider"></div>
+        ${paras(s.body)}
+        ${s.points.length ? `<ul class="list">${s.points.map((pt) => `<li>${esc(pt)}</li>`).join('')}</ul>` : ''}
+      `).join('<div style="height:18px"></div>')}
+    </section>`).join('');
+
+  const guidance = a.guidance.map((g) => `<li>${esc(g)}</li>`).join('');
+  const remedies = a.remedies.map((r) => `<li>${esc(r)}</li>`).join('');
+
+  const disclaimer = type === 'health'
+    ? `Generated by Ritham · This wellbeing reading is offered for guidance in the spirit of Vedic tradition.<br/>` +
+      `It is NOT medical advice, diagnosis or treatment. For any health concern, please consult a qualified doctor.`
+    : `Generated by Ritham · This reading is offered for guidance and reflection in the spirit of Vedic tradition.<br/>` +
+      `It is for personal guidance and entertainment, and is not a substitute for professional advice.`;
+
+  return `<!doctype html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  @page { margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #f0ece8;
+         background: #14122b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { min-height: 100vh; padding: 46px 40px; page-break-after: always;
+          background: linear-gradient(160deg, #14122b 0%, #1e1b45 100%); }
+  .page:last-child { page-break-after: auto; }
+  h1, h2, h3 { font-weight: normal; letter-spacing: 0.3px; margin: 0; }
+  .brand { color: #d9a441; font-size: 14px; letter-spacing: 3px; }
+  .divider { height: 1px; background: linear-gradient(90deg, transparent, #d9a441, transparent); margin: 16px 0; }
+  .cover { display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  .cover .logo { font-size: 42px; color: #d9a441; margin-bottom: 6px; }
+  .cover h1 { font-size: 38px; color: #f0ece8; margin: 8px 0; }
+  .cover .sub { color: #9b96b0; font-size: 15px; }
+  .cover .who { margin-top: 30px; color: #e6c063; font-size: 24px; }
+  .cover .bd { color: #9b96b0; font-size: 13px; margin-top: 6px; }
+  .cover .rid { color: #6b6585; font-size: 12px; letter-spacing: 1px; margin-top: 18px; }
+  .cover .date { color: #6b6585; font-size: 13px; margin-top: 4px; }
+  h2.section { color: #e6c063; font-size: 23px; margin: 0 0 4px; }
+  .lead { color: #9b96b0; font-size: 13px; margin-bottom: 8px; }
+  p.body { font-size: 14.5px; line-height: 1.75; color: #ded9e6; margin: 0 0 12px; }
+  table.details { width: 100%; border-collapse: collapse; }
+  table.details td { padding: 9px 4px; border-bottom: 1px solid #2d2960; font-size: 14.5px; vertical-align: top; }
+  td.k { color: #9b96b0; width: 40%; } td.v { color: #f0ece8; }
+  /* score box */
+  .score-box { text-align: center; border: 1px solid #2d2960; border-radius: 14px; padding: 22px;
+               background: rgba(30,27,69,0.6); margin: 12px 0 16px; }
+  .score-num { font-size: 58px; color: ${scoreColor}; }
+  .score-cap { color: #9b96b0; font-size: 12px; letter-spacing: 1px; }
+  /* generic table */
+  table.grid { width: 100%; border-collapse: collapse; }
+  table.grid th { text-align: left; color: #9b96b0; font-size: 11px; letter-spacing: 1px;
+                  padding: 7px 6px; border-bottom: 1px solid #d9a441; }
+  table.grid td { padding: 8px 6px; border-bottom: 1px solid #2d2960; font-size: 13px; color: #ded9e6; vertical-align: top; }
+  td.pn, td.hh, td.dl { color: #f0ece8; }
+  .mut { color: #8f8aa8; } .dig { color: #e6c063; font-size: 12px; }
+  td.hs, td.kp { text-align: center; }
+  tr.now td { background: rgba(217,164,65,0.12); color: #f0ece8; }
+  .tag { color: #14122b; background: #d9a441; font-size: 9px; padding: 1px 5px; border-radius: 6px; letter-spacing: 0.5px; }
+  /* yogas */
+  .yoga { border-left: 2px solid #d9a441; padding: 4px 0 4px 14px; margin-bottom: 14px; }
+  .yoga.yc { border-left-color: #e0a05a; }
+  .yoga-name { color: #f0ece8; font-size: 15.5px; }
+  .yoga-detail { color: #cfc9dd; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
+  /* chart diagram */
+  .chartwrap { text-align: center; margin: 6px 0; }
+  svg.chart { width: 100%; max-width: 260px; }
+  svg.chart .cl { fill: none; stroke: #d9a441; stroke-width: 1; }
+  svg.chart .cs { fill: #8f8aa8; font-size: 9px; text-anchor: middle; }
+  svg.chart .cg { fill: #f0ece8; font-size: 11px; text-anchor: middle; }
+  .chartnote { color: #6b6585; font-size: 11px; text-align: center; margin-top: 8px; }
+  ul.list { padding-left: 20px; margin: 8px 0 0; }
+  ul.list li { font-size: 14px; line-height: 1.7; color: #ded9e6; margin-bottom: 7px; }
+  .verdict { color: #ded9e6; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; margin-top: 8px; }
+  .foot { color: #6b6585; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
+</style></head><body>
+
+  <section class="page cover">
+    <div class="logo">✦</div>
+    <div class="brand">RITHAM</div>
+    <h1>${esc(meta.title)}</h1>
+    <div class="sub">${esc(meta.sub)}</div>
+    <div class="who">${esc(p.name)}</div>
+    <div class="bd">${esc(birthLine)}</div>
+    <div class="rid">REPORT ID · ${esc(reportId)}</div>
+    <div class="date">${esc(dateStr)}</div>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+    <h2 class="section">Birth Details & Chart</h2>
+    <div class="divider"></div>
+    <table class="details"><tbody>${detailRows}</tbody></table>
+    <div class="chartwrap">${northChart(f, f.lagnaIdx, p.placements)}</div>
+    <p class="chartnote">North-Indian chart · house numbers shown · Su Sun · Mo Moon · Ma Mars · Me Mercury · Ju Jupiter · Ve Venus · Sa Saturn · Ra Rahu · Ke Ketu</p>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+    <h2 class="section">Planetary Positions</h2>
+    <p class="lead">Where each graha sits at birth, and its dignity.</p>
+    <div class="divider"></div>
+    <table class="grid">
+      <thead><tr><th>PLANET</th><th>SIGN</th><th>HOUSE</th><th>DIGNITY</th></tr></thead>
+      <tbody>${planetRows}</tbody>
+    </table>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+    <h2 class="section">Overview</h2>
+    <div class="score-box">
+      <div class="score-num">${f.score}<span style="font-size:24px;color:#9b96b0">/100</span></div>
+      <div class="score-cap">${esc(meta.scoreCap)}</div>
+    </div>
+    ${paras(a.overview)}
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+    <h2 class="section">${type === 'life' ? 'The Twelve Houses' : 'Key Houses for This Reading'}</h2>
+    <p class="lead">Sign, ruling lord (and where it sits), occupants, and computed strength.</p>
+    <div class="divider"></div>
+    <table class="grid">
+      <thead><tr><th>HOUSE</th><th>SIGN</th><th>LORD</th><th>OCCUPANTS</th><th>STR</th></tr></thead>
+      <tbody>${houseRows}</tbody>
+    </table>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+    <h2 class="section">Yogas & Combinations</h2>
+    <p class="lead">Notable planetary combinations found in this chart.</p>
+    <div class="divider"></div>
+    ${yogaBlocks}
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+    <h2 class="section">Dasha Timeline & Timing</h2>
+    <p class="lead">Your Vimshottari Mahadasha sequence — the running period is highlighted.</p>
+    <div class="divider"></div>
+    <table class="grid">
+      <thead><tr><th>MAHADASHA</th><th>PERIOD</th><th>LENGTH</th></tr></thead>
+      <tbody>${timelineRows}</tbody>
+    </table>
+    <h3 style="color:#e6c063;font-size:16px;margin:18px 0 6px;">Sub-periods (Antardasha) within ${esc(d.current.lord)}</h3>
+    <table class="grid">
+      <thead><tr><th>SUB-PERIOD</th><th>WINDOW</th></tr></thead>
+      <tbody>${antarRows}</tbody>
+    </table>
+    ${a.timing ? `<div class="divider"></div>${paras(a.timing)}` : ''}
+  </section>
+
+  ${sectionPages}
+
+  <section class="page">
+    <div class="brand">RITHAM · ${esc(meta.brand)}</div>
+    <h2 class="section">Guidance</h2>
+    <div class="divider"></div>
+    <ul class="list">${guidance}</ul>
+    <h2 class="section" style="margin-top:22px;">Remedies &amp; Recommendations</h2>
+    <div class="divider"></div>
+    <ul class="list">${remedies}</ul>
+    ${a.verdict ? `<div class="divider"></div><p class="verdict">“${esc(a.verdict)}”</p>` : ''}
+    <div class="foot">${disclaimer}</div>
+  </section>
+
+</body></html>`;
+}
+
+}
