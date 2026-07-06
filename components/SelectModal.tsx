@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Modal, View, Text, TextInput, Pressable, FlatList, StyleSheet, ActivityIndicator,
 } from 'react-native';
-import { Colors, Fonts, Spacing, Radius, Scrim } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon } from './Icon';
 
 export interface Option {
@@ -30,6 +31,8 @@ interface Props {
 export function SelectModal({
   visible, title, options, selectedValue, searchable, remoteSearch, onSelect, onClose,
 }: Props) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<Option[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,13 +85,13 @@ export function SelectModal({
               <TextInput
                 style={styles.search}
                 placeholder={remoteSearch ? 'Search any city, town or village…' : 'Search…'}
-                placeholderTextColor={Colors.textDim}
+                placeholderTextColor={th.textDim}
                 value={query}
                 onChangeText={setQuery}
                 autoFocus
                 autoCorrect={false}
               />
-              {loading && <ActivityIndicator style={styles.searchSpinner} color={Colors.gold} />}
+              {loading && <ActivityIndicator style={styles.searchSpinner} color={th.gold} />}
             </View>
           )}
 
@@ -108,13 +111,13 @@ export function SelectModal({
                 <Pressable
                   style={styles.row}
                   onPress={() => { onSelect(item.value, item); close(); }}
-                  android_ripple={{ color: Colors.goldFaint }}
+                  android_ripple={{ color: th.goldFaint }}
                 >
                   <View style={styles.rowTextWrap}>
                     <Text style={[styles.rowLabel, active && styles.rowLabelActive]}>{item.label}</Text>
                     {item.sublabel ? <Text style={styles.rowSub}>{item.sublabel}</Text> : null}
                   </View>
-                  {active ? <Icon name="check" size={18} color={Colors.gold} /> : null}
+                  {active ? <Icon name="check" size={18} color={th.gold} /> : null}
                 </Pressable>
               );
             }}
@@ -132,10 +135,10 @@ export function SelectModal({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: Scrim.backdrop, justifyContent: 'flex-end' },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: th.scrimBackdrop, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: Scrim.sheet,
+    backgroundColor: th.scrimSheet,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     paddingTop: Spacing.sm,
@@ -143,29 +146,29 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
     maxHeight: '78%',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: th.border,
   },
   handle: {
-    width: 44, height: 4, borderRadius: 2, backgroundColor: Colors.gold, opacity: 0.5,
+    width: 44, height: 4, borderRadius: 2, backgroundColor: th.gold, opacity: 0.5,
     alignSelf: 'center', marginBottom: Spacing.md,
   },
-  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text, marginBottom: Spacing.md },
+  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginBottom: Spacing.md },
   searchWrap: { justifyContent: 'center' },
   search: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm,
-    padding: Spacing.md, paddingRight: 40, color: Colors.text, backgroundColor: Colors.surfaceSunken,
+    borderWidth: 1, borderColor: th.border, borderRadius: Radius.sm,
+    padding: Spacing.md, paddingRight: 40, color: th.text, backgroundColor: th.surfaceSunken,
     marginBottom: Spacing.sm, fontFamily: Fonts.body, fontSize: Fonts.size.md,
   },
   searchSpinner: { position: 'absolute', right: Spacing.md, top: Spacing.md },
-  err: { fontFamily: Fonts.body, color: Colors.error, fontSize: Fonts.size.sm, marginBottom: Spacing.sm },
+  err: { fontFamily: Fonts.body, color: th.error, fontSize: Fonts.size.sm, marginBottom: Spacing.sm },
   list: { flexGrow: 0 },
   row: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.divider,
+    paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: th.divider,
   },
   rowTextWrap: { flex: 1, paddingRight: Spacing.sm },
-  rowLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.text },
-  rowLabelActive: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight },
-  rowSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: Colors.textDim, marginTop: 2 },
-  empty: { fontFamily: Fonts.body, color: Colors.textDim, textAlign: 'center', padding: Spacing.lg },
+  rowLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.text },
+  rowLabelActive: { fontFamily: Fonts.bodySemibold, color: th.goldLight },
+  rowSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, marginTop: 2 },
+  empty: { fontFamily: Fonts.body, color: th.textDim, textAlign: 'center', padding: Spacing.lg },
 });

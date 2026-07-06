@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Fonts, Spacing, Radius, Depth, Accents, AccentName } from '../../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
+import { useColors } from '../../context/ThemeContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { TAB_BAR_HEIGHT } from './_layout';
@@ -12,6 +13,8 @@ const CATEGORIES: { icon: IconName; accent: AccentName; title: string; desc: str
 ];
 
 export default function StoreScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const insets = useSafeAreaInsets();
   return (
     <ScrollView
@@ -62,43 +65,43 @@ export default function StoreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
   content: { paddingHorizontal: Spacing.lg },
 
   hero: { alignItems: 'center', marginBottom: Spacing.xl },
-  brand: { fontFamily: Fonts.bodySemibold, color: Colors.gold, fontSize: Fonts.size.xs, letterSpacing: 4, marginBottom: Spacing.sm },
-  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: Colors.text, textAlign: 'center' },
+  brand: { fontFamily: Fonts.bodySemibold, color: th.gold, fontSize: Fonts.size.xs, letterSpacing: 4, marginBottom: Spacing.sm },
+  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, textAlign: 'center' },
   pill: {
-    backgroundColor: Colors.surface, borderColor: Colors.borderStrong, borderWidth: 1,
+    backgroundColor: th.surface, borderColor: th.borderStrong, borderWidth: 1,
     borderRadius: Radius.pill, paddingVertical: 5, paddingHorizontal: Spacing.md, marginTop: Spacing.md,
   },
-  pillText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.xs, letterSpacing: 2 },
+  pillText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.xs, letterSpacing: 2 },
   subtitle: {
-    fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.textMuted, textAlign: 'center',
+    fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.textMuted, textAlign: 'center',
     lineHeight: 24, marginTop: Spacing.md, paddingHorizontal: Spacing.sm,
   },
 
   previewLabel: {
-    fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.textDim, textAlign: 'center',
+    fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.textDim, textAlign: 'center',
     letterSpacing: 2, marginBottom: Spacing.md,
   },
   card: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.surface, borderRadius: Radius.md,
-    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md,
+    backgroundColor: th.surface, borderRadius: Radius.md,
+    padding: Spacing.lg, borderWidth: 1, borderColor: th.border, marginBottom: Spacing.md,
     ...Depth.card,
   },
   cardIcon: {
     width: 48, height: 48, borderRadius: Radius.sm,
-    backgroundColor: Colors.goldFaint, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: th.goldFaint, alignItems: 'center', justifyContent: 'center',
   },
   cardBody: { flex: 1 },
-  cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.lg, color: Colors.goldLight, marginBottom: 2 },
-  cardDesc: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 19 },
+  cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.lg, color: th.goldLight, marginBottom: 2 },
+  cardDesc: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 19 },
 
   note: {
-    fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textDim, textAlign: 'center',
+    fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textDim, textAlign: 'center',
     lineHeight: 22, marginTop: Spacing.lg, paddingHorizontal: Spacing.sm,
   },
 });

@@ -4,7 +4,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getMuhurats, MuhuratResult } from '../lib/muhuratService';
 import { MUHURAT_ACTIVITIES, activityById, FunnelTarget } from '../config/muhuratRules';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing, Radius, Depth, Accents } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon, IconName } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
@@ -21,6 +22,8 @@ const ACTIVITY_ICON: Record<string, IconName> = {
 };
 
 export default function MuhuratScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
 
@@ -65,14 +68,14 @@ export default function MuhuratScreen() {
           <Text style={styles.lead}>Find auspicious dates for…</Text>
           {MUHURAT_ACTIVITIES.map((a, i) => (
             <Reveal key={a.id} index={i}>
-              <Pressable style={styles.activityRow} android_ripple={{ color: Colors.goldFaint }} onPress={() => pick(a.id)}>
+              <Pressable style={styles.activityRow} android_ripple={{ color: th.goldFaint }} onPress={() => pick(a.id)}>
                 <View style={styles.activityIcon}>
                   <Icon name={ACTIVITY_ICON[a.id] ?? 'calendar'} size={20} color={Accents.emerald.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.activityLabel}>{a.hindi} <Text style={styles.activityEn}>({a.label})</Text></Text>
                 </View>
-                <Icon name="chevron" size={20} color={Colors.textDim} />
+                <Icon name="chevron" size={20} color={th.textDim} />
               </Pressable>
             </Reveal>
           ))}
@@ -92,7 +95,7 @@ export default function MuhuratScreen() {
 
           {state === 'loading' ? (
             <View style={styles.center}>
-              <ActivityIndicator color={Colors.gold} size="large" />
+              <ActivityIndicator color={th.gold} size="large" />
               <Text style={styles.loadingText}>Scanning the Panchang…</Text>
             </View>
           ) : state === 'error' ? (
@@ -112,7 +115,7 @@ export default function MuhuratScreen() {
                       <Text style={styles.dayWeekday}>{r.weekday}</Text>
                     </View>
                     <View style={styles.windowPill}>
-                      <Icon name="star" size={12} color={Colors.success} />
+                      <Icon name="star" size={12} color={th.success} />
                       <Text style={styles.windowText}>{r.window}</Text>
                     </View>
                     <Text style={styles.factors}>
@@ -125,9 +128,9 @@ export default function MuhuratScreen() {
               {/* Soft funnel toward the matching paid product / chat */}
               <View style={styles.hookCard}>
                 <Text style={styles.hookText}>{current.funnel.text}</Text>
-                <Pressable style={styles.hookBtn} onPress={() => goFunnel(current.funnel.target)} android_ripple={{ color: Colors.goldDeep }}>
+                <Pressable style={styles.hookBtn} onPress={() => goFunnel(current.funnel.target)} android_ripple={{ color: th.goldDeep }}>
                   <Text style={styles.hookBtnText}>{funnelCta(current.funnel.target)}</Text>
-                  <Icon name="arrowRight" size={15} color={Colors.canvas} />
+                  <Icon name="arrowRight" size={15} color={th.goldContrast} />
                 </Pressable>
               </View>
             </>
@@ -163,68 +166,68 @@ function fmtDate(iso: string): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  lead: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, marginBottom: Spacing.md },
+  lead: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, marginBottom: Spacing.md },
 
   activityRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm,
+    backgroundColor: th.surface, borderRadius: Radius.md, padding: Spacing.md,
+    borderWidth: 1, borderColor: th.border, marginBottom: Spacing.sm,
   },
   activityIcon: {
     width: 44, height: 44, borderRadius: Radius.sm,
     backgroundColor: Accents.emerald.faint, borderWidth: 1, borderColor: Accents.emerald.soft,
     alignItems: 'center', justifyContent: 'center',
   },
-  activityLabel: { fontFamily: Fonts.bodySemibold, color: Colors.text, fontSize: Fonts.size.md },
-  activityEn: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
+  activityLabel: { fontFamily: Fonts.bodySemibold, color: th.text, fontSize: Fonts.size.md },
+  activityEn: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
 
   resultTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  resultTitle: { fontFamily: Fonts.displayBold, color: Colors.text, fontSize: Fonts.size.xl },
-  resultSub: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 4, marginBottom: Spacing.md },
+  resultTitle: { fontFamily: Fonts.displayBold, color: th.text, fontSize: Fonts.size.xl },
+  resultSub: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm, marginTop: 4, marginBottom: Spacing.md },
 
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xxl, gap: Spacing.sm },
-  loadingText: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
-  errorText: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
-  emptyHint: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.sm, textAlign: 'center', paddingHorizontal: Spacing.lg },
+  loadingText: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
+  errorText: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
+  emptyHint: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.sm, textAlign: 'center', paddingHorizontal: Spacing.lg },
 
   dayCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.border,
     padding: Spacing.md, marginBottom: Spacing.sm, ...Depth.card,
   },
   dayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  dayDate: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.lg },
-  dayWeekday: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
+  dayDate: { fontFamily: Fonts.displayBold, color: th.goldLight, fontSize: Fonts.size.lg },
+  dayWeekday: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
   windowPill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    alignSelf: 'flex-start', backgroundColor: Colors.surfaceSunken, borderRadius: Radius.sm,
+    alignSelf: 'flex-start', backgroundColor: th.surfaceSunken, borderRadius: Radius.sm,
     paddingVertical: 4, paddingHorizontal: Spacing.sm, marginTop: Spacing.sm,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: th.border,
   },
-  windowText: { fontFamily: Fonts.bodyMedium, color: Colors.success, fontSize: Fonts.size.sm },
-  factors: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: Spacing.sm },
+  windowText: { fontFamily: Fonts.bodyMedium, color: th.success, fontSize: Fonts.size.sm },
+  factors: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm, marginTop: Spacing.sm },
 
   retryBtn: {
-    marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: Radius.sm,
+    marginTop: Spacing.sm, borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.sm,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
   },
-  retryText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.sm },
+  retryText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
 
   hookCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong,
+    backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.borderStrong,
     padding: Spacing.lg, marginTop: Spacing.md, alignItems: 'center', gap: Spacing.md,
   },
-  hookText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
+  hookText: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
   hookBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
   },
-  hookBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md },
+  hookBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md },
 
   disclaimer: {
-    fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
+    fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
     textAlign: 'center', marginTop: Spacing.xl, paddingHorizontal: Spacing.sm,
   },
 });

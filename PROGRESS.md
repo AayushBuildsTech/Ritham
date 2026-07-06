@@ -973,3 +973,27 @@ Function via the dashboard** for the new look to appear in generated PDFs (CLI d
 ### Chat keyboard note (resolved)
 The Wave-2 "tab bar between input and keyboard" oddity is fixed — the tab bar now hides while the keyboard
 is open, and the chat input row's bottom padding collapses (kbVisible) so the composer sits on the keyboard.
+
+---
+
+## 26. Light / Dark mode (DONE, JS-only, default = LIGHT)
+
+Runtime theming added. **Default is LIGHT**; choice persists to AsyncStorage (`ritham.themeMode`).
+
+- `constants/theme.ts` now exports **`darkColors` + `lightColors`** (same keys) + `ThemeColors` type.
+  Added `goldContrast` (always-dark text ON gold buttons — legible on both ivory & near-black),
+  themed scrims (`scrimTabBar/Sheet/Backdrop`) and gradients (`gHero/gSplash`), `blurTint`, `statusBar`.
+  `Colors` remains as a back-compat alias to `darkColors`. `accentCardGradient(c, accent)` now takes the
+  active palette. Jewel `Accents`, `Fonts`, `Spacing`, `Radius`, `Depth` stay theme-independent.
+- `context/ThemeContext.tsx` — `ThemeProvider` (wraps the app in `app/_layout.tsx`, first paint gated on
+  `ready`), `useTheme()` → `{ mode, colors, isDark, toggle, setMode }`, and `useColors()` → active palette.
+- **Every screen refactored to per-render styles:** `const th = useColors(); const styles = makeStyles(th);`
+  and `const makeStyles = (th: ThemeColors) => StyleSheet.create({ … th.x … })`. (Static `StyleSheet` +
+  imported `Colors` can't switch at runtime — this was the required change across ~27 files.) On-gold text
+  uses `th.goldContrast`. Bulk conversion done via a scripted transform; Icon/GradientCard (default-param
+  colors) + the layouts converted by hand.
+- **Toggle:** sun/moon `IconButton` in the Home header (beside profile/settings) AND
+  Settings → **Appearance → Theme**. Tab bar `BlurView` tint + `StatusBar` follow the theme.
+- JS-only (no rebuild): reuses `@react-native-async-storage/async-storage`. `npx tsc --noEmit` passes.
+- Light palette is a first pass (warm ivory `#F4EFE4` + deep gold `#A07C2A` + jewel accents) — tune
+  contrast per feedback. Report PDFs are NOT themed by app mode (they stay the dark branded template).

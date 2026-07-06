@@ -17,9 +17,9 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { AnimatedSplash } from '../components/AnimatedSplash';
-import { Colors } from '../constants/theme';
 
 // Hold the native (static) splash until fonts + first auth check are ready, so
 // there is no flash of unstyled/system-font content before the branded splash.
@@ -52,7 +52,8 @@ function AuthGate() {
   return <Slot />;
 }
 
-export default function RootLayout() {
+function RootLayoutInner() {
+  const { colors, statusBarStyle, ready } = useThemeBits();
   const [fontsLoaded] = useFonts({
     Fraunces_500Medium,
     Fraunces_600SemiBold,
@@ -64,23 +65,36 @@ export default function RootLayout() {
   });
   const [splashDone, setSplashDone] = useState(false);
 
-  // Hand off from the native splash to our animated one the instant fonts are
-  // ready (so the wordmark renders in Cormorant, not the system font).
+  // Hand off from the native splash once fonts + persisted theme are ready.
   const onLayoutReady = useCallback(async () => {
-    if (fontsLoaded) await SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded]);
+    if (fontsLoaded && ready) await SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, ready]);
 
-  if (!fontsLoaded) return null; // native splash still showing
+  if (!fontsLoaded || !ready) return null; // native splash still showing
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.canvas }} onLayout={onLayoutReady}>
+      <StatusBar style={statusBarStyle} />
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
+      {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
+    </View>
+  );
+}
+
+// small helper so RootLayoutInner reads theme without importing useTheme shape inline
+function useThemeBits() {
+  const { colors, ready } = useTheme();
+  return { colors, ready, statusBarStyle: colors.statusBar };
+}
+
+export default function RootLayout() {
+  return (
     <KeyboardProvider>
-      <View style={{ flex: 1, backgroundColor: Colors.canvas }} onLayout={onLayoutReady}>
-        <StatusBar style="light" />
-        <AuthProvider>
-          <AuthGate />
-        </AuthProvider>
-        {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
-      </View>
+      <ThemeProvider>
+        <RootLayoutInner />
+      </ThemeProvider>
     </KeyboardProvider>
   );
 }

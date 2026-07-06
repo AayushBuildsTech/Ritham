@@ -5,11 +5,15 @@ import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { deleteAccount } from '../lib/accountService';
 import { CONTACT_EMAIL } from '../constants/legal';
-import { Colors, Fonts, Spacing, Radius } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
+import { useColors, useTheme } from '../context/ThemeContext';
 import { Icon, IconName } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function SettingsScreen() {
+  const th = useColors();
+  const { isDark, toggle } = useTheme();
+  const styles = makeStyles(th);
   const router = useRouter();
   const { user, signOut } = useAuth();
   const version = Constants.expoConfig?.version ?? '1.0.0';
@@ -64,6 +68,12 @@ export default function SettingsScreen() {
       <ScreenHeader title="Settings" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Appearance */}
+        <Text style={styles.sectionLabel}>APPEARANCE</Text>
+        <View style={styles.group}>
+          <Row icon={isDark ? 'moon' : 'sun'} label="Theme" value={isDark ? 'Dark' : 'Light'} onPress={toggle} last />
+        </View>
+
         {/* Account */}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.group}>
@@ -86,7 +96,7 @@ export default function SettingsScreen() {
         </View>
 
         <Pressable style={styles.signOutBtn} onPress={confirmSignOut} disabled={deleting} android_ripple={{ color: 'rgba(199,82,75,0.15)' }}>
-          <Icon name="logout" size={16} color={Colors.error} />
+          <Icon name="logout" size={16} color={th.error} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </Pressable>
 
@@ -98,10 +108,10 @@ export default function SettingsScreen() {
           disabled={deleting}
         >
           {deleting ? (
-            <ActivityIndicator color={Colors.error} />
+            <ActivityIndicator color={th.error} />
           ) : (
             <>
-              <Icon name="trash" size={16} color={Colors.error} />
+              <Icon name="trash" size={16} color={th.error} />
               <Text style={styles.deleteText}>Delete Account</Text>
             </>
           )}
@@ -121,44 +131,46 @@ export default function SettingsScreen() {
 function Row({ icon, label, value, onPress, chevron, last }: {
   icon: IconName; label: string; value?: string; onPress?: () => void; chevron?: boolean; last?: boolean;
 }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const inner = (
     <View style={[styles.row, !last && styles.rowBorder]}>
       <View style={styles.rowLeft}>
-        <Icon name={icon} size={17} color={Colors.textMuted} />
+        <Icon name={icon} size={17} color={th.textMuted} />
         <Text style={styles.rowLabel}>{label}</Text>
       </View>
       <View style={styles.rowRight}>
         {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-        {(chevron || onPress) ? <Icon name="chevron" size={18} color={Colors.textDim} /> : null}
+        {(chevron || onPress) ? <Icon name="chevron" size={18} color={th.textDim} /> : null}
       </View>
     </View>
   );
   return onPress
-    ? <Pressable onPress={onPress} android_ripple={{ color: Colors.goldFaint }}>{inner}</Pressable>
+    ? <Pressable onPress={onPress} android_ripple={{ color: th.goldFaint }}>{inner}</Pressable>
     : inner;
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
   content: { padding: Spacing.lg, paddingTop: Spacing.lg },
-  sectionLabel: { fontFamily: Fonts.bodySemibold, color: Colors.textDim, fontSize: Fonts.size.xs, letterSpacing: 2, marginBottom: Spacing.sm, marginTop: Spacing.lg },
+  sectionLabel: { fontFamily: Fonts.bodySemibold, color: th.textDim, fontSize: Fonts.size.xs, letterSpacing: 2, marginBottom: Spacing.sm, marginTop: Spacing.lg },
   group: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.border,
     paddingHorizontal: Spacing.md,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.divider },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: th.divider },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
-  rowLabel: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md },
+  rowLabel: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  rowValue: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
+  rowValue: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
 
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     borderWidth: 1, borderColor: 'rgba(199,82,75,0.5)', borderRadius: Radius.sm, paddingVertical: 14,
     marginTop: Spacing.xl,
   },
-  signOutText: { fontFamily: Fonts.bodySemibold, color: Colors.error, fontSize: Fonts.size.md },
+  signOutText: { fontFamily: Fonts.bodySemibold, color: th.error, fontSize: Fonts.size.md },
 
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -166,9 +178,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm, paddingVertical: 14, minHeight: 50,
   },
   deleteBtnBusy: { opacity: 0.7 },
-  deleteText: { fontFamily: Fonts.bodySemibold, color: Colors.error, fontSize: Fonts.size.md },
-  deleteHint: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
+  deleteText: { fontFamily: Fonts.bodySemibold, color: th.error, fontSize: Fonts.size.md },
+  deleteHint: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
 
-  version: { fontFamily: Fonts.bodyMedium, color: Colors.textMuted, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.xl, letterSpacing: 0.5 },
-  tagline: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: 4 },
+  version: { fontFamily: Fonts.bodyMedium, color: th.textMuted, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.xl, letterSpacing: 0.5 },
+  tagline: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: 4 },
 });

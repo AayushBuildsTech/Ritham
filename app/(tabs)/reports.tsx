@@ -6,7 +6,8 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { listReports, reportCredits, ReportRow, ReportType } from '../../lib/reportService';
 import { REPORT_META, REPORT_GROUPS, paiseTo, REPORT_PRICES } from '../../config/pricing';
-import { Colors, Fonts, Spacing, Radius, Depth, Accents, AccentName, accentCardGradient } from '../../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents, AccentName, accentCardGradient, ThemeColors } from '../../constants/theme';
+import { useColors } from '../../context/ThemeContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { GradientCard } from '../../components/GradientCard';
@@ -35,6 +36,8 @@ const REPORT_ACCENT: Record<string, AccentName> = {
 };
 
 export default function ReportsScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -61,7 +64,7 @@ export default function ReportsScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>;
+    return <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>;
   }
 
   const pastByType = reports.reduce<Record<string, ReportRow[]>>((acc, r) => {
@@ -121,13 +124,13 @@ export default function ReportsScreen() {
                       <Pressable
                         style={styles.myReportsBtn}
                         onPress={() => setOpen((o) => (o === meta.type ? null : meta.type as any))}
-                        android_ripple={{ color: Colors.goldFaint }}
+                        android_ripple={{ color: th.goldFaint }}
                       >
                         <View style={styles.rowGap}>
-                          <Icon name="document" size={15} color={Colors.goldLight} />
+                          <Icon name="document" size={15} color={th.goldLight} />
                           <Text style={styles.myReportsText}>My Reports ({pastReports.length})</Text>
                         </View>
-                        <Icon name={open === meta.type ? 'chevronUp' : 'chevronDown'} size={16} color={Colors.textMuted} />
+                        <Icon name={open === meta.type ? 'chevronUp' : 'chevronDown'} size={16} color={th.textMuted} />
                       </Pressable>
 
                       {open === meta.type && pastReports.map((r) => (
@@ -135,7 +138,7 @@ export default function ReportsScreen() {
                           key={r.id}
                           style={styles.reportRow}
                           onPress={() => router.push({ pathname: '/report-view', params: { id: r.id } })}
-                          android_ripple={{ color: Colors.goldFaint }}
+                          android_ripple={{ color: th.goldFaint }}
                         >
                           <Text style={styles.reportRowText} numberOfLines={1}>
                             {meta.title}{r.score != null ? ` · ${r.score}${meta.type === 'matchmaking' ? '%' : '/100'}` : ''}
@@ -149,12 +152,12 @@ export default function ReportsScreen() {
                   <Pressable
                     style={[styles.primaryBtn, flagship && styles.primaryBtnFlagship]}
                     onPress={() => router.push({ pathname: meta.route as any, params: { type: meta.type } })}
-                    android_ripple={{ color: Colors.goldDeep }}
+                    android_ripple={{ color: th.goldDeep }}
                   >
                     <Text style={styles.primaryBtnText}>
                       {hasCredits ? 'Create Report' : `Get Report · ${price}`}
                     </Text>
-                    <Icon name="arrowRight" size={15} color={Colors.canvas} />
+                    <Icon name="arrowRight" size={15} color={th.goldContrast} />
                   </Pressable>
                 </>
               );
@@ -162,7 +165,7 @@ export default function ReportsScreen() {
               return (
                 <Reveal key={meta.type} index={gi + 1}>
                   {flagship ? (
-                    <GradientCard colors={accentCardGradient('gold')} borderColor={Colors.borderStrong} style={styles.cardPad}>
+                    <GradientCard colors={accentCardGradient(th, 'gold')} borderColor={th.borderStrong} style={styles.cardPad}>
                       {inner}
                     </GradientCard>
                   ) : (
@@ -177,7 +180,7 @@ export default function ReportsScreen() {
 
       <Reveal index={9}>
         <View style={styles.secureRow}>
-          <Icon name="lock" size={13} color={Colors.textDim} />
+          <Icon name="lock" size={13} color={th.textDim} />
           <Text style={styles.secureNote}>Reports are generated privately and stored for unlimited re-download.</Text>
         </View>
       </Reveal>
@@ -186,63 +189,63 @@ export default function ReportsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
-  center: { flex: 1, backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center' },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
+  center: { flex: 1, backgroundColor: th.canvas, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.lg },
-  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.gold, letterSpacing: 2.5, marginBottom: 6 },
-  h1: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: Colors.text },
-  sub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 4, marginBottom: Spacing.lg },
+  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, marginBottom: 6 },
+  h1: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text },
+  sub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 4, marginBottom: Spacing.lg },
 
   groupSection: { marginBottom: Spacing.lg },
   groupLabel: {
-    fontFamily: Fonts.bodySemibold, color: Colors.textMuted, fontSize: Fonts.size.xs,
+    fontFamily: Fonts.bodySemibold, color: th.textMuted, fontSize: Fonts.size.xs,
     letterSpacing: 2, marginBottom: Spacing.sm, textTransform: 'uppercase',
   },
 
   card: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md, ...Depth.card,
+    backgroundColor: th.surface, borderRadius: Radius.lg, padding: Spacing.lg,
+    borderWidth: 1, borderColor: th.border, marginBottom: Spacing.md, ...Depth.card,
   },
   cardPad: { padding: Spacing.lg, marginBottom: Spacing.md },
-  cardFlagship: { borderColor: Colors.borderStrong },
+  cardFlagship: { borderColor: th.borderStrong },
   cardHead: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.md },
   cardIcon: {
     width: 46, height: 46, borderRadius: Radius.sm,
-    backgroundColor: Colors.goldFaint, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: th.goldFaint, alignItems: 'center', justifyContent: 'center',
   },
-  cardIconFlagship: { borderWidth: 1, borderColor: Colors.borderStrong },
+  cardIconFlagship: { borderWidth: 1, borderColor: th.borderStrong },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 4, flexWrap: 'wrap' },
-  cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.goldLight },
+  cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.goldLight },
   flagBadge: {
-    fontFamily: Fonts.bodyBold, color: Colors.canvas, backgroundColor: Colors.gold, fontSize: 9,
+    fontFamily: Fonts.bodyBold, color: th.goldContrast, backgroundColor: th.gold, fontSize: 9,
     letterSpacing: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, overflow: 'hidden',
   },
-  cardDesc: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20 },
+  cardDesc: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 20 },
 
   rowGap: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   myReportsBtn: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: Colors.surfaceSunken, borderRadius: Radius.sm, paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm,
+    backgroundColor: th.surfaceSunken, borderRadius: Radius.sm, paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md, borderWidth: 1, borderColor: th.border, marginBottom: Spacing.sm,
   },
-  myReportsText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.sm },
+  myReportsText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
 
   reportRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: Colors.surfaceSunken, borderRadius: Radius.sm, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm, gap: Spacing.sm,
+    backgroundColor: th.surfaceSunken, borderRadius: Radius.sm, padding: Spacing.md,
+    borderWidth: 1, borderColor: th.border, marginBottom: Spacing.sm, gap: Spacing.sm,
   },
-  reportRowText: { flex: 1, fontFamily: Fonts.bodyMedium, color: Colors.text, fontSize: Fonts.size.md },
-  reportRowDate: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs },
+  reportRowText: { flex: 1, fontFamily: Fonts.bodyMedium, color: th.text, fontSize: Fonts.size.md },
+  reportRowDate: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs },
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 14, marginTop: Spacing.xs,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 14, marginTop: Spacing.xs,
   },
   primaryBtnFlagship: { paddingVertical: 16 },
-  primaryBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
+  primaryBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
   secureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: Spacing.md },
-  secureNote: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center' },
+  secureNote: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, textAlign: 'center' },
 });

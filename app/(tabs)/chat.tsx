@@ -12,7 +12,8 @@ import { getBalance } from '../../lib/paymentService';
 import { track } from '../../lib/analytics';
 import Paywall from '../../components/Paywall';
 import { formatSeconds } from '../../config/pricing';
-import { Colors, Fonts, Spacing, Radius, Accents } from '../../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Accents, ThemeColors } from '../../constants/theme';
+import { useColors } from '../../context/ThemeContext';
 import { Icon } from '../../components/Icon';
 import { TAB_BAR_HEIGHT } from './_layout';
 
@@ -26,6 +27,8 @@ function mmss(sec: number) {
 }
 
 export default function ChatScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -164,7 +167,7 @@ export default function ChatScreen() {
 
   // ── renders ──────────────────────────────────────────────────────────────────
   if (entry === 'loading') {
-    return <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>;
+    return <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>;
   }
 
   if (entry === 'need_profile') {
@@ -173,9 +176,9 @@ export default function ChatScreen() {
         <View style={styles.emptyIcon}><Icon name="sparkle" size={30} color={Accents.sapphire.color} /></View>
         <Text style={styles.title}>Ask the astrologer</Text>
         <Text style={styles.subtitle}>Create your Kundli first so your astrologer can read your chart.</Text>
-        <Pressable style={styles.btn} onPress={() => router.push('/profile')} android_ripple={{ color: Colors.goldDeep }}>
+        <Pressable style={styles.btn} onPress={() => router.push('/profile')} android_ripple={{ color: th.goldDeep }}>
           <Text style={styles.btnText}>Set up your Kundli</Text>
-          <Icon name="arrowRight" size={16} color={Colors.canvas} />
+          <Icon name="arrowRight" size={16} color={th.goldContrast} />
         </Pressable>
       </View>
     );
@@ -195,13 +198,13 @@ export default function ChatScreen() {
         <Text style={styles.headerTitle}>Ritham</Text>
         {timed && remaining !== null && !ended && (
           <View style={styles.pill}>
-            <Icon name="clock" size={14} color={Colors.goldLight} />
+            <Icon name="clock" size={14} color={th.goldLight} />
             <Text style={styles.pillText}>{mmss(remaining)}</Text>
           </View>
         )}
         {sessionKind === 'paid_questions' && !ended && balance && (
           <View style={styles.pill}>
-            <Icon name="question" size={14} color={Colors.goldLight} />
+            <Icon name="question" size={14} color={th.goldLight} />
             <Text style={styles.pillText}>{balance.questions} left</Text>
           </View>
         )}
@@ -251,7 +254,7 @@ export default function ChatScreen() {
 
         {sending && (
           <View style={[styles.bubble, styles.aiBubble]}>
-            <ActivityIndicator color={Colors.gold} />
+            <ActivityIndicator color={th.gold} />
           </View>
         )}
 
@@ -275,7 +278,7 @@ export default function ChatScreen() {
           <TextInput
             style={styles.input}
             placeholder={inputLocked ? 'Session ended' : 'Ask about your chart…'}
-            placeholderTextColor={Colors.textDim}
+            placeholderTextColor={th.textDim}
             value={input}
             onChangeText={setInput}
             editable={!inputLocked}
@@ -286,9 +289,9 @@ export default function ChatScreen() {
             style={[styles.sendBtn, !canSend && styles.sendBtnIdle]}
             onPress={handleSend}
             disabled={!canSend}
-            android_ripple={{ color: Colors.goldDeep, borderless: true, radius: 24 }}
+            android_ripple={{ color: th.goldDeep, borderless: true, radius: 24 }}
           >
-            <Icon name="send" size={19} color={canSend ? Colors.canvas : Colors.textDim} />
+            <Icon name="send" size={19} color={canSend ? th.goldContrast : th.textDim} />
           </Pressable>
         </View>
       )}
@@ -296,60 +299,60 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
-  center: { flex: 1, backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
+  center: { flex: 1, backgroundColor: th.canvas, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
   emptyIcon: {
     width: 72, height: 72, borderRadius: Radius.pill, marginBottom: Spacing.lg,
     backgroundColor: Accents.sapphire.faint, borderWidth: 1, borderColor: Accents.sapphire.soft,
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.text, textAlign: 'center', marginBottom: Spacing.sm },
-  subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.textMuted, textAlign: 'center', lineHeight: 24, marginBottom: Spacing.xl },
+  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.text, textAlign: 'center', marginBottom: Spacing.sm },
+  subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.textMuted, textAlign: 'center', lineHeight: 24, marginBottom: Spacing.xl },
   btn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 14, paddingHorizontal: Spacing.xl,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 14, paddingHorizontal: Spacing.xl,
   },
-  btnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
+  btnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.canvas,
+    borderBottomWidth: 1, borderBottomColor: th.border, backgroundColor: th.canvas,
   },
-  headerTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.goldLight, letterSpacing: 0.5 },
+  headerTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.goldLight, letterSpacing: 0.5 },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: Colors.surface, borderRadius: Radius.pill, paddingVertical: 5, paddingHorizontal: Spacing.md,
-    borderWidth: 1, borderColor: Colors.borderStrong,
+    backgroundColor: th.surface, borderRadius: Radius.pill, paddingVertical: 5, paddingHorizontal: Spacing.md,
+    borderWidth: 1, borderColor: th.borderStrong,
   },
-  pillText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.sm },
+  pillText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
 
   scroll: { flex: 1 },
   scrollContent: { padding: Spacing.lg, gap: Spacing.sm },
 
-  introCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm },
+  introCard: { backgroundColor: th.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: th.border, marginBottom: Spacing.sm },
   introEyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Accents.sapphire.color, letterSpacing: 2, marginBottom: Spacing.sm },
-  introTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text, marginBottom: Spacing.sm },
-  introText: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 21 },
-  introDisclaimer: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: Colors.textDim, lineHeight: 16, marginTop: Spacing.sm, fontStyle: 'italic' },
+  introTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginBottom: Spacing.sm },
+  introText: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21 },
+  introDisclaimer: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, lineHeight: 16, marginTop: Spacing.sm, fontStyle: 'italic' },
 
   bubble: { maxWidth: '85%', borderRadius: Radius.lg, padding: Spacing.md },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: Colors.gold, borderBottomRightRadius: 4 },
-  aiBubble: { alignSelf: 'flex-start', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 4 },
-  userText: { fontFamily: Fonts.bodyMedium, color: Colors.canvas, fontSize: Fonts.size.md, lineHeight: 21 },
-  aiText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md, lineHeight: 23 },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: th.gold, borderBottomRightRadius: 4 },
+  aiBubble: { alignSelf: 'flex-start', backgroundColor: th.surface, borderWidth: 1, borderColor: th.border, borderBottomLeftRadius: 4 },
+  userText: { fontFamily: Fonts.bodyMedium, color: th.goldContrast, fontSize: Fonts.size.md, lineHeight: 21 },
+  aiText: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md, lineHeight: 23 },
 
   inputRow: {
     flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm,
     padding: Spacing.sm, paddingHorizontal: Spacing.md,
-    borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.canvas,
+    borderTopWidth: 1, borderTopColor: th.border, backgroundColor: th.canvas,
   },
   input: {
-    flex: 1, maxHeight: 120, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, color: Colors.text,
-    backgroundColor: Colors.surfaceSunken, fontFamily: Fonts.body, fontSize: Fonts.size.md,
+    flex: 1, maxHeight: 120, borderWidth: 1, borderColor: th.border, borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, color: th.text,
+    backgroundColor: th.surfaceSunken, fontFamily: Fonts.body, fontSize: Fonts.size.md,
   },
-  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: Colors.gold, alignItems: 'center', justifyContent: 'center' },
-  sendBtnIdle: { backgroundColor: Colors.surfaceRaised, borderWidth: 1, borderColor: Colors.border },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: th.gold, alignItems: 'center', justifyContent: 'center' },
+  sendBtnIdle: { backgroundColor: th.surfaceRaised, borderWidth: 1, borderColor: th.border },
 });

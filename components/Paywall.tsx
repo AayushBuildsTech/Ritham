@@ -10,7 +10,8 @@ import {
   SESSION_PLANS, QUESTION_PACKS, paiseTo, formatSeconds,
 } from '../config/pricing';
 import { purchasePack, Balance } from '../lib/paymentService';
-import { Colors, Fonts, Spacing, Radius, Depth } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon } from './Icon';
 
 // The chat paywall only sells chat packs (never reports).
@@ -24,6 +25,8 @@ interface Props {
 }
 
 export default function Paywall({ title, subtitle, prefill, onPurchased }: Props) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const [tab, setTab] = useState<PaywallKind>('questions');
   const [buyingId, setBuyingId] = useState<string | null>(null);
 
@@ -88,7 +91,7 @@ export default function Paywall({ title, subtitle, prefill, onPurchased }: Props
           ))}
 
       <View style={styles.secureRow}>
-        <Icon name="lock" size={12} color={Colors.textDim} />
+        <Icon name="lock" size={12} color={th.textDim} />
         <Text style={styles.secure}>Secure payment via Razorpay · UPI, cards & wallets</Text>
       </View>
     </View>
@@ -101,12 +104,14 @@ function PackRow({
   left: string; price: string; badge?: string; note?: string;
   busy: boolean; disabled: boolean; onPress: () => void;
 }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   return (
     <Pressable
       style={[styles.row, badge && styles.rowHighlight, disabled && !busy && styles.rowDim]}
       onPress={onPress}
       disabled={disabled}
-      android_ripple={{ color: Colors.goldFaint }}
+      android_ripple={{ color: th.goldFaint }}
     >
       <View style={{ flex: 1 }}>
         <View style={styles.rowTop}>
@@ -116,7 +121,7 @@ function PackRow({
         {note ? <Text style={styles.note}>{note}</Text> : null}
       </View>
       {busy
-        ? <ActivityIndicator color={Colors.gold} />
+        ? <ActivityIndicator color={th.gold} />
         : <Text style={styles.price}>{price}</Text>}
     </Pressable>
   );
@@ -132,40 +137,40 @@ function friendlyError(code?: string): string {
   }
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
   card: {
-    backgroundColor: Colors.surfaceRaised, borderRadius: Radius.lg, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.borderStrong, gap: Spacing.sm, ...Depth.raised,
+    backgroundColor: th.surfaceRaised, borderRadius: Radius.lg, padding: Spacing.lg,
+    borderWidth: 1, borderColor: th.borderStrong, gap: Spacing.sm, ...Depth.raised,
   },
-  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.gold, letterSpacing: 2 },
-  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text },
-  subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20, marginBottom: Spacing.xs },
+  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2 },
+  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text },
+  subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 20, marginBottom: Spacing.xs },
 
   toggle: {
-    flexDirection: 'row', backgroundColor: Colors.surfaceSunken, borderRadius: Radius.sm,
-    padding: 4, marginVertical: Spacing.xs, borderWidth: 1, borderColor: Colors.border,
+    flexDirection: 'row', backgroundColor: th.surfaceSunken, borderRadius: Radius.sm,
+    padding: 4, marginVertical: Spacing.xs, borderWidth: 1, borderColor: th.border,
   },
   toggleBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm - 4, alignItems: 'center' },
-  toggleActive: { backgroundColor: Colors.gold },
-  toggleText: { fontFamily: Fonts.bodySemibold, color: Colors.textMuted, fontSize: Fonts.size.md },
-  toggleTextActive: { color: Colors.canvas },
+  toggleActive: { backgroundColor: th.gold },
+  toggleText: { fontFamily: Fonts.bodySemibold, color: th.textMuted, fontSize: Fonts.size.md },
+  toggleTextActive: { color: th.goldContrast },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: th.surface, borderRadius: Radius.sm, padding: Spacing.md,
+    borderWidth: 1, borderColor: th.border,
   },
-  rowHighlight: { borderColor: Colors.borderStrong },
+  rowHighlight: { borderColor: th.borderStrong },
   rowDim: { opacity: 0.5 },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
-  rowLabel: { fontFamily: Fonts.bodyMedium, color: Colors.text, fontSize: Fonts.size.md },
+  rowLabel: { fontFamily: Fonts.bodyMedium, color: th.text, fontSize: Fonts.size.md },
   badge: {
-    fontFamily: Fonts.bodyBold, color: Colors.canvas, backgroundColor: Colors.goldLight, fontSize: Fonts.size.xs,
+    fontFamily: Fonts.bodyBold, color: th.goldContrast, backgroundColor: th.goldLight, fontSize: Fonts.size.xs,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden',
   },
-  note: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, marginTop: 2 },
-  price: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.xl },
+  note: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, marginTop: 2 },
+  price: { fontFamily: Fonts.displayBold, color: th.goldLight, fontSize: Fonts.size.xl },
 
   secureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: Spacing.xs },
-  secure: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center' },
+  secure: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, textAlign: 'center' },
 });

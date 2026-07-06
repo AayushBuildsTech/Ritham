@@ -8,7 +8,8 @@ import { getHoroscope, HoroscopePeriod } from '../../lib/horoscopeService';
 import { getPanchang, Panchang } from '../../lib/panchangService';
 import { getNumerology } from '../../lib/numerologyService';
 import { Numerology } from '../../lib/numerology';
-import { Colors, Fonts, Spacing, Radius, Type, Depth, Accents, AccentName, Gradients } from '../../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Type, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
+import { useColors, useTheme } from '../../context/ThemeContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { GradientCard } from '../../components/GradientCard';
@@ -26,6 +27,9 @@ const PERIODS: { id: HoroscopePeriod; label: string }[] = [
 ];
 
 export default function HomeScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
+  const { isDark, toggle } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -108,7 +112,7 @@ export default function HomeScreen() {
 
   // ── renders ──────────────────────────────────────────────────────────────────
   if (entry === 'loading') {
-    return <View style={styles.loading}><ActivityIndicator color={Colors.gold} size="large" /></View>;
+    return <View style={styles.loading}><ActivityIndicator color={th.gold} size="large" /></View>;
   }
 
   const firstName = profile?.name?.trim().split(/\s+/)[0];
@@ -130,7 +134,7 @@ export default function HomeScreen() {
             <Text style={styles.name}>{firstName || 'Seeker'}</Text>
             {profile?.moonSign ? (
               <View style={styles.moonRow}>
-                <Icon name="moon" size={14} color={Colors.gold} />
+                <Icon name="moon" size={14} color={th.gold} />
                 <Text style={styles.rashi}>Moon in {profile.moonSign}</Text>
               </View>
             ) : (
@@ -138,6 +142,7 @@ export default function HomeScreen() {
             )}
           </View>
           <View style={styles.headerBtns}>
+            <IconButton icon={isDark ? 'sun' : 'moon'} onPress={toggle} />
             <IconButton icon="profile" onPress={() => router.push('/profile')} />
             <IconButton icon="settings" onPress={() => router.push('/settings')} />
           </View>
@@ -155,7 +160,7 @@ export default function HomeScreen() {
             </Text>
             <Pressable style={styles.ctaBtn} onPress={() => router.push('/profile')}>
               <Text style={styles.ctaBtnText}>Complete your Kundli</Text>
-              <Icon name="arrowRight" size={16} color={Colors.canvas} />
+              <Icon name="arrowRight" size={16} color={th.goldContrast} />
             </Pressable>
           </View>
         </Reveal>
@@ -180,10 +185,10 @@ export default function HomeScreen() {
             </View>
 
             {/* horoscope card */}
-            <GradientCard colors={Gradients.heroSurface} style={styles.heroCardPad}>
+            <GradientCard colors={th.gHero} style={styles.heroCardPad}>
               {loadingPeriod === period ? (
                 <View style={styles.horoLoading}>
-                  <ActivityIndicator color={Colors.gold} />
+                  <ActivityIndicator color={th.gold} />
                   <Text style={styles.bodyMuted}>Reading the stars…</Text>
                 </View>
               ) : errors[period] ? (
@@ -248,13 +253,15 @@ export default function HomeScreen() {
 
 // ── small building blocks ──────────────────────────────────────────────────────
 function IconButton({ icon, onPress }: { icon: IconName; onPress: () => void }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   return (
     <Pressable
       onPress={onPress}
-      android_ripple={{ color: Colors.goldFaint, borderless: true, radius: 22 }}
+      android_ripple={{ color: th.goldFaint, borderless: true, radius: 22 }}
       style={styles.iconBtn}
     >
-      <Icon name={icon} size={20} color={Colors.gold} />
+      <Icon name={icon} size={20} color={th.gold} />
     </Pressable>
   );
 }
@@ -262,6 +269,8 @@ function IconButton({ icon, onPress }: { icon: IconName; onPress: () => void }) 
 function FeatureRow({
   index, icon, accent, title, sub, onPress,
 }: { index: number; icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const a = Accents[accent];
   return (
     <Reveal index={index}>
@@ -277,83 +286,83 @@ function FeatureRow({
           <Text style={styles.featureTitle}>{title}</Text>
           <Text style={styles.featureSub} numberOfLines={1}>{sub}</Text>
         </View>
-        <Icon name="chevron" size={20} color={Colors.textDim} />
+        <Icon name="chevron" size={20} color={th.textDim} />
       </Pressable>
     </Reveal>
   );
 }
 
-const styles = StyleSheet.create({
-  loading: { flex: 1, backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center' },
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  loading: { flex: 1, backgroundColor: th.canvas, alignItems: 'center', justifyContent: 'center' },
+  root: { flex: 1, backgroundColor: th.canvas },
   content: { paddingHorizontal: Spacing.lg },
 
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.xl },
-  eyebrow: { ...Type.eyebrow, marginBottom: 6 },
-  name: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: Colors.text, lineHeight: Fonts.size.hero + 4 },
+  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginBottom: 6 },
+  name: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, lineHeight: Fonts.size.hero + 4 },
   moonRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  rashi: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: Colors.goldLight, letterSpacing: 0.3 },
-  phone: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 4 },
+  rashi: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: th.goldLight, letterSpacing: 0.3 },
+  phone: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 4 },
   headerBtns: { flexDirection: 'row', gap: Spacing.sm, marginLeft: Spacing.md, marginTop: 4 },
   iconBtn: {
     width: 42, height: 42, borderRadius: Radius.pill,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: th.surface, borderWidth: 1, borderColor: th.border,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  sectionEyebrow: { ...Type.eyebrow, marginTop: Spacing.xl, marginBottom: Spacing.md },
+  sectionEyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginTop: Spacing.xl, marginBottom: Spacing.md },
 
   // underline segmented control
   segment: { flexDirection: 'row', gap: Spacing.xl, marginBottom: Spacing.md },
   segmentBtn: { alignItems: 'center' },
-  segmentText: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.md, color: Colors.textDim, paddingBottom: 6 },
-  segmentTextActive: { color: Colors.text },
+  segmentText: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.md, color: th.textDim, paddingBottom: 6 },
+  segmentTextActive: { color: th.text },
   segmentRule: { height: 1.5, width: 20, borderRadius: 2, backgroundColor: 'transparent' },
-  segmentRuleActive: { backgroundColor: Colors.gold },
+  segmentRuleActive: { backgroundColor: th.gold },
 
   heroCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.border, ...Depth.card,
+    backgroundColor: th.surface, borderRadius: Radius.lg, padding: Spacing.lg,
+    borderWidth: 1, borderColor: th.border, ...Depth.card,
   },
   heroCardPad: { padding: Spacing.lg },
-  heroTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.text, marginBottom: Spacing.sm },
+  heroTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.text, marginBottom: Spacing.sm },
   quoteMark: {
-    fontFamily: Fonts.displayBold, fontSize: 44, color: Colors.gold,
+    fontFamily: Fonts.displayBold, fontSize: 44, color: th.gold,
     height: 34, marginBottom: -4, opacity: 0.9,
   },
-  horoBody: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.text, lineHeight: 25 },
-  bodyMuted: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 21 },
+  horoBody: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.text, lineHeight: 25 },
+  bodyMuted: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21 },
   horoLoading: { alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.sm },
 
   retryBtn: {
-    marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm,
+    marginTop: Spacing.sm, borderWidth: 1, borderColor: th.border, borderRadius: Radius.sm,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
   },
-  retryText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.sm },
+  retryText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
 
   ctaBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 14,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 14,
     marginTop: Spacing.md,
   },
-  ctaBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
+  ctaBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
   // feature rows
   featureRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm,
+    backgroundColor: th.surface, borderRadius: Radius.md, padding: Spacing.md,
+    borderWidth: 1, borderColor: th.border, marginBottom: Spacing.sm,
   },
   featureIcon: {
     width: 44, height: 44, borderRadius: Radius.sm,
-    backgroundColor: Colors.goldFaint, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: th.goldFaint, alignItems: 'center', justifyContent: 'center',
   },
   featureBody: { flex: 1 },
-  featureTitle: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: Colors.text },
-  featureSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 2 },
+  featureTitle: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: th.text },
+  featureSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 2 },
 
   disclaimer: {
-    fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
+    fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
     textAlign: 'center', marginTop: Spacing.xl, paddingHorizontal: Spacing.md,
   },
 });

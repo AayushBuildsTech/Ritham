@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Fonts, Gradients, Motion } from '../constants/theme';
+import { Colors, Fonts, Motion, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 
 // A bespoke animated start screen shown after the (static) native splash and
 // before the app reveals. Pure RN Animated — no reanimated, no native deps.
@@ -12,6 +13,8 @@ import { Colors, Fonts, Gradients, Motion } from '../constants/theme';
 //   3. the tracked-out tagline fades in
 //   4. brief hold, then the whole overlay fades away → onFinish()
 export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const wordOpacity = useRef(new Animated.Value(0)).current;
   const wordScale = useRef(new Animated.Value(1.04)).current;
   const wordShift = useRef(new Animated.Value(12)).current;
@@ -52,7 +55,7 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   return (
     <Animated.View style={[styles.root, { opacity: overlay }]} pointerEvents="none">
       <LinearGradient
-        colors={Gradients.splash}
+        colors={th.gSplash}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -78,17 +81,17 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
   root: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: Colors.canvas,
+    backgroundColor: th.canvas,
     alignItems: 'center',
     justifyContent: 'center',
   },
   wordmark: {
     fontFamily: Fonts.displayBold,
     fontSize: 64,
-    color: Colors.goldLight,
+    color: th.goldLight,
     letterSpacing: 1,
     textShadowColor: 'rgba(197,160,89,0.45)',
     textShadowOffset: { width: 0, height: 0 },
@@ -97,7 +100,7 @@ const styles = StyleSheet.create({
   rule: {
     width: 120,
     height: 1,
-    backgroundColor: Colors.gold,
+    backgroundColor: th.gold,
     marginTop: 18,
     marginBottom: 16,
     opacity: 0.9,
@@ -105,7 +108,7 @@ const styles = StyleSheet.create({
   tagline: {
     fontFamily: Fonts.bodyMedium,
     fontSize: 11,
-    color: Colors.textMuted,
+    color: th.textMuted,
     letterSpacing: 4,
   },
 });

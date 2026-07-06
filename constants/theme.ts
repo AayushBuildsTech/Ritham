@@ -7,48 +7,50 @@
 // additive — migrate screens onto them over time.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const Colors = {
-  // ── Canvas & surfaces (near-black, warm) ──────────────────────────────────
-  canvas: '#0B0B0D', // window background — deep near-black
-  surface: '#171519', // cards / raised surfaces (a hair warmer & lighter)
-  surfaceRaised: '#211E26', // modals, sheets, active surfaces
-  surfaceSunken: '#08080A', // wells, inputs, recessed areas
+// ── Two themes (dark = default look, light = new) ─────────────────────────────
+// Screens build their StyleSheet per-render from the active palette via
+// useColors()/makeStyles(c). Keep the SAME keys in both so `c.xxx` works either way.
+// `goldContrast` = always-dark text/icon color used ON gold surfaces (buttons) so
+// it stays legible whether the page is near-black or ivory.
 
-  // ── Gold (matte, never neon) ──────────────────────────────────────────────
-  gold: '#C5A059', // primary matte gold
-  goldLight: '#E4C983', // highlight gold (headings accents, active)
-  goldDeep: '#9A7B3C', // pressed / darker gold
-  goldFaint: 'rgba(197,160,89,0.14)', // gold wash fills
+type Tint = 'light' | 'dark';
 
-  // ── Type ──────────────────────────────────────────────────────────────────
-  text: '#FDFBF7', // ivory — headings & primary (never pure #fff)
-  textMuted: '#A29E95', // warm gray — secondary data
-  textDim: '#6E6A62', // tertiary / captions / disabled
+export const darkColors = {
+  canvas: '#0B0B0D', surface: '#171519', surfaceRaised: '#211E26', surfaceSunken: '#08080A',
+  gold: '#C5A059', goldLight: '#E4C983', goldDeep: '#9A7B3C', goldFaint: 'rgba(197,160,89,0.14)',
+  goldContrast: '#0B0B0D', // dark text on gold
+  text: '#FDFBF7', textMuted: '#A29E95', textDim: '#6E6A62',
+  border: 'rgba(197,160,89,0.16)', borderStrong: 'rgba(197,160,89,0.34)', divider: 'rgba(253,251,247,0.07)',
+  error: '#C7524B', success: '#7FA36F',
+  bg: '#0B0B0D', bgMid: '#111013', bgCard: '#171519', tabActive: '#C5A059', tabInactive: '#6E6A62',
+  scrimTabBar: 'rgba(9,9,11,0.34)', scrimSheet: 'rgba(21,20,23,0.96)', scrimBackdrop: 'rgba(6,6,8,0.66)',
+  gHero: ['#1D1A22', '#141217'] as [string, string],
+  gSplash: ['#0C0A10', '#0B0B0D'] as [string, string],
+  blurTint: 'dark' as Tint,
+  statusBar: 'light' as Tint,
+  isDark: true,
+};
 
-  // ── Lines ─────────────────────────────────────────────────────────────────
-  border: 'rgba(197,160,89,0.16)', // 1px matte-gold hairline (the signature)
-  borderStrong: 'rgba(197,160,89,0.34)', // emphasized hairline (active cards)
-  divider: 'rgba(253,251,247,0.07)', // neutral separators
+export const lightColors: typeof darkColors = {
+  canvas: '#F4EFE4', surface: '#FCFAF4', surfaceRaised: '#FFFFFF', surfaceSunken: '#EBE4D6',
+  gold: '#A07C2A', goldLight: '#856419', goldDeep: '#6E541A', goldFaint: 'rgba(160,124,42,0.12)',
+  goldContrast: '#1A1508', // dark text on gold
+  text: '#221D14', textMuted: '#6B6456', textDim: '#9A9284',
+  border: 'rgba(160,124,42,0.26)', borderStrong: 'rgba(160,124,42,0.5)', divider: 'rgba(34,29,20,0.08)',
+  error: '#B23A34', success: '#4E7A50',
+  bg: '#F4EFE4', bgMid: '#EFE8DB', bgCard: '#FCFAF4', tabActive: '#A07C2A', tabInactive: '#9A9284',
+  scrimTabBar: 'rgba(244,239,228,0.5)', scrimSheet: 'rgba(252,250,244,0.98)', scrimBackdrop: 'rgba(40,34,24,0.34)',
+  gHero: ['#FFFDF8', '#F4EFE4'],
+  gSplash: ['#F7F2E8', '#F4EFE4'],
+  blurTint: 'light',
+  statusBar: 'dark',
+  isDark: false,
+};
 
-  // ── Status (muted, on-brand — no bright web colors) ───────────────────────
-  error: '#C7524B',
-  success: '#7FA36F',
+export type ThemeColors = typeof darkColors;
 
-  // ── Back-compat aliases (existing screens reference these) ────────────────
-  bg: '#0B0B0D', // → canvas
-  bgMid: '#111013', // between canvas and surface
-  bgCard: '#151417', // → surface
-  tabActive: '#C5A059', // → gold
-  tabInactive: '#6E6A62', // → textDim
-} as const;
-
-// Translucent scrims for glass / overlays (Wave 2 pairs these with expo-blur;
-// used standalone they already read as a premium frosted panel).
-export const Scrim = {
-  tabBar: 'rgba(11,11,13,0.82)',
-  sheet: 'rgba(21,20,23,0.96)',
-  backdrop: 'rgba(6,6,8,0.66)',
-} as const;
+// Back-compat: `Colors` still points at the dark palette for any non-themed refs.
+export const Colors = darkColors;
 
 // ── "Royal Jewel" accents ─────────────────────────────────────────────────────
 // Gold is the connective thread; each domain also carries a jewel accent used for
@@ -64,16 +66,9 @@ export const Accents = {
 } as const;
 export type AccentName = keyof typeof Accents;
 
-// Gradients for expo-linear-gradient (`colors` arrays; use start/end per component).
-export const Gradients = {
-  goldButton: ['#EFD69A', '#C9A24E'] as [string, string],
-  heroSurface: ['#1D1A22', '#141217'] as [string, string], // warm lift for hero cards
-  splash: ['#0C0A10', '#0B0B0D'] as [string, string],
-} as const;
-
-// A soft jewel wash for a card of the given accent: tinted top → plain surface.
-export function accentCardGradient(accent: AccentName): [string, string] {
-  return [Accents[accent].faint, Colors.surface];
+// A soft jewel wash for a card of the given accent: tinted top → theme surface.
+export function accentCardGradient(c: ThemeColors, accent: AccentName): [string, string] {
+  return [Accents[accent].faint, c.surface];
 }
 
 export const Fonts = {

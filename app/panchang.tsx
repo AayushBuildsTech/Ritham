@@ -3,11 +3,14 @@ import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getPanchang, Panchang } from '../lib/panchangService';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing, Radius, Accents } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Accents, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function PanchangScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
 
@@ -35,7 +38,7 @@ export default function PanchangScreen() {
       <ScreenHeader title="Panchang" onBack={() => router.back()} />
 
       {state === 'loading' ? (
-        <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>
+        <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : state === 'error' ? (
         <View style={styles.center}>
           <Text style={styles.errorText}>Couldn’t load today’s Panchang right now.</Text>
@@ -92,9 +95,9 @@ export default function PanchangScreen() {
             <Text style={styles.hookText}>
               Curious what today holds for <Text style={styles.hookEm}>you</Text> specifically?
             </Text>
-            <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: Colors.goldDeep }}>
+            <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: th.goldDeep }}>
               <Text style={styles.hookBtnText}>Ask the astrologer</Text>
-              <Icon name="arrowRight" size={15} color={Colors.canvas} />
+              <Icon name="arrowRight" size={15} color={th.goldContrast} />
             </Pressable>
           </View>
 
@@ -111,6 +114,8 @@ export default function PanchangScreen() {
 function Row({ label, value, last, good, bad }: {
   label: string; value?: string; last?: boolean; good?: boolean; bad?: boolean;
 }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   return (
     <View style={[styles.row, !last && styles.rowBorder]}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -119,38 +124,38 @@ function Row({ label, value, last, good, bad }: {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  errorText: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
+  errorText: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
 
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  dateLine: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.xxl },
-  dateSub: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
+  dateLine: { fontFamily: Fonts.displayBold, color: th.goldLight, fontSize: Fonts.size.xxl },
+  dateSub: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
 
   sectionLabel: { fontFamily: Fonts.bodySemibold, color: Accents.saffron.color, fontSize: Fonts.size.xs, letterSpacing: 2, marginBottom: Spacing.sm, marginTop: Spacing.lg },
   group: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.border,
     paddingHorizontal: Spacing.md,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md, gap: Spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.divider },
-  rowLabel: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md },
-  rowValue: { fontFamily: Fonts.bodySemibold, color: Colors.text, fontSize: Fonts.size.md, flexShrink: 1, textAlign: 'right' },
-  good: { color: Colors.success },
-  bad: { color: Colors.error },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: th.divider },
+  rowLabel: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md },
+  rowValue: { fontFamily: Fonts.bodySemibold, color: th.text, fontSize: Fonts.size.md, flexShrink: 1, textAlign: 'right' },
+  good: { color: th.success },
+  bad: { color: th.error },
 
   hookCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong,
+    backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.borderStrong,
     padding: Spacing.lg, marginTop: Spacing.xl, alignItems: 'center', gap: Spacing.md,
   },
-  hookText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
-  hookEm: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight },
+  hookText: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
+  hookEm: { fontFamily: Fonts.bodySemibold, color: th.goldLight },
   hookBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
   },
-  hookBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md },
+  hookBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md },
 
-  footnote: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17, textAlign: 'center', marginTop: Spacing.lg },
+  footnote: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17, textAlign: 'center', marginTop: Spacing.lg },
 });

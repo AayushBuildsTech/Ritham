@@ -3,12 +3,15 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert } from 'r
 import { useRouter } from 'expo-router';
 import { TEMPLES, Temple } from '../config/temples';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing, Radius, Depth, Accents } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
 
 export default function DarshanScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
 
   useEffect(() => { track('darshan_opened'); }, []);
@@ -45,13 +48,13 @@ export default function DarshanScreen() {
               </View>
               <Text style={styles.deity}>{t.deity}</Text>
               <View style={styles.timingRow}>
-                <Icon name="clock" size={14} color={Colors.textMuted} />
+                <Icon name="clock" size={14} color={th.textMuted} />
                 <Text style={styles.timings}>{t.timings}</Text>
               </View>
 
-              <Pressable style={styles.watchBtn} onPress={() => watch(t)} android_ripple={{ color: Colors.goldDeep }}>
+              <Pressable style={styles.watchBtn} onPress={() => watch(t)} android_ripple={{ color: th.goldDeep }}>
                 <Text style={styles.watchText}>Watch Live Darshan</Text>
-                <Icon name="external" size={15} color={Colors.canvas} />
+                <Icon name="external" size={15} color={th.goldContrast} />
               </Pressable>
               <Text style={styles.unverified}>
                 Opens the {t.source === 'youtube' ? 'official YouTube channel' : 'official temple website'}
@@ -71,13 +74,13 @@ export default function DarshanScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  lead: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, lineHeight: 22, marginBottom: Spacing.md },
+  lead: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, lineHeight: 22, marginBottom: Spacing.md },
 
   card: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: th.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: th.border,
     padding: Spacing.lg, marginBottom: Spacing.md, ...Depth.card,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
@@ -86,21 +89,21 @@ const styles = StyleSheet.create({
     backgroundColor: Accents.ruby.faint, borderWidth: 1, borderColor: Accents.ruby.soft,
     alignItems: 'center', justifyContent: 'center',
   },
-  name: { fontFamily: Fonts.displayBold, color: Colors.text, fontSize: Fonts.size.lg },
-  location: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
-  deity: { fontFamily: Fonts.bodyMedium, color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.md },
+  name: { fontFamily: Fonts.displayBold, color: th.text, fontSize: Fonts.size.lg },
+  location: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
+  deity: { fontFamily: Fonts.bodyMedium, color: th.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.md },
   timingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  timings: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
+  timings: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
 
   watchBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 13, marginTop: Spacing.md,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 13, marginTop: Spacing.md,
   },
-  watchText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
-  unverified: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
+  watchText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
+  unverified: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
 
   disclaimer: {
-    fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
+    fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
     textAlign: 'center', marginTop: Spacing.lg, paddingHorizontal: Spacing.sm,
   },
 });

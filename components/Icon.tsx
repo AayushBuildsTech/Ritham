@@ -1,5 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Colors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 
 // Central, semantic icon registry. Screens reference brand-level names
 // ("panchang", "muhurat") not raw glyphs, so the whole visual language can be
@@ -69,7 +69,7 @@ export type IconName = keyof typeof MAP;
 export function Icon({
   name,
   size = 22,
-  color = Colors.gold,
+  color,
   style,
 }: {
   name: IconName;
@@ -77,9 +77,11 @@ export function Icon({
   color?: string;
   style?: any;
 }) {
+  const th = useColors();
+  const col = color ?? th.gold;
   const [set, glyph] = MAP[name];
   if (set === 'feather') {
-    return <Feather name={glyph as any} size={size} color={color} style={style} />;
+    return <Feather name={glyph as any} size={size} color={col} style={style} />;
   }
-  return <MaterialCommunityIcons name={glyph as any} size={size} color={color} style={style} />;
+  return <MaterialCommunityIcons name={glyph as any} size={size} color={col} style={style} />;
 }

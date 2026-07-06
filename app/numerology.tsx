@@ -6,12 +6,15 @@ import { getNumerology } from '../lib/numerologyService';
 import { Numerology, NumerologyNumber } from '../lib/numerology';
 import { meaningFor } from '../constants/numerology';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing, Radius, Depth, Accents } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
 
 export default function NumerologyScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
 
@@ -46,7 +49,7 @@ export default function NumerologyScreen() {
       <ScreenHeader title="Numerology" onBack={() => router.back()} />
 
       {state === 'loading' ? (
-        <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>
+        <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : state === 'error' ? (
         <View style={styles.center}>
           <Text style={styles.errorText}>Couldn’t load your numerology right now.</Text>
@@ -66,9 +69,9 @@ export default function NumerologyScreen() {
               <Text style={styles.hookText}>
                 See how your <Text style={styles.hookEm}>birth chart</Text> shapes all of this.
               </Text>
-              <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: Colors.goldDeep }}>
+              <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: th.goldDeep }}>
                 <Text style={styles.hookBtnText}>Start a chat</Text>
-                <Icon name="arrowRight" size={15} color={Colors.canvas} />
+                <Icon name="arrowRight" size={15} color={th.goldContrast} />
               </Pressable>
             </View>
           </Reveal>
@@ -84,6 +87,8 @@ export default function NumerologyScreen() {
 }
 
 function NumberCard({ kind, n }: { kind: 'Life Path' | 'Expression'; n: NumerologyNumber }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const meaning = meaningFor(n.number);
   return (
     <View style={styles.card}>
@@ -104,16 +109,16 @@ function NumberCard({ kind, n }: { kind: 'Life Path' | 'Expression'; n: Numerolo
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  errorText: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
+  errorText: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
 
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  intro: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, lineHeight: 22, marginBottom: Spacing.lg },
+  intro: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, lineHeight: 22, marginBottom: Spacing.lg },
 
   card: {
-    backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: th.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: th.border,
     padding: Spacing.lg, marginBottom: Spacing.md, ...Depth.card,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
@@ -123,21 +128,21 @@ const styles = StyleSheet.create({
   },
   badgeNum: { fontFamily: Fonts.displayBold, color: Accents.amethyst.color, fontSize: Fonts.size.xxl },
   kind: { fontFamily: Fonts.bodySemibold, color: Accents.amethyst.color, fontSize: Fonts.size.xs, letterSpacing: 1.5, textTransform: 'uppercase' },
-  cardTitle: { fontFamily: Fonts.displayBold, color: Colors.text, fontSize: Fonts.size.xl, marginTop: 2 },
-  keyword: { fontFamily: Fonts.bodyMedium, color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: 2 },
-  body: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md, lineHeight: 24 },
+  cardTitle: { fontFamily: Fonts.displayBold, color: th.text, fontSize: Fonts.size.xl, marginTop: 2 },
+  keyword: { fontFamily: Fonts.bodyMedium, color: th.goldLight, fontSize: Fonts.size.sm, marginTop: 2 },
+  body: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md, lineHeight: 24 },
 
   hookCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong,
+    backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.borderStrong,
     padding: Spacing.lg, marginTop: Spacing.lg, alignItems: 'center', gap: Spacing.md,
   },
-  hookText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
-  hookEm: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight },
+  hookText: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
+  hookEm: { fontFamily: Fonts.bodySemibold, color: th.goldLight },
   hookBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
   },
-  hookBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md },
+  hookBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md },
 
-  footnote: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17, textAlign: 'center', marginTop: Spacing.lg },
+  footnote: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17, textAlign: 'center', marginTop: Spacing.lg },
 });

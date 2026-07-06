@@ -6,11 +6,14 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getReport, ReportRow } from '../lib/reportService';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function ReportView() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -52,14 +55,14 @@ export default function ReportView() {
         right={
           <Pressable onPress={download} disabled={!report?.html || exporting} style={styles.dlBtn} hitSlop={8}>
             {exporting
-              ? <ActivityIndicator color={Colors.gold} />
-              : <Icon name="download" size={20} color={report?.html ? Colors.goldLight : Colors.textDim} />}
+              ? <ActivityIndicator color={th.gold} />
+              : <Icon name="download" size={20} color={report?.html ? th.goldLight : th.textDim} />}
           </Pressable>
         }
       />
 
       {loading ? (
-        <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>
+        <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : !report || !report.html ? (
         <View style={styles.center}>
           <Text style={styles.msg}>
@@ -80,10 +83,10 @@ export default function ReportView() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
   dlBtn: { minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  msg: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
-  web: { flex: 1, backgroundColor: Colors.canvas },
+  msg: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
+  web: { flex: 1, backgroundColor: th.canvas },
 });

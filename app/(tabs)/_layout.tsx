@@ -4,7 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardState } from 'react-native-keyboard-controller';
 import { BlurView } from 'expo-blur';
 import { Icon, IconName } from '../../components/Icon';
-import { Colors, Fonts } from '../../constants/theme';
+import { Fonts, ThemeColors } from '../../constants/theme';
+import { useColors } from '../../context/ThemeContext';
 
 // Height of the bar content ABOVE the safe-area inset. Tab screens add
 // `TAB_BAR_HEIGHT + insets.bottom` of bottom padding so nothing hides behind the
@@ -18,10 +19,12 @@ const TABS: Record<string, { icon: IconName; label: string }> = {
   reports: { icon: 'reports', label: 'Reports' },
 };
 
-// Glass bar: a real expo-blur BlurView (frosted dark) under a faint scrim for
-// contrast, a thin gold top hairline, a short sharp gold indicator over the
-// active tab (not a fat pill), thin-line icons, tracked-out labels.
+// Glass bar: a real expo-blur BlurView under a faint scrim for contrast, a thin
+// gold top hairline, a short sharp gold indicator over the active tab (not a fat
+// pill), thin-line icons, tracked-out labels. Themed (light/dark).
 function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const insets = useSafeAreaInsets();
   // Hide the (absolute) glass bar while a keyboard is open so it never overlaps
   // an input (e.g. the chat composer).
@@ -29,7 +32,7 @@ function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
   if (kbVisible) return null;
   return (
     <View style={[styles.bar, { height: TAB_BAR_HEIGHT + insets.bottom, paddingBottom: insets.bottom }]}>
-      <BlurView intensity={48} tint="dark" style={StyleSheet.absoluteFill} />
+      <BlurView intensity={48} tint={th.blurTint} style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, styles.scrim]} />
       <View style={styles.hairline} />
       <View style={styles.row}>
@@ -37,7 +40,7 @@ function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
           const cfg = TABS[route.name];
           if (!cfg) return null;
           const focused = state.index === index;
-          const color = focused ? Colors.gold : Colors.textDim;
+          const color = focused ? th.gold : th.tabInactive;
 
           const onPress = () => {
             const event = navigation.emit({
@@ -50,7 +53,7 @@ function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
             <Pressable
               key={route.key}
               onPress={onPress}
-              android_ripple={{ color: Colors.goldFaint, borderless: true, radius: 44 }}
+              android_ripple={{ color: th.goldFaint, borderless: true, radius: 44 }}
               style={styles.item}
             >
               <View style={[styles.indicator, focused && styles.indicatorActive]} />
@@ -78,16 +81,16 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
   bar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     paddingTop: 10, overflow: 'hidden',
   },
   // light enough to let the blur read as glass, dark enough for icon contrast
-  scrim: { backgroundColor: 'rgba(9,9,11,0.34)' },
+  scrim: { backgroundColor: th.scrimTabBar },
   hairline: {
     position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: th.border,
   },
   row: { flexDirection: 'row', flex: 1 },
   item: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', gap: 5 },
@@ -95,7 +98,7 @@ const styles = StyleSheet.create({
     position: 'absolute', top: -10, width: 22, height: 2, borderRadius: 2,
     backgroundColor: 'transparent',
   },
-  indicatorActive: { backgroundColor: Colors.gold },
+  indicatorActive: { backgroundColor: th.gold },
   label: {
     fontFamily: Fonts.bodyMedium,
     fontSize: 10.5,

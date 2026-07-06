@@ -12,7 +12,8 @@ import { track } from '../lib/analytics';
 import { CITIES } from '../constants/cities';
 import { searchPlaces, GeoPlace } from '../lib/geocoding';
 import { SelectModal, Option } from '../components/SelectModal';
-import { Colors, Fonts, Spacing, Radius, Depth } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
+import { useColors } from '../context/ThemeContext';
 import { Icon } from '../components/Icon';
 
 const MONTHS = [
@@ -30,20 +31,24 @@ const pad2 = (n: number | string) => String(n).padStart(2, '0');
 const PLACEHOLDERS = ['Day', 'Month', 'Year', 'Hr', 'Min', 'AM/PM', 'Select city'];
 
 function BackHeader({ onBack }: { onBack: () => void }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const insets = useSafeAreaInsets();
   return (
     <Pressable
       style={[styles.back, { marginTop: insets.top }]}
       onPress={onBack}
-      android_ripple={{ color: Colors.goldFaint, borderless: true, radius: 20 }}
+      android_ripple={{ color: th.goldFaint, borderless: true, radius: 20 }}
     >
-      <Icon name="back" size={20} color={Colors.gold} />
+      <Icon name="back" size={20} color={th.gold} />
       <Text style={styles.backText}>Back</Text>
     </Pressable>
   );
 }
 
 export default function ProfileScreen() {
+  const th = useColors();
+  const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
 
@@ -215,7 +220,7 @@ export default function ProfileScreen() {
   if (mode === 'loading') {
     return (
       <View style={styles.center}>
-        <ActivityIndicator color={Colors.gold} size="large" />
+        <ActivityIndicator color={th.gold} size="large" />
       </View>
     );
   }
@@ -253,7 +258,7 @@ export default function ProfileScreen() {
         <TextInput
           style={styles.input}
           placeholder="e.g. Aarav Sharma"
-          placeholderTextColor={Colors.textDim}
+          placeholderTextColor={th.textDim}
           value={name}
           onChangeText={setName}
         />
@@ -296,10 +301,10 @@ export default function ProfileScreen() {
           style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
           onPress={handleSave}
           disabled={saving}
-          android_ripple={{ color: Colors.goldDeep }}
+          android_ripple={{ color: th.goldDeep }}
         >
           {saving
-            ? <ActivityIndicator color={Colors.canvas} />
+            ? <ActivityIndicator color={th.goldContrast} />
             : <Text style={styles.saveText}>{profile ? 'Save & Recompute Kundli' : 'Generate My Kundli'}</Text>}
         </Pressable>
 
@@ -328,11 +333,13 @@ export default function ProfileScreen() {
 }
 
 function Field({ label, onPress, flex }: { label: string; onPress: () => void; flex?: number }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const dim = PLACEHOLDERS.includes(label);
   return (
-    <Pressable style={[styles.field, flex ? { flex } : { alignSelf: 'stretch' }]} onPress={onPress} android_ripple={{ color: Colors.goldFaint }}>
+    <Pressable style={[styles.field, flex ? { flex } : { alignSelf: 'stretch' }]} onPress={onPress} android_ripple={{ color: th.goldFaint }}>
       <Text style={[styles.fieldText, dim && styles.fieldPlaceholder]}>{label}</Text>
-      <Icon name="chevronDown" size={16} color={Colors.textDim} />
+      <Icon name="chevronDown" size={16} color={th.textDim} />
     </Pressable>
   );
 }
@@ -341,6 +348,8 @@ function Field({ label, onPress, flex }: { label: string; onPress: () => void; f
 function KundliView({ profile, kundli, onEdit, onBack }: {
   profile: ProfileRow; kundli: Kundli; onEdit: () => void; onBack: () => void;
 }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   const dobLabel = (() => {
     const [y, m, d] = profile.dob.split('-');
     return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
@@ -358,7 +367,7 @@ function KundliView({ profile, kundli, onEdit, onBack }: {
       <BackHeader onBack={onBack} />
 
       <View style={styles.viewHead}>
-        <View style={styles.viewCrest}><Icon name="moon" size={26} color={Colors.gold} /></View>
+        <View style={styles.viewCrest}><Icon name="moon" size={26} color={th.gold} /></View>
         <Text style={styles.viewName}>{profile.name}</Text>
         <Text style={styles.viewMeta}>{dobLabel} · {tobLabel}</Text>
         <Text style={styles.viewMeta}>{profile.birth_place}</Text>
@@ -402,8 +411,8 @@ function KundliView({ profile, kundli, onEdit, onBack }: {
         </Text>
       )}
 
-      <Pressable style={styles.editBtn} onPress={onEdit} android_ripple={{ color: Colors.goldFaint }}>
-        <Icon name="edit" size={16} color={Colors.goldLight} />
+      <Pressable style={styles.editBtn} onPress={onEdit} android_ripple={{ color: th.goldFaint }}>
+        <Icon name="edit" size={16} color={th.goldLight} />
         <Text style={styles.editText}>Edit Birth Details</Text>
       </Pressable>
       <View style={{ height: Spacing.xxl }} />
@@ -412,6 +421,8 @@ function KundliView({ profile, kundli, onEdit, onBack }: {
 }
 
 function KeyCard({ label, value }: { label: string; value: string }) {
+  const th = useColors();
+  const styles = makeStyles(th);
   return (
     <View style={styles.keyCard}>
       <Text style={styles.keyLabel}>{label}</Text>
@@ -420,85 +431,85 @@ function KeyCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.canvas },
-  center: { flex: 1, backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center' },
+const makeStyles = (th: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: th.canvas },
+  center: { flex: 1, backgroundColor: th.canvas, alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: Spacing.lg },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
-  backText: { fontFamily: Fonts.bodyMedium, color: Colors.gold, fontSize: Fonts.size.md },
+  backText: { fontFamily: Fonts.bodyMedium, color: th.gold, fontSize: Fonts.size.md },
 
-  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.gold, letterSpacing: 2.5, marginBottom: 6 },
-  h1: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: Colors.text, marginBottom: Spacing.xs },
-  sub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20, marginBottom: Spacing.lg },
+  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, marginBottom: 6 },
+  h1: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, marginBottom: Spacing.xs },
+  sub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 20, marginBottom: Spacing.lg },
 
-  label: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.textMuted, letterSpacing: 1.5, marginBottom: Spacing.sm, marginTop: Spacing.md },
+  label: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.textMuted, letterSpacing: 1.5, marginBottom: Spacing.sm, marginTop: Spacing.md },
   input: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.md,
-    fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.text, backgroundColor: Colors.surfaceSunken,
+    borderWidth: 1, borderColor: th.border, borderRadius: Radius.sm, padding: Spacing.md,
+    fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.text, backgroundColor: th.surfaceSunken,
   },
 
   pillRow: { flexDirection: 'row', gap: Spacing.sm },
   pill: {
     flex: 1, paddingVertical: Spacing.md, borderRadius: Radius.sm, borderWidth: 1,
-    borderColor: Colors.border, backgroundColor: Colors.surfaceSunken, alignItems: 'center',
+    borderColor: th.border, backgroundColor: th.surfaceSunken, alignItems: 'center',
   },
-  pillActive: { borderColor: Colors.borderStrong, backgroundColor: Colors.goldFaint },
-  pillText: { fontFamily: Fonts.bodyMedium, color: Colors.textMuted, fontSize: Fonts.size.md },
-  pillTextActive: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight },
+  pillActive: { borderColor: th.borderStrong, backgroundColor: th.goldFaint },
+  pillText: { fontFamily: Fonts.bodyMedium, color: th.textMuted, fontSize: Fonts.size.md },
+  pillTextActive: { fontFamily: Fonts.bodySemibold, color: th.goldLight },
 
   row3: { flexDirection: 'row', gap: Spacing.sm },
   field: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.md,
-    backgroundColor: Colors.surfaceSunken,
+    borderWidth: 1, borderColor: th.border, borderRadius: Radius.sm, padding: Spacing.md,
+    backgroundColor: th.surfaceSunken,
   },
-  fieldText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md },
-  fieldPlaceholder: { color: Colors.textDim },
+  fieldText: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md },
+  fieldPlaceholder: { color: th.textDim },
 
-  error: { fontFamily: Fonts.body, color: Colors.error, fontSize: Fonts.size.sm, marginTop: Spacing.md },
+  error: { fontFamily: Fonts.body, color: th.error, fontSize: Fonts.size.sm, marginTop: Spacing.md },
   saveBtn: {
-    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 15,
+    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 15,
     alignItems: 'center', marginTop: Spacing.lg,
   },
   saveBtnDisabled: { opacity: 0.6 },
-  saveText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
+  saveText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
   // view mode
   viewHead: { alignItems: 'center', marginTop: Spacing.sm },
   viewCrest: {
-    width: 64, height: 64, borderRadius: Radius.pill, backgroundColor: Colors.goldFaint,
-    borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center',
+    width: 64, height: 64, borderRadius: Radius.pill, backgroundColor: th.goldFaint,
+    borderWidth: 1, borderColor: th.border, alignItems: 'center', justifyContent: 'center',
   },
-  viewName: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.text, textAlign: 'center', marginTop: Spacing.md },
-  viewMeta: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', marginTop: 2 },
+  viewName: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.text, textAlign: 'center', marginTop: Spacing.md },
+  viewMeta: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, textAlign: 'center', marginTop: 2 },
 
   keyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.lg },
   keyCard: {
-    width: '47%', flexGrow: 1, backgroundColor: Colors.surface, borderRadius: Radius.md,
-    padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Depth.card,
+    width: '47%', flexGrow: 1, backgroundColor: th.surface, borderRadius: Radius.md,
+    padding: Spacing.md, borderWidth: 1, borderColor: th.border, ...Depth.card,
   },
-  keyLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: Colors.textDim, letterSpacing: 0.5 },
-  keyValue: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.goldLight, marginTop: 4 },
+  keyLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, letterSpacing: 0.5 },
+  keyValue: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.goldLight, marginTop: 4 },
 
   summaryCard: {
-    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.border, marginTop: Spacing.md,
+    backgroundColor: th.surface, borderRadius: Radius.md, padding: Spacing.lg,
+    borderWidth: 1, borderColor: th.border, marginTop: Spacing.md,
   },
-  summaryTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.lg, color: Colors.text, marginBottom: Spacing.xs },
-  summaryText: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 22 },
+  summaryTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.lg, color: th.text, marginBottom: Spacing.xs },
+  summaryText: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 22 },
 
-  tableHeading: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text, marginTop: Spacing.lg, marginBottom: Spacing.sm },
-  table: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden' },
-  trow: { flexDirection: 'row', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.divider },
-  thead: { backgroundColor: Colors.surfaceSunken },
-  th: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.textDim, letterSpacing: 0.5 },
-  td: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.text },
-  note: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: Colors.textDim, fontStyle: 'italic', marginTop: Spacing.md, lineHeight: 16 },
+  tableHeading: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginTop: Spacing.lg, marginBottom: Spacing.sm },
+  table: { borderWidth: 1, borderColor: th.border, borderRadius: Radius.md, overflow: 'hidden' },
+  trow: { flexDirection: 'row', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: th.divider },
+  thead: { backgroundColor: th.surfaceSunken },
+  th: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.textDim, letterSpacing: 0.5 },
+  td: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.text },
+  note: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, fontStyle: 'italic', marginTop: Spacing.md, lineHeight: 16 },
 
   editBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: Radius.sm, paddingVertical: 14,
+    borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.sm, paddingVertical: 14,
     marginTop: Spacing.lg,
   },
-  editText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.md },
+  editText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.md },
 });
