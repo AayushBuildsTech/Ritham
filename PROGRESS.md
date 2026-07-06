@@ -997,3 +997,71 @@ Runtime theming added. **Default is LIGHT**; choice persists to AsyncStorage (`r
 - JS-only (no rebuild): reuses `@react-native-async-storage/async-storage`. `npx tsc --noEmit` passes.
 - Light palette is a first pass (warm ivory `#F4EFE4` + deep gold `#A07C2A` + jewel accents) — tune
   contrast per feedback. Report PDFs are NOT themed by app mode (they stay the dark branded template).
+
+---
+
+## 27. Light-theme contrast pass (DONE, JS-only, verified on device 2026-07-06)
+
+User feedback on the light theme (§26 first pass): body/caption text was too pale to read (e.g. the
+Reports card copy "…all 12 houses, planets, yogas…"), and gold CTA buttons blended into their own dark
+label (muddy olive-gold fill under near-black text). Fixed centrally so it cascades to every screen.
+
+**Root cause / the two roles of gold:** in light mode a single gold can't be BOTH a readable dark
+accent-text tone on cream AND a bright button fill that makes dark text pop — opposite contrast
+directions. The palette already defined `goldSurface` for fills but **no screen used it** (0 refs), so
+CTAs were filling with `th.gold` (`#A07C2A`) instead.
+
+**Changes — `constants/theme.ts` `lightColors` only** (dark palette untouched):
+| token | before | after | why |
+|---|---|---|---|
+| `textMuted` | `#6B6456` | `#574F3F` | descriptions/subtitles now clearly legible |
+| `textDim` | `#9A9284` | `#797060` | captions/dates/disclaimers readable (was ~2.4:1) |
+| `goldLight` | `#856419` | `#6B5011` | richer, readable card titles/prices/links (35 refs) |
+| `goldSurface` | `#D8A93A` | `#E4B23E` | brighter clean gold button fill; `goldContrast` text pops |
+| `gold` | `#A07C2A` | `#8C6A22` | crisper eyebrows / active-tab / hairlines (now text-only) |
+
+**Convention established (apply to all new screens):** **filled buttons / badges / active chips use
+`th.goldSurface` as the fill, NOT `th.gold`.** `th.gold` & `th.goldLight` are accent-TEXT / eyebrow /
+hairline tones only; on-gold text stays `th.goldContrast`. This is safe in dark mode because
+`darkColors.goldSurface === darkColors.gold` (`#C5A059`), so moving fills only changes light mode.
+
+**Screens edited** (18 CTA/badge/toggle/chip fills `th.gold`→`th.goldSurface`, plus one `goldLight`
+badge in Paywall): auth ×2, chat (primary btn + user bubble + send btn), Home, reports (primary +
+flagship badge), panchang, numerology, muhurat, darshan, profile, report-chart ×2, report-matchmaking
+×2, report-vastu (btn + active chip), Paywall (toggle + badge). Decorative gold left as-is (hairline
+rules, tab indicator, splash/loading dots, SelectModal handle — no text on them). `npx tsc --noEmit`
+passes. **JS-only — reload Metro, no rebuild.** Verified on device: Home + Reports render dark,
+readable copy and punchy gold buttons.
+
+### Dev-run refresh — wireless ADB (2026-07-06, current network)
+Phone Wi-Fi IP is now **`192.168.1.14`** (SSID changed since §16's `.10/.4`; still DHCP — get current
+with `adb -s <dev> shell ip -o -4 addr show wlan0`). Standard cable-free loop:
+```
+adb connect 192.168.1.14:5555
+adb -s 192.168.1.14:5555 reverse tcp:8081 tcp:8081     # re-run after any reconnect
+cd C:\Users\user\Desktop\Ritham\ritham && npx expo start --dev-client
+adb -s 192.168.1.14:5555 shell monkey -p com.ritham.app -c android.intent.category.LAUNCHER 1
+```
+⚠️ **The `adb reverse` tunnel is per-connection and drops when the phone sleeps or USB is unplugged** →
+app then shows the red "Unable to load script". Fix: `adb connect …` again, redo `reverse`, then
+force-stop + relaunch the app (`am force-stop com.ritham.app` → monkey). Reload deep link:
+`adb -s 192.168.1.14:5555 shell am start -a android.intent.action.VIEW -d "ritham://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081" com.ritham.app`.
+
+---
+
+## 28. NEXT: Real Claude API integration (planned — not started)
+
+Everything AI-facing currently returns a **deterministic MOCK** because `ANTHROPIC_API_KEY` is unset
+(intentional dev policy, §14). The flip to real Claude is the next task. Affected Edge Functions, all of
+which read the same `ANTHROPIC_API_KEY` secret and swap to live output automatically once it's present:
+- `chat` (deployed as slug **`bright-processor`**) — Claude **Sonnet 5**, thinking off.
+- `horoscope`, `report` (chat-reports + Vastu vision + Matchmaking narration) — mock narration only;
+  all scores/houses/dasha/yogas/guna-milan are already REAL (computed, rule #2).
+- `panchang` / `muhurat` are **pure-compute, no AI** — unaffected.
+
+Scope for the integration session: (1) add `ANTHROPIC_API_KEY` in Supabase → Edge Functions → Secrets;
+(2) confirm each function's model id + request shape against the current Anthropic API (check the
+`claude-api` skill / docs before editing — do NOT trust memory for model ids/params); (3) quality pass —
+run real chats/horoscopes/reports and tune each system prompt; (4) watch cost/caching (rule #4 caches
+already protect horoscope/report/panchang/muhurat; chat is per-message). Nothing here needs an app
+rebuild — Edge-Function-only.

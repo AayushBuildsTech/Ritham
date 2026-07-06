@@ -18,6 +18,7 @@ type Tint = 'light' | 'dark';
 export const darkColors = {
   canvas: '#0B0B0D', surface: '#171519', surfaceRaised: '#211E26', surfaceSunken: '#08080A',
   gold: '#C5A059', goldLight: '#E4C983', goldDeep: '#9A7B3C', goldFaint: 'rgba(197,160,89,0.14)',
+  goldSurface: '#C5A059', // gold used as a BUTTON/badge fill (dark text on top)
   goldContrast: '#0B0B0D', // dark text on gold
   text: '#FDFBF7', textMuted: '#A29E95', textDim: '#6E6A62',
   border: 'rgba(197,160,89,0.16)', borderStrong: 'rgba(197,160,89,0.34)', divider: 'rgba(253,251,247,0.07)',
@@ -33,9 +34,10 @@ export const darkColors = {
 
 export const lightColors: typeof darkColors = {
   canvas: '#F4EFE4', surface: '#FCFAF4', surfaceRaised: '#FFFFFF', surfaceSunken: '#EBE4D6',
-  gold: '#A07C2A', goldLight: '#856419', goldDeep: '#6E541A', goldFaint: 'rgba(160,124,42,0.12)',
+  gold: '#8C6A22', goldLight: '#6B5011', goldDeep: '#6E541A', goldFaint: 'rgba(160,124,42,0.12)',
+  goldSurface: '#E4B23E', // brighter gold for button/badge fills so dark text pops (not muddy brown)
   goldContrast: '#1A1508', // dark text on gold
-  text: '#221D14', textMuted: '#6B6456', textDim: '#9A9284',
+  text: '#221D14', textMuted: '#574F3F', textDim: '#797060',
   border: 'rgba(160,124,42,0.26)', borderStrong: 'rgba(160,124,42,0.5)', divider: 'rgba(34,29,20,0.08)',
   error: '#B23A34', success: '#4E7A50',
   bg: '#F4EFE4', bgMid: '#EFE8DB', bgCard: '#FCFAF4', tabActive: '#A07C2A', tabInactive: '#9A9284',

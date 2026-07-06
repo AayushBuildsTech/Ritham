@@ -222,7 +222,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   hookText: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
   hookBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
   },
   hookBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md },
 

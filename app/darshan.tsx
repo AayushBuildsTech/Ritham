@@ -97,7 +97,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   watchBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 13, marginTop: Spacing.md,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 13, marginTop: Spacing.md,
   },
   watchText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
   unverified: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },

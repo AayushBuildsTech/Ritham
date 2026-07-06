@@ -218,7 +218,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 4, flexWrap: 'wrap' },
   cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.goldLight },
   flagBadge: {
-    fontFamily: Fonts.bodyBold, color: th.goldContrast, backgroundColor: th.gold, fontSize: 9,
+    fontFamily: Fonts.bodyBold, color: th.goldContrast, backgroundColor: th.goldSurface, fontSize: 9,
     letterSpacing: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, overflow: 'hidden',
   },
   cardDesc: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 20 },
@@ -241,7 +241,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 14, marginTop: Spacing.xs,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 14, marginTop: Spacing.xs,
   },
   primaryBtnFlagship: { paddingVertical: 16 },
   primaryBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },

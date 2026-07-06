@@ -151,7 +151,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     padding: 4, marginVertical: Spacing.xs, borderWidth: 1, borderColor: th.border,
   },
   toggleBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm - 4, alignItems: 'center' },
-  toggleActive: { backgroundColor: th.gold },
+  toggleActive: { backgroundColor: th.goldSurface },
   toggleText: { fontFamily: Fonts.bodySemibold, color: th.textMuted, fontSize: Fonts.size.md },
   toggleTextActive: { color: th.goldContrast },
 
@@ -165,7 +165,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   rowLabel: { fontFamily: Fonts.bodyMedium, color: th.text, fontSize: Fonts.size.md },
   badge: {
-    fontFamily: Fonts.bodyBold, color: th.goldContrast, backgroundColor: th.goldLight, fontSize: Fonts.size.xs,
+    fontFamily: Fonts.bodyBold, color: th.goldContrast, backgroundColor: th.goldSurface, fontSize: Fonts.size.xs,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden',
   },
   note: { fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, marginTop: 2 },

@@ -225,7 +225,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   needSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, textAlign: 'center', lineHeight: 20 },
   needBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 13, paddingHorizontal: Spacing.xl, marginTop: Spacing.sm,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 13, paddingHorizontal: Spacing.xl, marginTop: Spacing.sm,
   },
   needBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md },
   needBack: { fontFamily: Fonts.bodyMedium, color: th.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.xs },
@@ -252,7 +252,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   disclaimer: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.xs, marginTop: Spacing.md, lineHeight: 18, fontStyle: 'italic' },
 
   generateBtn: {
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 15,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 15,
     alignItems: 'center', marginTop: Spacing.xl,
   },
   generateText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },

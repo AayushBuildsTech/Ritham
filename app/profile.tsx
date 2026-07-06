@@ -468,7 +468,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   error: { fontFamily: Fonts.body, color: th.error, fontSize: Fonts.size.sm, marginTop: Spacing.md },
   saveBtn: {
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 15,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 15,
     alignItems: 'center', marginTop: Spacing.lg,
   },
   saveBtnDisabled: { opacity: 0.6 },

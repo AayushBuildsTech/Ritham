@@ -155,7 +155,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   errorText: { fontFamily: Fonts.body, color: th.error, fontSize: Fonts.size.sm, marginBottom: Spacing.sm, textAlign: 'center' },
   successText: { fontFamily: Fonts.body, color: th.success, fontSize: Fonts.size.sm, marginBottom: Spacing.sm, textAlign: 'center' },
   btn: {
-    backgroundColor: th.gold,
+    backgroundColor: th.goldSurface,
     borderRadius: Radius.sm,
     paddingVertical: 15,
     alignItems: 'center',

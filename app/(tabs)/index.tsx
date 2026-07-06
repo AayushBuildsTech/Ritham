@@ -342,7 +342,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   ctaBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 14,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 14,
     marginTop: Spacing.md,
   },
   ctaBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },

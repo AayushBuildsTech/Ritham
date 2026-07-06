@@ -223,12 +223,12 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: th.border, borderRadius: Radius.pill, backgroundColor: th.surfaceSunken,
     paddingVertical: 8, paddingHorizontal: Spacing.md,
   },
-  chipActive: { backgroundColor: th.gold, borderColor: th.gold },
+  chipActive: { backgroundColor: th.goldSurface, borderColor: th.goldSurface },
   chipText: { fontFamily: Fonts.bodyMedium, color: th.textMuted, fontSize: Fonts.size.sm },
   chipTextActive: { fontFamily: Fonts.bodySemibold, color: th.goldContrast },
 
   generateBtn: {
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 15,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 15,
     alignItems: 'center', marginTop: Spacing.xl,
   },
   generateText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },

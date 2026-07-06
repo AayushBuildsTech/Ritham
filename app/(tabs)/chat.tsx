@@ -311,7 +311,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.textMuted, textAlign: 'center', lineHeight: 24, marginBottom: Spacing.xl },
   btn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: th.gold, borderRadius: Radius.sm, paddingVertical: 14, paddingHorizontal: Spacing.xl,
+    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 14, paddingHorizontal: Spacing.xl,
   },
   btnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
@@ -338,7 +338,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   introDisclaimer: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, lineHeight: 16, marginTop: Spacing.sm, fontStyle: 'italic' },
 
   bubble: { maxWidth: '85%', borderRadius: Radius.lg, padding: Spacing.md },
-  userBubble: { alignSelf: 'flex-end', backgroundColor: th.gold, borderBottomRightRadius: 4 },
+  userBubble: { alignSelf: 'flex-end', backgroundColor: th.goldSurface, borderBottomRightRadius: 4 },
   aiBubble: { alignSelf: 'flex-start', backgroundColor: th.surface, borderWidth: 1, borderColor: th.border, borderBottomLeftRadius: 4 },
   userText: { fontFamily: Fonts.bodyMedium, color: th.goldContrast, fontSize: Fonts.size.md, lineHeight: 21 },
   aiText: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md, lineHeight: 23 },
@@ -353,6 +353,6 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, color: th.text,
     backgroundColor: th.surfaceSunken, fontFamily: Fonts.body, fontSize: Fonts.size.md,
   },
-  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: th.gold, alignItems: 'center', justifyContent: 'center' },
+  sendBtn: { width: 46, height: 46, borderRadius: 23, backgroundColor: th.goldSurface, alignItems: 'center', justifyContent: 'center' },
   sendBtnIdle: { backgroundColor: th.surfaceRaised, borderWidth: 1, borderColor: th.border },
 });
