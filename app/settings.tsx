@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { deleteAccount } from '../lib/accountService';
 import { CONTACT_EMAIL } from '../constants/legal';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius } from '../constants/theme';
+import { Icon, IconName } from '../components/Icon';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -24,7 +26,6 @@ export default function SettingsScreen() {
     setDeleting(true);
     const res = await deleteAccount();
     if (res.ok) {
-      // Account is gone server-side; clear the local session → AuthGate returns to sign-in.
       await signOut();
       return; // component unmounts on redirect; leave the spinner up
     }
@@ -36,7 +37,6 @@ export default function SettingsScreen() {
   }
 
   function confirmDelete() {
-    // Two-step confirmation — deletion is permanent and irreversible.
     Alert.alert(
       'Delete account?',
       'This permanently deletes your account and all your data — your Kundli, chats, purchases, and reports. This cannot be undone. Any unused packs or credits are forfeited.',
@@ -61,115 +61,114 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={{ width: 48 }} />
-      </View>
+      <ScreenHeader title="Settings" onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Account */}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.group}>
-          <Row label="Mobile number" value={user?.phone ?? '—'} />
-          <Row label="Your Kundli" value="View / edit" onPress={() => router.push('/profile')} last />
+          <Row icon="phone" label="Mobile number" value={user?.phone ?? '—'} />
+          <Row icon="moon" label="Your Kundli" value="View / edit" onPress={() => router.push('/profile')} last />
         </View>
 
         {/* Legal */}
         <Text style={styles.sectionLabel}>LEGAL</Text>
         <View style={styles.group}>
-          <Row label="Privacy Policy" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })} />
-          <Row label="Terms of Service" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })} />
-          <Row label="Astrology Disclaimer" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'disclaimer' } })} last />
+          <Row icon="lock" label="Privacy Policy" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })} />
+          <Row icon="document" label="Terms of Service" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })} />
+          <Row icon="info" label="Astrology Disclaimer" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'disclaimer' } })} last />
         </View>
 
         {/* Support */}
         <Text style={styles.sectionLabel}>SUPPORT</Text>
         <View style={styles.group}>
-          <Row label="Contact us" value={CONTACT_EMAIL} last />
+          <Row icon="send" label="Contact us" value={CONTACT_EMAIL} last />
         </View>
 
-        <TouchableOpacity style={styles.signOutBtn} onPress={confirmSignOut} disabled={deleting}>
+        <Pressable style={styles.signOutBtn} onPress={confirmSignOut} disabled={deleting} android_ripple={{ color: 'rgba(199,82,75,0.15)' }}>
+          <Icon name="logout" size={16} color={Colors.error} />
           <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+        </Pressable>
 
         {/* Danger zone */}
         <Text style={styles.sectionLabel}>DANGER ZONE</Text>
-        <TouchableOpacity
+        <Pressable
           style={[styles.deleteBtn, deleting && styles.deleteBtnBusy]}
           onPress={confirmDelete}
           disabled={deleting}
-          activeOpacity={0.7}
         >
           {deleting ? (
             <ActivityIndicator color={Colors.error} />
           ) : (
-            <Text style={styles.deleteText}>Delete Account</Text>
+            <>
+              <Icon name="trash" size={16} color={Colors.error} />
+              <Text style={styles.deleteText}>Delete Account</Text>
+            </>
           )}
-        </TouchableOpacity>
+        </Pressable>
         <Text style={styles.deleteHint}>
           Permanently erases your account and all data. This can’t be undone.
         </Text>
 
         <Text style={styles.version}>Ritham · v{version}</Text>
-        <Text style={styles.tagline}>Made with care for seekers of clarity ✦</Text>
+        <Text style={styles.tagline}>Made with care for seekers of clarity</Text>
+        <View style={{ height: Spacing.xl }} />
       </ScrollView>
     </View>
   );
 }
 
-function Row({ label, value, onPress, chevron, last }: {
-  label: string; value?: string; onPress?: () => void; chevron?: boolean; last?: boolean;
+function Row({ icon, label, value, onPress, chevron, last }: {
+  icon: IconName; label: string; value?: string; onPress?: () => void; chevron?: boolean; last?: boolean;
 }) {
   const inner = (
     <View style={[styles.row, !last && styles.rowBorder]}>
-      <Text style={styles.rowLabel}>{label}</Text>
+      <View style={styles.rowLeft}>
+        <Icon name={icon} size={17} color={Colors.textMuted} />
+        <Text style={styles.rowLabel}>{label}</Text>
+      </View>
       <View style={styles.rowRight}>
         {value ? <Text style={styles.rowValue}>{value}</Text> : null}
-        {(chevron || onPress) ? <Text style={styles.rowChevron}>›</Text> : null}
+        {(chevron || onPress) ? <Icon name="chevron" size={18} color={Colors.textDim} /> : null}
       </View>
     </View>
   );
-  return onPress ? <TouchableOpacity onPress={onPress} activeOpacity={0.7}>{inner}</TouchableOpacity> : inner;
+  return onPress
+    ? <Pressable onPress={onPress} android_ripple={{ color: Colors.goldFaint }}>{inner}</Pressable>
+    : inner;
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 52, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.bgCard,
-  },
-  back: { color: Colors.goldLight, fontSize: Fonts.size.md, width: 48 },
-  headerTitle: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700' },
-
-  content: { padding: Spacing.lg, paddingTop: Spacing.xl },
-  sectionLabel: { color: Colors.textDim, fontSize: Fonts.size.xs, letterSpacing: 1, fontWeight: '700', marginBottom: Spacing.sm, marginTop: Spacing.md },
+  root: { flex: 1, backgroundColor: Colors.canvas },
+  content: { padding: Spacing.lg, paddingTop: Spacing.lg },
+  sectionLabel: { fontFamily: Fonts.bodySemibold, color: Colors.textDim, fontSize: Fonts.size.xs, letterSpacing: 2, marginBottom: Spacing.sm, marginTop: Spacing.lg },
   group: {
-    backgroundColor: Colors.bgCard, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  rowLabel: { color: Colors.text, fontSize: Fonts.size.md },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.divider },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  rowLabel: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  rowValue: { color: Colors.textMuted, fontSize: Fonts.size.sm },
-  rowChevron: { color: Colors.textDim, fontSize: Fonts.size.lg },
+  rowValue: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
 
   signOutBtn: {
-    borderWidth: 1, borderColor: Colors.error, borderRadius: 12, padding: Spacing.md,
-    alignItems: 'center', marginTop: Spacing.xl,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1, borderColor: 'rgba(199,82,75,0.5)', borderRadius: Radius.sm, paddingVertical: 14,
+    marginTop: Spacing.xl,
   },
-  signOutText: { color: Colors.error, fontSize: Fonts.size.md, fontWeight: '700' },
+  signOutText: { fontFamily: Fonts.bodySemibold, color: Colors.error, fontSize: Fonts.size.md },
 
   deleteBtn: {
-    backgroundColor: Colors.error, borderRadius: 12, padding: Spacing.md,
-    alignItems: 'center', justifyContent: 'center', minHeight: 52,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: 'rgba(199,82,75,0.12)', borderWidth: 1, borderColor: 'rgba(199,82,75,0.4)',
+    borderRadius: Radius.sm, paddingVertical: 14, minHeight: 50,
   },
   deleteBtnBusy: { opacity: 0.7 },
-  deleteText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  deleteHint: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
+  deleteText: { fontFamily: Fonts.bodySemibold, color: Colors.error, fontSize: Fonts.size.md },
+  deleteHint: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
 
-  version: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.xl },
-  tagline: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: 4 },
+  version: { fontFamily: Fonts.bodyMedium, color: Colors.textMuted, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.xl, letterSpacing: 0.5 },
+  tagline: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: 4 },
 });

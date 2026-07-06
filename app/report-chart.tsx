@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +10,9 @@ import { generateChartReport, reportCredits, MatchPerson } from '../lib/reportSe
 import { purchasePack } from '../lib/paymentService';
 import { track } from '../lib/analytics';
 import { REPORT_PRICES, REPORT_META, paiseTo, isChartReport, ChartReportType } from '../config/pricing';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth } from '../constants/theme';
+import { Icon } from '../components/Icon';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 // What each report covers — shown up front so the value is clear before paying.
 const SCOPE: Record<ChartReportType, string[]> = {
@@ -137,16 +139,17 @@ export default function ChartReportIntake() {
   if (!self) {
     return (
       <View style={styles.center}>
-        <Text style={styles.needIcon}>✦</Text>
+        <View style={styles.needCrest}><Icon name="moon" size={26} color={Colors.gold} /></View>
         <Text style={styles.needTitle}>Create your Kundli first</Text>
         <Text style={styles.needSub}>
           This reading is built from your birth chart. Please add your birth details, then come
           back to generate your report.
         </Text>
-        <TouchableOpacity style={styles.needBtn} onPress={() => router.replace('/profile')}>
-          <Text style={styles.needBtnText}>Add my birth details →</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.needBack}>Back</Text></TouchableOpacity>
+        <Pressable style={styles.needBtn} onPress={() => router.replace('/profile')} android_ripple={{ color: Colors.goldDeep }}>
+          <Text style={styles.needBtnText}>Add my birth details</Text>
+          <Icon name="arrowRight" size={15} color={Colors.canvas} />
+        </Pressable>
+        <Pressable onPress={() => router.back()}><Text style={styles.needBack}>Back</Text></Pressable>
       </View>
     );
   }
@@ -162,94 +165,94 @@ export default function ChartReportIntake() {
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
-        <Text style={styles.title}>{meta.icon} {meta.title}</Text>
-        <View style={{ width: 48 }} />
-      </View>
+    <View style={styles.root}>
+      <ScreenHeader title={meta.title} onBack={() => router.back()} />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Text style={styles.lead}>{meta.desc}</Text>
 
-      <Text style={styles.lead}>{meta.desc}</Text>
+        <View style={styles.selfCard}>
+          <Text style={styles.selfLabel}>YOUR CHART</Text>
+          <Text style={styles.selfName}>{self.name}</Text>
+          <Text style={styles.selfMeta}>{self.sun_sign} Sun · Moon in {self.moon_sign} · {self.nakshatra}</Text>
+        </View>
 
-      <View style={styles.selfCard}>
-        <Text style={styles.selfLabel}>YOUR CHART</Text>
-        <Text style={styles.selfName}>{self.name}</Text>
-        <Text style={styles.selfMeta}>☀ {self.sun_sign} · 🌙 Moon in {self.moon_sign} · {self.nakshatra}</Text>
-      </View>
+        <Text style={styles.sectionLabel}>What’s inside your report</Text>
+        <View style={styles.scopeCard}>
+          {SCOPE[type].map((line) => (
+            <View key={line} style={styles.scopeRow}>
+              <Icon name="star" size={13} color={Colors.gold} style={styles.scopeTick} />
+              <Text style={styles.scopeText}>{line}</Text>
+            </View>
+          ))}
+        </View>
 
-      <Text style={styles.sectionLabel}>What’s inside your report</Text>
-      <View style={styles.scopeCard}>
-        {SCOPE[type].map((line) => (
-          <View key={line} style={styles.scopeRow}>
-            <Text style={styles.scopeTick}>✦</Text>
-            <Text style={styles.scopeText}>{line}</Text>
-          </View>
-        ))}
-      </View>
+        {type === 'health' && (
+          <Text style={styles.disclaimer}>
+            A gentle wellbeing reading — not medical advice, diagnosis or treatment.
+          </Text>
+        )}
 
-      {type === 'health' && (
-        <Text style={styles.disclaimer}>
-          🌿 A gentle wellbeing reading — not medical advice, diagnosis or treatment.
+        <Pressable style={[styles.generateBtn, busy && styles.btnDisabled]} onPress={generate} disabled={busy} android_ripple={{ color: Colors.goldDeep }}>
+          {busy
+            ? <ActivityIndicator color={Colors.canvas} />
+            : <Text style={styles.generateText}>Continue · {price}</Text>}
+        </Pressable>
+        <Text style={styles.note}>
+          Generated from your own chart. You’ll pay only once — your report is saved for unlimited re-download.
         </Text>
-      )}
-
-      <TouchableOpacity style={[styles.generateBtn, busy && styles.btnDisabled]} onPress={generate} disabled={busy}>
-        {busy
-          ? <ActivityIndicator color={Colors.bg} />
-          : <Text style={styles.generateText}>Continue · {price}</Text>}
-      </TouchableOpacity>
-      <Text style={styles.note}>
-        Generated from your own chart. You’ll pay only once — your report is saved for unlimited re-download.
-      </Text>
-      <View style={{ height: Spacing.xxl }} />
-    </ScrollView>
+        <View style={{ height: Spacing.xxl }} />
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.lg, paddingTop: 52, paddingBottom: Spacing.xxl },
-  center: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
+  root: { flex: 1, backgroundColor: Colors.canvas },
+  content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  center: { flex: 1, backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
 
-  genTitle: { fontSize: Fonts.size.lg, color: Colors.text, fontWeight: '700', textAlign: 'center', marginTop: Spacing.md },
-  genSub: { fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  genTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text, textAlign: 'center', marginTop: Spacing.md },
+  genSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
 
-  needIcon: { fontSize: 44, color: Colors.gold },
-  needTitle: { fontSize: Fonts.size.xl, color: Colors.text, fontWeight: '700', textAlign: 'center' },
-  needSub: { fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
-  needBtn: { backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl, marginTop: Spacing.sm },
-  needBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  needBack: { color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.xs },
+  needCrest: {
+    width: 64, height: 64, borderRadius: Radius.pill, backgroundColor: Colors.goldFaint,
+    borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center',
+  },
+  needTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.text, textAlign: 'center' },
+  needSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  needBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 13, paddingHorizontal: Spacing.xl, marginTop: Spacing.sm,
+  },
+  needBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md },
+  needBack: { fontFamily: Fonts.bodyMedium, color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.xs },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
-  back: { color: Colors.goldLight, fontSize: Fonts.size.md, width: 48 },
-  title: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700', flex: 1, textAlign: 'center' },
-  lead: { color: Colors.textMuted, fontSize: Fonts.size.sm, lineHeight: 20, marginBottom: Spacing.lg },
+  lead: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, lineHeight: 20, marginTop: Spacing.xs, marginBottom: Spacing.lg },
 
   selfCard: {
-    backgroundColor: Colors.bgCard, borderRadius: 12, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg, ...Depth.card,
   },
-  selfLabel: { color: Colors.textDim, fontSize: Fonts.size.xs, letterSpacing: 1, fontWeight: '700' },
-  selfName: { color: Colors.goldLight, fontSize: Fonts.size.lg, fontWeight: '700', marginTop: 2 },
-  selfMeta: { color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
+  selfLabel: { fontFamily: Fonts.bodySemibold, color: Colors.gold, fontSize: Fonts.size.xs, letterSpacing: 2 },
+  selfName: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.xl, marginTop: 2 },
+  selfMeta: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
 
-  sectionLabel: { color: Colors.text, fontSize: Fonts.size.md, fontWeight: '700', marginBottom: Spacing.sm },
+  sectionLabel: { fontFamily: Fonts.displayBold, color: Colors.text, fontSize: Fonts.size.lg, marginBottom: Spacing.sm },
   scopeCard: {
-    backgroundColor: Colors.bgCard, borderRadius: 12, padding: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg,
     borderWidth: 1, borderColor: Colors.border,
   },
-  scopeRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
-  scopeTick: { color: Colors.gold, fontSize: Fonts.size.sm, marginTop: 1 },
-  scopeText: { color: Colors.text, fontSize: Fonts.size.sm, lineHeight: 20, flex: 1 },
+  scopeRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
+  scopeTick: { marginTop: 2 },
+  scopeText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.sm, lineHeight: 20, flex: 1 },
 
-  disclaimer: { color: Colors.textMuted, fontSize: Fonts.size.xs, marginTop: Spacing.md, lineHeight: 18 },
+  disclaimer: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.xs, marginTop: Spacing.md, lineHeight: 18, fontStyle: 'italic' },
 
   generateBtn: {
-    backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.md,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 15,
     alignItems: 'center', marginTop: Spacing.xl,
   },
-  generateText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
+  generateText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
   btnDisabled: { opacity: 0.6 },
-  note: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 18 },
+  note: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 18 },
 });

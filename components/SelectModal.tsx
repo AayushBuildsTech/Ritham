@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator,
+  Modal, View, Text, TextInput, Pressable, FlatList, StyleSheet, ActivityIndicator,
 } from 'react-native';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Scrim } from '../constants/theme';
+import { Icon } from './Icon';
 
 export interface Option {
   label: string;
@@ -70,9 +71,9 @@ export function SelectModal({
   const close = () => { setQuery(''); setRemote([]); setErr(''); onClose(); };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close}>
-        <TouchableOpacity style={styles.sheet} activeOpacity={1}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close} statusBarTranslucent>
+      <Pressable style={styles.backdrop} onPress={close}>
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />
           <Text style={styles.title}>{title}</Text>
 
@@ -100,19 +101,21 @@ export function SelectModal({
             style={styles.list}
             initialNumToRender={20}
             keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               const active = item.value === selectedValue;
               return (
-                <TouchableOpacity
+                <Pressable
                   style={styles.row}
                   onPress={() => { onSelect(item.value, item); close(); }}
+                  android_ripple={{ color: Colors.goldFaint }}
                 >
                   <View style={styles.rowTextWrap}>
                     <Text style={[styles.rowLabel, active && styles.rowLabelActive]}>{item.label}</Text>
                     {item.sublabel ? <Text style={styles.rowSub}>{item.sublabel}</Text> : null}
                   </View>
-                  {active ? <Text style={styles.check}>✓</Text> : null}
-                </TouchableOpacity>
+                  {active ? <Icon name="check" size={18} color={Colors.gold} /> : null}
+                </Pressable>
               );
             }}
             ListEmptyComponent={
@@ -123,47 +126,46 @@ export function SelectModal({
               )
             }
           />
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdrop: { flex: 1, backgroundColor: Scrim.backdrop, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: Scrim.sheet,
+    borderTopLeftRadius: Radius.xl,
+    borderTopRightRadius: Radius.xl,
     paddingTop: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xl,
-    maxHeight: '75%',
-    borderTopWidth: 1,
+    maxHeight: '78%',
+    borderWidth: 1,
     borderColor: Colors.border,
   },
   handle: {
-    width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border,
+    width: 44, height: 4, borderRadius: 2, backgroundColor: Colors.gold, opacity: 0.5,
     alignSelf: 'center', marginBottom: Spacing.md,
   },
-  title: { fontSize: Fonts.size.lg, color: Colors.text, fontWeight: '700', marginBottom: Spacing.md },
+  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text, marginBottom: Spacing.md },
   searchWrap: { justifyContent: 'center' },
   search: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
-    padding: Spacing.sm, paddingRight: 40, color: Colors.text, backgroundColor: Colors.bgMid,
-    marginBottom: Spacing.sm, fontSize: Fonts.size.md,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm,
+    padding: Spacing.md, paddingRight: 40, color: Colors.text, backgroundColor: Colors.surfaceSunken,
+    marginBottom: Spacing.sm, fontFamily: Fonts.body, fontSize: Fonts.size.md,
   },
-  searchSpinner: { position: 'absolute', right: Spacing.sm, top: Spacing.sm },
-  err: { color: Colors.error, fontSize: Fonts.size.sm, marginBottom: Spacing.sm },
+  searchSpinner: { position: 'absolute', right: Spacing.md, top: Spacing.md },
+  err: { fontFamily: Fonts.body, color: Colors.error, fontSize: Fonts.size.sm, marginBottom: Spacing.sm },
   list: { flexGrow: 0 },
   row: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.divider,
   },
   rowTextWrap: { flex: 1, paddingRight: Spacing.sm },
-  rowLabel: { fontSize: Fonts.size.md, color: Colors.text },
-  rowLabelActive: { color: Colors.goldLight, fontWeight: '700' },
-  rowSub: { fontSize: Fonts.size.xs, color: Colors.textDim, marginTop: 2 },
-  check: { color: Colors.gold, fontSize: Fonts.size.lg },
-  empty: { color: Colors.textDim, textAlign: 'center', padding: Spacing.lg },
+  rowLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.text },
+  rowLabelActive: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight },
+  rowSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: Colors.textDim, marginTop: 2 },
+  empty: { fontFamily: Fonts.body, color: Colors.textDim, textAlign: 'center', padding: Spacing.lg },
 });

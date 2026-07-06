@@ -1,83 +1,104 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { Colors, Fonts, Spacing } from '../../constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents, AccentName } from '../../constants/theme';
+import { Icon, IconName } from '../../components/Icon';
+import { Reveal } from '../../components/Reveal';
+import { TAB_BAR_HEIGHT } from './_layout';
 
-const CATEGORIES = [
-  { icon: '📿', title: 'Rudraksha', desc: 'Certified, energised beads and malas for daily practice and protection.' },
-  { icon: '💎', title: 'Gemstone Bracelets', desc: 'Genuine crystal bracelets, chosen to balance and strengthen your chart.' },
-  { icon: '🧿', title: 'Evil Eye', desc: 'Nazar-suraksha charms and bracelets to guard against negative energy.' },
+const CATEGORIES: { icon: IconName; accent: AccentName; title: string; desc: string }[] = [
+  { icon: 'beads', accent: 'saffron', title: 'Rudraksha', desc: 'Certified, energised beads and malas for daily practice and protection.' },
+  { icon: 'diamond', accent: 'sapphire', title: 'Gemstone Bracelets', desc: 'Genuine crystal bracelets, chosen to balance and strengthen your chart.' },
+  { icon: 'eye', accent: 'amethyst', title: 'Evil Eye', desc: 'Nazar-suraksha charms and bracelets to guard against negative energy.' },
 ];
 
 export default function StoreScreen() {
+  const insets = useSafeAreaInsets();
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.brand}>✦ RITHAM</Text>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[styles.content, {
+        paddingTop: insets.top + Spacing.lg,
+        paddingBottom: TAB_BAR_HEIGHT + insets.bottom,
+      }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <Reveal index={0}>
+        <View style={styles.hero}>
+          <Text style={styles.brand}>RITHAM</Text>
+          <Text style={styles.title}>The Sacred Store</Text>
+          <View style={styles.pill}><Text style={styles.pillText}>COMING SOON</Text></View>
+          <Text style={styles.subtitle}>
+            A curated collection of rudraksha, gemstone bracelets and evil-eye charms —
+            authentic, energised and matched to your chart. We’re putting the finishing touches on it.
+          </Text>
+        </View>
+      </Reveal>
 
-      <View style={styles.hero}>
-        <Text style={styles.icon}>🛍️</Text>
-        <Text style={styles.title}>Sacred Store</Text>
-        <View style={styles.pill}><Text style={styles.pillText}>COMING SOON</Text></View>
-        <Text style={styles.subtitle}>
-          A curated collection of rudraksha, gemstone bracelets and evil-eye charms —
-          authentic, energised and matched to your chart. We’re putting the finishing touches on it.
-        </Text>
-      </View>
+      <Reveal index={1}>
+        <Text style={styles.previewLabel}>A GLIMPSE OF WHAT’S COMING</Text>
+      </Reveal>
 
-      <Text style={styles.previewLabel}>A glimpse of what’s coming</Text>
-      <View style={styles.list}>
-        {CATEGORIES.map((c) => (
-          <View key={c.title} style={styles.card}>
-            <Text style={styles.cardIcon}>{c.icon}</Text>
+      {CATEGORIES.map((c, i) => (
+        <Reveal key={c.title} index={2 + i}>
+          <View style={styles.card}>
+            <View style={[styles.cardIcon, { backgroundColor: Accents[c.accent].faint, borderWidth: 1, borderColor: Accents[c.accent].soft }]}>
+              <Icon name={c.icon} size={22} color={Accents[c.accent].color} />
+            </View>
             <View style={styles.cardBody}>
               <Text style={styles.cardTitle}>{c.title}</Text>
               <Text style={styles.cardDesc}>{c.desc}</Text>
             </View>
           </View>
-        ))}
-      </View>
+        </Reveal>
+      ))}
 
-      <Text style={styles.note}>
-        ✨ Until then, explore your Kundli, daily horoscopes and consult our AI astrologer.
-      </Text>
+      <Reveal index={5}>
+        <Text style={styles.note}>
+          Until then, explore your Kundli, daily horoscopes and consult our AI astrologer.
+        </Text>
+      </Reveal>
+      <View style={{ height: Spacing.xxl }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.lg, paddingTop: 56, paddingBottom: Spacing.xxl },
+  root: { flex: 1, backgroundColor: Colors.canvas },
+  content: { paddingHorizontal: Spacing.lg },
 
-  brand: { color: Colors.gold, fontSize: Fonts.size.sm, letterSpacing: 3, textAlign: 'center', fontWeight: '700' },
-
-  hero: { alignItems: 'center', marginTop: Spacing.xl, marginBottom: Spacing.xl },
-  icon: { fontSize: 60, marginBottom: Spacing.sm },
-  title: { fontSize: Fonts.size.xxl, color: Colors.text, fontWeight: '700', textAlign: 'center' },
+  hero: { alignItems: 'center', marginBottom: Spacing.xl },
+  brand: { fontFamily: Fonts.bodySemibold, color: Colors.gold, fontSize: Fonts.size.xs, letterSpacing: 4, marginBottom: Spacing.sm },
+  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: Colors.text, textAlign: 'center' },
   pill: {
-    backgroundColor: Colors.bgCard, borderColor: Colors.gold, borderWidth: 1,
-    borderRadius: 20, paddingVertical: 5, paddingHorizontal: Spacing.md, marginTop: Spacing.sm,
+    backgroundColor: Colors.surface, borderColor: Colors.borderStrong, borderWidth: 1,
+    borderRadius: Radius.pill, paddingVertical: 5, paddingHorizontal: Spacing.md, marginTop: Spacing.md,
   },
-  pillText: { color: Colors.goldLight, fontSize: Fonts.size.xs, letterSpacing: 2, fontWeight: '700' },
+  pillText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.xs, letterSpacing: 2 },
   subtitle: {
-    fontSize: Fonts.size.md, color: Colors.textMuted, textAlign: 'center',
+    fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.textMuted, textAlign: 'center',
     lineHeight: 24, marginTop: Spacing.md, paddingHorizontal: Spacing.sm,
   },
 
   previewLabel: {
-    fontSize: Fonts.size.sm, color: Colors.textDim, textAlign: 'center',
-    letterSpacing: 1, marginBottom: Spacing.md,
+    fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.textDim, textAlign: 'center',
+    letterSpacing: 2, marginBottom: Spacing.md,
   },
-  list: { gap: Spacing.md },
   card: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.bgCard, borderRadius: 14,
-    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface, borderRadius: Radius.md,
+    padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md,
+    ...Depth.card,
   },
-  cardIcon: { fontSize: 34 },
+  cardIcon: {
+    width: 48, height: 48, borderRadius: Radius.sm,
+    backgroundColor: Colors.goldFaint, alignItems: 'center', justifyContent: 'center',
+  },
   cardBody: { flex: 1 },
-  cardTitle: { fontSize: Fonts.size.md, color: Colors.goldLight, fontWeight: '700', marginBottom: 4 },
-  cardDesc: { fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 19 },
+  cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.lg, color: Colors.goldLight, marginBottom: 2 },
+  cardDesc: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 19 },
 
   note: {
-    fontSize: Fonts.size.sm, color: Colors.textDim, textAlign: 'center',
-    lineHeight: 22, marginTop: Spacing.xl, paddingHorizontal: Spacing.sm,
+    fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textDim, textAlign: 'center',
+    lineHeight: 22, marginTop: Spacing.lg, paddingHorizontal: Spacing.sm,
   },
 });

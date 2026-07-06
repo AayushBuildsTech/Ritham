@@ -5,12 +5,13 @@
 // Prices are display-only here; the server recomputes the real amount (rule #3).
 
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import {
   SESSION_PLANS, QUESTION_PACKS, paiseTo, formatSeconds,
 } from '../config/pricing';
 import { purchasePack, Balance } from '../lib/paymentService';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth } from '../constants/theme';
+import { Icon } from './Icon';
 
 // The chat paywall only sells chat packs (never reports).
 type PaywallKind = 'questions' | 'time';
@@ -42,23 +43,24 @@ export default function Paywall({ title, subtitle, prefill, onPurchased }: Props
 
   return (
     <View style={styles.card}>
+      <Text style={styles.eyebrow}>UNLOCK MORE</Text>
       <Text style={styles.title}>{title ?? 'Continue your reading'}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
 
       {/* Questions | Time toggle */}
       <View style={styles.toggle}>
-        <TouchableOpacity
+        <Pressable
           style={[styles.toggleBtn, tab === 'questions' && styles.toggleActive]}
           onPress={() => setTab('questions')}
         >
           <Text style={[styles.toggleText, tab === 'questions' && styles.toggleTextActive]}>Questions</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </Pressable>
+        <Pressable
           style={[styles.toggleBtn, tab === 'time' && styles.toggleActive]}
           onPress={() => setTab('time')}
         >
           <Text style={[styles.toggleText, tab === 'time' && styles.toggleTextActive]}>Time</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {tab === 'questions'
@@ -85,7 +87,10 @@ export default function Paywall({ title, subtitle, prefill, onPurchased }: Props
             />
           ))}
 
-      <Text style={styles.secure}>🔒 Secure payment via Razorpay · UPI, cards & wallets</Text>
+      <View style={styles.secureRow}>
+        <Icon name="lock" size={12} color={Colors.textDim} />
+        <Text style={styles.secure}>Secure payment via Razorpay · UPI, cards & wallets</Text>
+      </View>
     </View>
   );
 }
@@ -97,10 +102,11 @@ function PackRow({
   busy: boolean; disabled: boolean; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity
+    <Pressable
       style={[styles.row, badge && styles.rowHighlight, disabled && !busy && styles.rowDim]}
       onPress={onPress}
       disabled={disabled}
+      android_ripple={{ color: Colors.goldFaint }}
     >
       <View style={{ flex: 1 }}>
         <View style={styles.rowTop}>
@@ -112,7 +118,7 @@ function PackRow({
       {busy
         ? <ActivityIndicator color={Colors.gold} />
         : <Text style={styles.price}>{price}</Text>}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -128,36 +134,38 @@ function friendlyError(code?: string): string {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.bgCard, borderRadius: 16, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm,
+    backgroundColor: Colors.surfaceRaised, borderRadius: Radius.lg, padding: Spacing.lg,
+    borderWidth: 1, borderColor: Colors.borderStrong, gap: Spacing.sm, ...Depth.raised,
   },
-  title: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700' },
-  subtitle: { fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20, marginBottom: Spacing.xs },
+  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.gold, letterSpacing: 2 },
+  title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text },
+  subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20, marginBottom: Spacing.xs },
 
   toggle: {
-    flexDirection: 'row', backgroundColor: Colors.bgMid, borderRadius: 12,
-    padding: 4, marginVertical: Spacing.xs,
+    flexDirection: 'row', backgroundColor: Colors.surfaceSunken, borderRadius: Radius.sm,
+    padding: 4, marginVertical: Spacing.xs, borderWidth: 1, borderColor: Colors.border,
   },
-  toggleBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: 9, alignItems: 'center' },
+  toggleBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.sm - 4, alignItems: 'center' },
   toggleActive: { backgroundColor: Colors.gold },
-  toggleText: { color: Colors.textMuted, fontSize: Fonts.size.md, fontWeight: '700' },
-  toggleTextActive: { color: Colors.bg },
+  toggleText: { fontFamily: Fonts.bodySemibold, color: Colors.textMuted, fontSize: Fonts.size.md },
+  toggleTextActive: { color: Colors.canvas },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.bgMid, borderRadius: 12, padding: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.sm, padding: Spacing.md,
     borderWidth: 1, borderColor: Colors.border,
   },
-  rowHighlight: { borderColor: Colors.gold },
+  rowHighlight: { borderColor: Colors.borderStrong },
   rowDim: { opacity: 0.5 },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
-  rowLabel: { color: Colors.text, fontSize: Fonts.size.md, fontWeight: '600' },
+  rowLabel: { fontFamily: Fonts.bodyMedium, color: Colors.text, fontSize: Fonts.size.md },
   badge: {
-    color: Colors.bg, backgroundColor: Colors.goldLight, fontSize: Fonts.size.xs, fontWeight: '700',
+    fontFamily: Fonts.bodyBold, color: Colors.canvas, backgroundColor: Colors.goldLight, fontSize: Fonts.size.xs,
     paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden',
   },
-  note: { color: Colors.textDim, fontSize: Fonts.size.xs, marginTop: 2 },
-  price: { color: Colors.goldLight, fontSize: Fonts.size.lg, fontWeight: '700' },
+  note: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, marginTop: 2 },
+  price: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.xl },
 
-  secure: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.xs },
+  secureRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: Spacing.xs },
+  secure: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center' },
 });

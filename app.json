@@ -7,14 +7,23 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#14122b",
+    "backgroundColor": "#0B0B0D",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ritham.app"
     },
+    "androidStatusBar": {
+      "translucent": true,
+      "barStyle": "light-content",
+      "backgroundColor": "#00000000"
+    },
+    "androidNavigationBar": {
+      "barStyle": "light-content",
+      "backgroundColor": "#00000000"
+    },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#14122b",
+        "backgroundColor": "#0B0B0D",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "package": "com.ritham.app"
@@ -27,6 +36,13 @@
     "plugins": [
       "expo-router",
       "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0B0B0D",
+          "resizeMode": "contain"
+        }
+      ],
       [
         "expo-image-picker",
         {

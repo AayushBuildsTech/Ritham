@@ -864,3 +864,112 @@ the in-app WebView renders and what `expo-print` exports.
   Moon longitude); it sharpens automatically when a real ephemeris arrives at the `kundliService`
   swap point (rule #1), same as every other mock-chart feature.
 - Chart diagram is North-Indian only in these reports (Matchmaking still offers North/South).
+
+---
+
+## 24. Luxury UI overhaul — "Behrouz" black + gold (CODE DONE; JS-only, no rebuild)
+
+A full visual redesign to make the app look like an elite editorial/luxury brand (away from the
+old indigo-purple "vibecoded" look). **Logic untouched — pure presentation.** Decisions locked with
+the user: **near-black + matte-gold palette (Behrouz)**, **Cormorant Garamond display + Inter body**,
+**safe motion** (RN built-in `Animated`, no reanimated/gesture-handler — those stay removed per §7).
+
+**Design system — `constants/theme.ts` (single source):**
+- Palette: `canvas #0B0B0D`, `surface #151417`, gold `#C5A059` / `goldLight #E4C983`, ivory text
+  `#FDFBF7`, muted `#A29E95`, **gold hairline borders** (`rgba(197,160,89,.16)`). Old keys (`bg`,
+  `bgCard`, `gold`, `text`…) are **repointed** to the new palette, so every screen recolored at once.
+- Added tokens: `Type` (serif roles + gold `eyebrow`), `Radius`, `Depth` (soft warm shadows, not hard
+  Android elevation), `Motion` (cubic-bezier `0.22,1,0.36,1` + stagger), `Scrim` (translucent panels).
+
+**New shared components:** `components/Icon.tsx` (semantic thin-line icon registry over
+`@expo/vector-icons` MaterialCommunityIcons/Feather — real `om`/`temple-hindu`/moon glyphs; **all 63
+emojis removed**), `AnimatedSplash.tsx` (animated start screen: wordmark + gold rule reveal, replaces
+blank splash), `Reveal.tsx` (staggered fade/slide entrance), `ScreenHeader.tsx` (shared back+serif
+title header, edge-to-edge safe-area).
+
+**Converted:** every screen + component — root layout (font loading gate + splash handoff), custom
+glass-ready tab bar (thin icons + sharp gold indicator, no fat pill), Home, chat, auth ×2, store,
+reports, profile, settings, panchang, numerology, muhurat, darshan, all 4 report screens, legal,
+Paywall, SelectModal (elevated bottom sheet w/ gold handle). `app.json`: near-black splash/bg +
+translucent system bars (edge-to-edge).
+
+**New deps (all JS-only — NO native rebuild):** `@expo/vector-icons`, `@expo-google-fonts/cormorant-garamond`,
+`@expo-google-fonts/inter` (`expo-font` already present). `npx tsc --noEmit` passes; app is emoji-free.
+
+### To see it
+Just **reload Metro** — the entire overhaul is JS/asset only and loads over a normal refresh (icon +
+Google fonts load at runtime; no dev-client rebuild needed).
+
+### Wave 2 — DONE (rebuilt on device 2026-07-06)
+- **`expo-blur` glass tab bar** shipped: `app/(tabs)/_layout.tsx` tab bar is now **absolutely positioned**
+  at the bottom with a real `BlurView` (`intensity={48} tint="dark" experimentalBlurMethod="dimezisBlurView"`)
+  + a light `rgba(9,9,11,0.34)` scrim for contrast + gold top hairline. Because it overlays, content scrolls
+  UNDER the glass. `TAB_BAR_HEIGHT` (58) is exported from `_layout.tsx`; the 4 tab screens add
+  `TAB_BAR_HEIGHT + insets.bottom` bottom padding (chat pushes its input row above the bar) so nothing hides.
+- Native edge-to-edge system-bar translucency (`app.json`) now applies (rebuilt).
+- Required a native rebuild (`npx expo run:android`); `expo-blur` installed via `npx expo install`.
+
+### ⚠️ Install gotcha (OnePlus/OPPO ColorOS) — cost time, avoid next rebuild
+`npx expo run:android` **built fine but the install failed**: `INSTALL_FAILED_VERIFICATION_FAILURE:
+Install not allowed`. ColorOS Play-Protect/package-verifier blocks adb installs (worse over **wireless** adb).
+Fix that worked — disable the verifier then install the built APK manually:
+```
+adb -s <dev> shell settings put global verifier_verify_adb_installs 0
+adb -s <dev> shell settings put global package_verifier_enable 0
+adb -s <dev> install -r -d android/app/build/outputs/apk/debug/app-debug.apk
+```
+Then restart Metro (`npx expo start`), `adb reverse tcp:8081 tcp:8081`, and launch
+(`adb shell monkey -p com.ritham.app -c android.intent.category.LAUNCHER 1`). Over-USB install may also avoid it.
+(Build note: `react-native-reanimated` + `react-native-gesture-handler` now compile as transitive native deps
+on SDK 57 and build/run fine — the old Expo-Go SDK-54 crash from §7 did not recur.)
+
+### Not yet done (styling follow-ups)
+- Optional: bespoke SVG zodiac line-art (would add `react-native-svg`) — deferred; icon set is enough for v1.
+
+---
+
+## 25. Wave 3 — "Royal Jewel" vibrancy + fixes (DONE, rebuilt on device 2026-07-06)
+
+On-device review of Wave 1/2 flagged: bland 2-tone palette, keyboard hiding inputs app-wide, chat send
+button unreachable/inert, reports still indigo/purple, and +91 friction. All fixed. User chose **Royal
+Jewel** palette + **Fraunces** display font.
+
+**Design tokens (`constants/theme.ts`):** display font **Cormorant → Fraunces** (`Fonts.display*`);
+warmed surfaces; added **`Accents`** (gold/saffron/amethyst/emerald/ruby/sapphire — each `color`/`faint`/
+`soft`), **`Gradients`**, and `accentCardGradient(accent)`. Old keys unchanged so everything cascades.
+
+**Vibrancy:** new `components/GradientCard.tsx` (expo-linear-gradient). Per-domain jewel accents on Home
+feature cards (panchang=saffron, numerology=amethyst, muhurat=emerald, darshan=ruby), detail screens,
+reports (per-type accent chips + flagship gold gradient), store chips, chat (sapphire). Splash got a
+gradient + gold glow. Home horoscope hero is a GradientCard.
+
+**Keyboard fix (the big one):** added **`react-native-keyboard-controller`** + `KeyboardProvider` in
+`app/_layout.tsx`. Every input screen now uses its `KeyboardAwareScrollView` (auth×2, profile, matchmaking,
+vastu) or `KeyboardAvoidingView` (chat). The **glass tab bar hides when the keyboard is open**
+(`useKeyboardState`). Chat send button now has a real `canSend` state (gold when there's text, muted +
+disabled otherwise).
+
+**Phone (`app/(auth)/index.tsx`):** fixed **`+91` prefix** chip; user types 10 digits; validates
+`^[6-9]\d{9}$`, submits `+91`+digits.
+
+**Reports HTML (`supabase/functions/report/index.ts`):** all 3 renderers retheme d to the new palette +
+Fraunces `@import` (old indigo palette globally remapped). ⚠️ **PENDING: redeploy the `report` Edge
+Function via the dashboard** for the new look to appear in generated PDFs (CLI deploy fails here).
+
+### ⚠️ Native-deps gotchas (cost real time — read before next rebuild)
+- **`react-native-keyboard-controller` REQUIRES `react-native-reanimated`** (peer dep). Reanimated had been
+  removed (§7), and a `--legacy-peer-deps` install silently pruned it → Metro `Unable to resolve
+  react-native-reanimated`. Fix: `npx expo install react-native-reanimated react-native-worklets`, add
+  **`react-native-worklets/plugin`** as the LAST babel plugin (`babel.config.js`), rebuild. Reanimated v4
+  on the SDK 57 dev client / New Arch runs fine — the old §7 crash was Expo-Go-specific and did NOT recur.
+- **Stale CMake graph after re-adding worklets:** build failed with `ninja: error: libworklets.so … missing
+  and no known rule to make it` (expo-modules-core linking a stale worklets `.so` path). `gradlew clean`
+  also failed (`externalNativeBuildCleanDebug`). Fix that worked: delete `.cxx` + native `build` dirs for
+  `android/app` and node_modules `react-native-worklets` / `react-native-reanimated` / `expo-modules-core`,
+  then `npx expo run:android`. Clean build succeeded (~6 min).
+- New JS deps: `@expo-google-fonts/fraunces`, `expo-linear-gradient`, `react-native-keyboard-controller`,
+  `react-native-reanimated`, `react-native-worklets`. `npx tsc --noEmit` passes.
+
+### Chat keyboard note (resolved)
+The Wave-2 "tab bar between input and keyboard" oddity is fixed — the tab bar now hides while the keyboard
+is open, and the chat input row's bottom padding collapses (kbVisible) so the composer sits on the keyboard.

@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { getHoroscope, HoroscopePeriod } from '../../lib/horoscopeService';
 import { getPanchang, Panchang } from '../../lib/panchangService';
 import { getNumerology } from '../../lib/numerologyService';
 import { Numerology } from '../../lib/numerology';
-import { Colors, Fonts, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Type, Depth, Accents, AccentName, Gradients } from '../../constants/theme';
+import { Icon, IconName } from '../../components/Icon';
+import { Reveal } from '../../components/Reveal';
+import { GradientCard } from '../../components/GradientCard';
+import { TAB_BAR_HEIGHT } from './_layout';
 
 type Entry = 'loading' | 'need_kundli' | 'ready';
 type Profile = {
@@ -23,6 +28,7 @@ const PERIODS: { id: HoroscopePeriod; label: string }[] = [
 export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [entry, setEntry] = useState<Entry>('loading');
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -87,10 +93,8 @@ export default function HomeScreen() {
     if (!profile) return;
     let cancelled = false;
     (async () => {
-      // Numerology is instant, pure client compute (persisted best-effort).
       const num = await getNumerology({ id: profile.id, name: profile.name, dob: profile.dob });
       if (!cancelled) setNumerology(num);
-      // Panchang is served from the shared city/day cache (computed, not AI).
       const p = await getPanchang(profile.id);
       if (!cancelled && !p.error) setPanchang(p);
     })();
@@ -110,227 +114,246 @@ export default function HomeScreen() {
   const firstName = profile?.name?.trim().split(/\s+/)[0];
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[styles.content, {
+        paddingTop: insets.top + Spacing.lg,
+        paddingBottom: TAB_BAR_HEIGHT + insets.bottom + Spacing.md,
+      }]}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>Namaste{firstName ? `, ${firstName}` : ''} 🙏</Text>
-          {profile?.moonSign ? (
-            <Text style={styles.rashi}>🌙 Moon in {profile.moonSign}</Text>
-          ) : (
-            <Text style={styles.phone}>{user?.phone ?? ''}</Text>
-          )}
-        </View>
-        <View style={styles.headerBtns}>
-          <TouchableOpacity onPress={() => router.push('/profile')} style={styles.avatarBtn}>
-            <Text style={styles.avatarIcon}>◉</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.avatarBtn}>
-            <Text style={styles.avatarIcon}>⚙</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {entry === 'need_kundli' ? (
-        <View style={styles.horoCard}>
-          <Text style={styles.horoPeriod}>Finish your Kundli</Text>
-          <Text style={styles.horoPlaceholder}>
-            Your birth chart isn’t ready yet. Complete your Kundli to unlock your daily,
-            weekly, and monthly horoscope.
-          </Text>
-          <TouchableOpacity style={styles.ctaBtn} onPress={() => router.push('/profile')}>
-            <Text style={styles.ctaBtnText}>Complete your Kundli →</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <Text style={styles.sectionTitle}>Your Horoscope</Text>
-
-          {/* period toggle */}
-          <View style={styles.toggle}>
-            {PERIODS.map((p) => (
-              <TouchableOpacity
-                key={p.id}
-                style={[styles.toggleBtn, period === p.id && styles.toggleActive]}
-                onPress={() => setPeriod(p.id)}
-              >
-                <Text style={[styles.toggleText, period === p.id && styles.toggleTextActive]}>{p.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* horoscope card */}
-          <View style={styles.horoCard}>
-            {loadingPeriod === period ? (
-              <View style={styles.horoLoading}>
-                <ActivityIndicator color={Colors.gold} />
-                <Text style={styles.horoLoadingText}>Reading the stars…</Text>
-              </View>
-            ) : errors[period] ? (
-              <View style={styles.horoLoading}>
-                <Text style={styles.horoPlaceholder}>Couldn’t load your horoscope right now.</Text>
-                <TouchableOpacity style={styles.retryBtn} onPress={() => retry(period)}>
-                  <Text style={styles.retryText}>Try again</Text>
-                </TouchableOpacity>
+      <Reveal index={0}>
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow}>NAMASTE</Text>
+            <Text style={styles.name}>{firstName || 'Seeker'}</Text>
+            {profile?.moonSign ? (
+              <View style={styles.moonRow}>
+                <Icon name="moon" size={14} color={Colors.gold} />
+                <Text style={styles.rashi}>Moon in {profile.moonSign}</Text>
               </View>
             ) : (
-              <Text style={styles.horoBody}>{texts[period]}</Text>
+              <Text style={styles.phone}>{user?.phone ?? ''}</Text>
             )}
           </View>
+          <View style={styles.headerBtns}>
+            <IconButton icon="profile" onPress={() => router.push('/profile')} />
+            <IconButton icon="settings" onPress={() => router.push('/settings')} />
+          </View>
+        </View>
+      </Reveal>
+
+      {entry === 'need_kundli' ? (
+        <Reveal index={1}>
+          <View style={styles.heroCard}>
+            <Text style={styles.eyebrow}>ONE STEP LEFT</Text>
+            <Text style={styles.heroTitle}>Finish your Kundli</Text>
+            <Text style={styles.bodyMuted}>
+              Your birth chart isn’t ready yet. Complete your Kundli to unlock your daily,
+              weekly, and monthly horoscope.
+            </Text>
+            <Pressable style={styles.ctaBtn} onPress={() => router.push('/profile')}>
+              <Text style={styles.ctaBtnText}>Complete your Kundli</Text>
+              <Icon name="arrowRight" size={16} color={Colors.canvas} />
+            </Pressable>
+          </View>
+        </Reveal>
+      ) : (
+        <>
+          <Reveal index={1}>
+            <Text style={styles.sectionEyebrow}>YOUR HOROSCOPE</Text>
+
+            {/* underline segmented control (no fat pills) */}
+            <View style={styles.segment}>
+              {PERIODS.map((p) => {
+                const active = period === p.id;
+                return (
+                  <Pressable key={p.id} style={styles.segmentBtn} onPress={() => setPeriod(p.id)}>
+                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                      {p.label}
+                    </Text>
+                    <View style={[styles.segmentRule, active && styles.segmentRuleActive]} />
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* horoscope card */}
+            <GradientCard colors={Gradients.heroSurface} style={styles.heroCardPad}>
+              {loadingPeriod === period ? (
+                <View style={styles.horoLoading}>
+                  <ActivityIndicator color={Colors.gold} />
+                  <Text style={styles.bodyMuted}>Reading the stars…</Text>
+                </View>
+              ) : errors[period] ? (
+                <View style={styles.horoLoading}>
+                  <Text style={styles.bodyMuted}>Couldn’t load your horoscope right now.</Text>
+                  <Pressable style={styles.retryBtn} onPress={() => retry(period)}>
+                    <Text style={styles.retryText}>Try again</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.quoteMark}>“</Text>
+                  <Text style={styles.horoBody}>{texts[period]}</Text>
+                </>
+              )}
+            </GradientCard>
+          </Reveal>
         </>
       )}
 
-      {/* ── Secondary free features (below the horoscope hero) ─────────────────── */}
+      {/* ── Secondary free features ─────────────────────────────────────────────── */}
       {profile ? (
         <>
-          <Text style={styles.moreTitle}>More for you</Text>
+          <Reveal index={2}>
+            <Text style={styles.sectionEyebrow}>MORE FOR YOU</Text>
+          </Reveal>
 
-          {/* Panchang card */}
-          <TouchableOpacity
-            style={styles.miniCard}
-            activeOpacity={0.8}
+          <FeatureRow
+            index={3} icon="panchang" accent="saffron" title="Today’s Panchang"
+            sub={panchang ? `${panchang.tithi} · ${panchang.nakshatra?.split(' (')[0]}` : 'Daily almanac & timings'}
             onPress={() => router.push({ pathname: '/panchang', params: { profileId: profile.id } })}
-          >
-            <Text style={styles.miniIcon}>🕉️</Text>
-            <View style={styles.miniBody}>
-              <Text style={styles.miniTitle}>Today’s Panchang</Text>
-              {panchang ? (
-                <Text style={styles.miniSub} numberOfLines={1}>
-                  {panchang.tithi} · {panchang.nakshatra?.split(' (')[0]}
-                </Text>
-              ) : (
-                <Text style={styles.miniSub}>Daily almanac & timings</Text>
-              )}
-            </View>
-            <Text style={styles.miniChevron}>›</Text>
-          </TouchableOpacity>
-
-          {/* Numerology card */}
-          <TouchableOpacity
-            style={styles.miniCard}
-            activeOpacity={0.8}
+          />
+          <FeatureRow
+            index={4} icon="numerology" accent="amethyst" title="Your Numerology"
+            sub={numerology ? `Life Path ${numerology.life_path.number} · Expression ${numerology.expression.number}` : 'Your core numbers from name & birth'}
             onPress={() => router.push({ pathname: '/numerology', params: { profileId: profile.id } })}
-          >
-            <Text style={styles.miniIcon}>🔢</Text>
-            <View style={styles.miniBody}>
-              <Text style={styles.miniTitle}>Your Numerology</Text>
-              {numerology ? (
-                <Text style={styles.miniSub} numberOfLines={1}>
-                  Life Path {numerology.life_path.number} · Expression {numerology.expression.number}
-                </Text>
-              ) : (
-                <Text style={styles.miniSub}>Your core numbers from name & birth</Text>
-              )}
-            </View>
-            <Text style={styles.miniChevron}>›</Text>
-          </TouchableOpacity>
-
-          {/* Shubh Muhurat Finder (tool) */}
-          <TouchableOpacity
-            style={styles.miniCard}
-            activeOpacity={0.8}
+          />
+          <FeatureRow
+            index={5} icon="muhurat" accent="emerald" title="Shubh Muhurat Finder"
+            sub="Auspicious dates for your plans"
             onPress={() => router.push({ pathname: '/muhurat', params: { profileId: profile.id } })}
-          >
-            <Text style={styles.miniIcon}>📅</Text>
-            <View style={styles.miniBody}>
-              <Text style={styles.miniTitle}>Shubh Muhurat Finder</Text>
-              <Text style={styles.miniSub}>Auspicious dates for your plans</Text>
-            </View>
-            <Text style={styles.miniChevron}>›</Text>
-          </TouchableOpacity>
-
-          {/* Live Darshan (directory; links out to official temple streams) */}
-          <TouchableOpacity
-            style={styles.miniCard}
-            activeOpacity={0.8}
+          />
+          <FeatureRow
+            index={6} icon="temple" accent="ruby" title="Live Darshan"
+            sub="Live aarti from major temples"
             onPress={() => router.push('/darshan')}
-          >
-            <Text style={styles.miniIcon}>🛕</Text>
-            <View style={styles.miniBody}>
-              <Text style={styles.miniTitle}>Live Darshan</Text>
-              <Text style={styles.miniSub}>Live aarti from major temples</Text>
-            </View>
-            <Text style={styles.miniChevron}>›</Text>
-          </TouchableOpacity>
+          />
         </>
       ) : null}
 
       {/* Astrology disclaimer */}
-      <Text style={styles.disclaimer}>
-        Horoscopes and readings are for guidance and reflection, not a substitute for
-        professional advice.
-      </Text>
+      <Reveal index={7}>
+        <Text style={styles.disclaimer}>
+          Horoscopes and readings are for guidance and reflection, not a substitute for
+          professional advice.
+        </Text>
+      </Reveal>
+      <View style={{ height: Spacing.xl }} />
     </ScrollView>
   );
 }
 
+// ── small building blocks ──────────────────────────────────────────────────────
+function IconButton({ icon, onPress }: { icon: IconName; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      android_ripple={{ color: Colors.goldFaint, borderless: true, radius: 22 }}
+      style={styles.iconBtn}
+    >
+      <Icon name={icon} size={20} color={Colors.gold} />
+    </Pressable>
+  );
+}
+
+function FeatureRow({
+  index, icon, accent, title, sub, onPress,
+}: { index: number; icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }) {
+  const a = Accents[accent];
+  return (
+    <Reveal index={index}>
+      <Pressable
+        style={styles.featureRow}
+        android_ripple={{ color: a.faint }}
+        onPress={onPress}
+      >
+        <View style={[styles.featureIcon, { backgroundColor: a.faint, borderWidth: 1, borderColor: a.soft }]}>
+          <Icon name={icon} size={20} color={a.color} />
+        </View>
+        <View style={styles.featureBody}>
+          <Text style={styles.featureTitle}>{title}</Text>
+          <Text style={styles.featureSub} numberOfLines={1}>{sub}</Text>
+        </View>
+        <Icon name="chevron" size={20} color={Colors.textDim} />
+      </Pressable>
+    </Reveal>
+  );
+}
+
 const styles = StyleSheet.create({
-  loading: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' },
-  root: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.lg, paddingTop: 56 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xl },
-  greeting: { fontSize: Fonts.size.xl, color: Colors.text, fontWeight: '700' },
-  rashi: { fontSize: Fonts.size.sm, color: Colors.goldLight, marginTop: 4 },
-  phone: { fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 2 },
-  headerBtns: { flexDirection: 'row', gap: Spacing.sm, marginLeft: Spacing.md },
-  avatarBtn: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border,
+  loading: { flex: 1, backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center' },
+  root: { flex: 1, backgroundColor: Colors.canvas },
+  content: { paddingHorizontal: Spacing.lg },
+
+  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.xl },
+  eyebrow: { ...Type.eyebrow, marginBottom: 6 },
+  name: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: Colors.text, lineHeight: Fonts.size.hero + 4 },
+  moonRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  rashi: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: Colors.goldLight, letterSpacing: 0.3 },
+  phone: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 4 },
+  headerBtns: { flexDirection: 'row', gap: Spacing.sm, marginLeft: Spacing.md, marginTop: 4 },
+  iconBtn: {
+    width: 42, height: 42, borderRadius: Radius.pill,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  avatarIcon: { fontSize: 20, color: Colors.gold },
 
-  sectionTitle: { fontSize: Fonts.size.lg, color: Colors.text, fontWeight: '700', marginBottom: Spacing.md },
+  sectionEyebrow: { ...Type.eyebrow, marginTop: Spacing.xl, marginBottom: Spacing.md },
 
-  toggle: {
-    flexDirection: 'row', backgroundColor: Colors.bgMid, borderRadius: 12,
-    padding: 4, marginBottom: Spacing.md,
+  // underline segmented control
+  segment: { flexDirection: 'row', gap: Spacing.xl, marginBottom: Spacing.md },
+  segmentBtn: { alignItems: 'center' },
+  segmentText: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.md, color: Colors.textDim, paddingBottom: 6 },
+  segmentTextActive: { color: Colors.text },
+  segmentRule: { height: 1.5, width: 20, borderRadius: 2, backgroundColor: 'transparent' },
+  segmentRuleActive: { backgroundColor: Colors.gold },
+
+  heroCard: {
+    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg,
+    borderWidth: 1, borderColor: Colors.border, ...Depth.card,
   },
-  toggleBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: 9, alignItems: 'center' },
-  toggleActive: { backgroundColor: Colors.gold },
-  toggleText: { color: Colors.textMuted, fontSize: Fonts.size.md, fontWeight: '700' },
-  toggleTextActive: { color: Colors.bg },
-
-  horoCard: {
-    backgroundColor: Colors.bgCard, borderRadius: 14, padding: Spacing.lg,
-    marginBottom: Spacing.sm, borderWidth: 1, borderColor: Colors.border,
+  heroCardPad: { padding: Spacing.lg },
+  heroTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.text, marginBottom: Spacing.sm },
+  quoteMark: {
+    fontFamily: Fonts.displayBold, fontSize: 44, color: Colors.gold,
+    height: 34, marginBottom: -4, opacity: 0.9,
   },
-  horoPeriod: { fontSize: Fonts.size.lg, color: Colors.goldLight, fontWeight: '700', marginBottom: Spacing.xs },
-  horoBody: { fontSize: Fonts.size.md, color: Colors.text, lineHeight: 24 },
-  horoPlaceholder: { fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 20 },
+  horoBody: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: Colors.text, lineHeight: 25 },
+  bodyMuted: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, lineHeight: 21 },
   horoLoading: { alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.sm },
-  horoLoadingText: { fontSize: Fonts.size.sm, color: Colors.textMuted },
 
   retryBtn: {
-    marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.gold, borderRadius: 10,
+    marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
   },
-  retryText: { color: Colors.goldLight, fontSize: Fonts.size.sm, fontWeight: '700' },
+  retryText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.sm },
 
   ctaBtn: {
-    backgroundColor: Colors.gold, borderRadius: 12, padding: Spacing.md,
-    alignItems: 'center', marginTop: Spacing.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 14,
+    marginTop: Spacing.md,
   },
-  ctaBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
+  ctaBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
-  // secondary feature cards
-  moreTitle: {
-    fontSize: Fonts.size.sm, color: Colors.textDim, fontWeight: '700', letterSpacing: 1,
-    marginTop: Spacing.xl, marginBottom: Spacing.sm,
-  },
-  miniCard: {
+  // feature rows
+  featureRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.bgCard, borderRadius: 14, padding: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md,
     borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm,
   },
-  miniIcon: { fontSize: 24 },
-  miniBody: { flex: 1 },
-  miniTitle: { fontSize: Fonts.size.md, color: Colors.text, fontWeight: '700' },
-  miniSub: { fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 2 },
-  miniChevron: { fontSize: 22, color: Colors.gold },
+  featureIcon: {
+    width: 44, height: 44, borderRadius: Radius.sm,
+    backgroundColor: Colors.goldFaint, alignItems: 'center', justifyContent: 'center',
+  },
+  featureBody: { flex: 1 },
+  featureTitle: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: Colors.text },
+  featureSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: 2 },
 
   disclaimer: {
-    color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
+    fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
     textAlign: 'center', marginTop: Spacing.xl, paddingHorizontal: Spacing.md,
   },
 });

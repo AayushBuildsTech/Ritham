@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
@@ -7,6 +7,8 @@ import * as Sharing from 'expo-sharing';
 import { getReport, ReportRow } from '../lib/reportService';
 import { track } from '../lib/analytics';
 import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Icon } from '../components/Icon';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function ReportView() {
   const router = useRouter();
@@ -44,15 +46,17 @@ export default function ReportView() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
-        <Text style={styles.title}>Your Report</Text>
-        <TouchableOpacity onPress={download} disabled={!report?.html || exporting}>
-          {exporting
-            ? <ActivityIndicator color={Colors.gold} />
-            : <Text style={[styles.download, !report?.html && styles.downloadDisabled]}>Download</Text>}
-        </TouchableOpacity>
-      </View>
+      <ScreenHeader
+        title="Your Report"
+        onBack={() => router.back()}
+        right={
+          <Pressable onPress={download} disabled={!report?.html || exporting} style={styles.dlBtn} hitSlop={8}>
+            {exporting
+              ? <ActivityIndicator color={Colors.gold} />
+              : <Icon name="download" size={20} color={report?.html ? Colors.goldLight : Colors.textDim} />}
+          </Pressable>
+        }
+      />
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>
@@ -77,17 +81,9 @@ export default function ReportView() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 52, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.bgCard,
-  },
-  back: { color: Colors.goldLight, fontSize: Fonts.size.md },
-  title: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700' },
-  download: { color: Colors.goldLight, fontSize: Fonts.size.md, fontWeight: '700' },
-  downloadDisabled: { color: Colors.textDim },
+  root: { flex: 1, backgroundColor: Colors.canvas },
+  dlBtn: { minWidth: 44, alignItems: 'flex-end', justifyContent: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  msg: { color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
-  web: { flex: 1, backgroundColor: Colors.bg },
+  msg: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
+  web: { flex: 1, backgroundColor: Colors.canvas },
 });

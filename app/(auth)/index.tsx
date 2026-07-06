@@ -1,79 +1,90 @@
 import { useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-} from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { friendlyAuthError } from '../../lib/authErrors';
-import { Colors, Fonts, Spacing } from '../../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth } from '../../constants/theme';
+import { Reveal } from '../../components/Reveal';
 
 export default function PhoneScreen() {
-  const [phone, setPhone] = useState('');
+  const [digits, setDigits] = useState(''); // 10-digit local number; +91 is fixed
+  const [focused, setFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
 
   const handleSendOtp = async () => {
     setError('');
-    const cleaned = phone.trim().replace(/\s/g, '');
-    if (!/^\+91[6-9]\d{9}$/.test(cleaned)) {
-      setError('Enter a valid Indian mobile number with country code, e.g. +919876543210');
+    if (!/^[6-9]\d{9}$/.test(digits)) {
+      setError('Enter a valid 10-digit Indian mobile number.');
       return;
     }
+    const phone = `+91${digits}`;
     setLoading(true);
-    const { error: err } = await supabase.auth.signInWithOtp({ phone: cleaned });
+    const { error: err } = await supabase.auth.signInWithOtp({ phone });
     setLoading(false);
     if (err) {
       setError(friendlyAuthError(err));
     } else {
-      router.push({ pathname: '/(auth)/verify-otp', params: { phone: cleaned } });
+      router.push({ pathname: '/(auth)/verify-otp', params: { phone } });
     }
   };
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollView
       style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      contentContainerStyle={styles.scroll}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={24}
+      showsVerticalScrollIndicator={false}
     >
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Brand header */}
+      <Reveal index={0}>
         <View style={styles.header}>
-          <Text style={styles.logo}>✦</Text>
-          <Text style={styles.title}>Ritham</Text>
-          <Text style={styles.tagline}>Your Vedic Astrology Companion</Text>
+          <Text style={styles.logo}>Ritham</Text>
+          <View style={styles.rule} />
+          <Text style={styles.tagline}>VEDIC WISDOM · REFINED</Text>
         </View>
+      </Reveal>
 
+      <Reveal index={1}>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Begin Your Journey</Text>
+          <Text style={styles.cardTitle}>Begin your journey</Text>
           <Text style={styles.cardSubtitle}>
             Enter your mobile number to sign in or create your account.
           </Text>
 
-          <Text style={styles.label}>Mobile Number</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="+91 98765 43210"
-            placeholderTextColor={Colors.textDim}
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-            autoFocus
-            maxLength={13}
-          />
+          <Text style={styles.label}>MOBILE NUMBER</Text>
+          <View style={[styles.phoneRow, focused && styles.phoneRowFocused]}>
+            <Text style={styles.prefix}>+91</Text>
+            <View style={styles.prefixDivider} />
+            <TextInput
+              style={styles.phoneInput}
+              placeholder="98765 43210"
+              placeholderTextColor={Colors.textDim}
+              keyboardType="number-pad"
+              value={digits}
+              onChangeText={(t) => setDigits(t.replace(/\D/g, '').slice(0, 10))}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              autoFocus
+              maxLength={10}
+            />
+          </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <TouchableOpacity
+          <Pressable
             style={[styles.btn, loading && styles.btnDisabled]}
             onPress={handleSendOtp}
             disabled={loading}
+            android_ripple={{ color: Colors.goldDeep }}
           >
             {loading
-              ? <ActivityIndicator color={Colors.bg} />
+              ? <ActivityIndicator color={Colors.canvas} />
               : <Text style={styles.btnText}>Send OTP</Text>
             }
-          </TouchableOpacity>
+          </Pressable>
 
           <Text style={styles.disclaimer}>
             By continuing, you agree to our{' '}
@@ -82,48 +93,51 @@ export default function PhoneScreen() {
             <Text style={styles.link} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })}>Privacy Policy</Text>.
           </Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </Reveal>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
+  root: { flex: 1, backgroundColor: Colors.canvas },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: Spacing.lg },
   header: { alignItems: 'center', marginBottom: Spacing.xxl },
-  logo: { fontSize: 48, color: Colors.gold, marginBottom: Spacing.sm },
-  title: { fontSize: Fonts.size.hero, color: Colors.goldLight, fontWeight: '700', letterSpacing: 3 },
-  tagline: { fontSize: Fonts.size.sm, color: Colors.textMuted, marginTop: Spacing.xs, letterSpacing: 1 },
+  logo: { fontFamily: Fonts.displayBold, fontSize: 56, color: Colors.goldLight, letterSpacing: 1 },
+  rule: { width: 88, height: 1, backgroundColor: Colors.gold, opacity: 0.7, marginVertical: Spacing.md },
+  tagline: { fontFamily: Fonts.bodyMedium, fontSize: 11, color: Colors.textMuted, letterSpacing: 4 },
   card: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
     padding: Spacing.xl,
     borderWidth: 1,
     borderColor: Colors.border,
+    ...Depth.card,
   },
-  cardTitle: { fontSize: Fonts.size.xl, color: Colors.text, fontWeight: '700', marginBottom: Spacing.xs },
-  cardSubtitle: { fontSize: Fonts.size.sm, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 20 },
-  label: { fontSize: Fonts.size.sm, color: Colors.textMuted, marginBottom: Spacing.xs },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 10,
-    padding: Spacing.md,
-    fontSize: Fonts.size.md,
-    color: Colors.text,
-    backgroundColor: Colors.bgMid,
-    marginBottom: Spacing.md,
+  cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.text, marginBottom: Spacing.xs },
+  cardSubtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, marginBottom: Spacing.lg, lineHeight: 20 },
+  label: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Colors.textMuted, letterSpacing: 1.5, marginBottom: Spacing.sm },
+  phoneRow: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm,
+    backgroundColor: Colors.surfaceSunken, marginBottom: Spacing.md, paddingLeft: Spacing.md,
   },
-  errorText: { color: Colors.error, fontSize: Fonts.size.sm, marginBottom: Spacing.sm },
+  phoneRowFocused: { borderColor: Colors.borderStrong },
+  prefix: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: Colors.goldLight },
+  prefixDivider: { width: 1, height: 22, backgroundColor: Colors.border, marginLeft: Spacing.md },
+  phoneInput: {
+    flex: 1, padding: Spacing.md,
+    fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.md, color: Colors.text, letterSpacing: 1,
+  },
+  errorText: { fontFamily: Fonts.body, color: Colors.error, fontSize: Fonts.size.sm, marginBottom: Spacing.sm },
   btn: {
     backgroundColor: Colors.gold,
-    borderRadius: 10,
-    padding: Spacing.md,
+    borderRadius: Radius.sm,
+    paddingVertical: 15,
     alignItems: 'center',
     marginTop: Spacing.xs,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  disclaimer: { fontSize: Fonts.size.xs, color: Colors.textDim, marginTop: Spacing.lg, textAlign: 'center', lineHeight: 18 },
+  btnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.5 },
+  disclaimer: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: Colors.textDim, marginTop: Spacing.lg, textAlign: 'center', lineHeight: 18 },
   link: { color: Colors.goldLight, textDecorationLine: 'underline' },
 });

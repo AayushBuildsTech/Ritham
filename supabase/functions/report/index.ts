@@ -323,7 +323,7 @@ function renderVastuHtml(answers: any, a: VastuAnalysis): string {
   const name = esc(answers.name ?? answers.owner ?? 'Your Home');
   const facing = esc(answers.facing ?? '—');
   const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-  const scoreColor = a.score >= 75 ? '#52a87c' : a.score >= 50 ? '#e6c063' : '#e05252';
+  const scoreColor = a.score >= 75 ? '#7FA36F' : a.score >= 50 ? '#E4C983' : '#C7524B';
 
   const detailRows = [
     ['Prepared for', name],
@@ -365,59 +365,60 @@ function renderVastuHtml(answers: any, a: VastuAnalysis): string {
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap');
   @page { margin: 0; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #f0ece8;
-         background: #14122b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: 'Fraunces', Georgia, 'Times New Roman', serif; color: #FDFBF7;
+         background: #0B0B0D; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { min-height: 100vh; padding: 46px 40px; page-break-after: always;
-          background: linear-gradient(160deg, #14122b 0%, #1e1b45 100%); }
+          background: linear-gradient(160deg, #0B0B0D 0%, #171519 100%); }
   .page:last-child { page-break-after: auto; }
   h1, h2, h3 { font-weight: normal; letter-spacing: 0.3px; margin: 0; }
-  .brand { color: #d9a441; font-size: 14px; letter-spacing: 3px; }
-  .divider { height: 1px; background: linear-gradient(90deg, transparent, #d9a441, transparent);
+  .brand { color: #C5A059; font-size: 14px; letter-spacing: 3px; }
+  .divider { height: 1px; background: linear-gradient(90deg, transparent, #C5A059, transparent);
              margin: 18px 0; }
   .cover { display: flex; flex-direction: column; justify-content: center; text-align: center; }
-  .cover .logo { font-size: 40px; color: #d9a441; margin-bottom: 8px; }
-  .cover h1 { font-size: 40px; color: #f0ece8; margin: 8px 0; }
-  .cover .sub { color: #9b96b0; font-size: 15px; }
-  .cover .who { margin-top: 28px; color: #e6c063; font-size: 22px; }
-  .cover .date { color: #6b6585; font-size: 13px; margin-top: 6px; }
-  h2.section { color: #e6c063; font-size: 24px; margin: 0 0 4px; }
-  .lead { color: #9b96b0; font-size: 13px; margin-bottom: 10px; }
+  .cover .logo { font-size: 40px; color: #C5A059; margin-bottom: 8px; }
+  .cover h1 { font-size: 40px; color: #FDFBF7; margin: 8px 0; }
+  .cover .sub { color: #A29E95; font-size: 15px; }
+  .cover .who { margin-top: 28px; color: #E4C983; font-size: 22px; }
+  .cover .date { color: #6E6A62; font-size: 13px; margin-top: 6px; }
+  h2.section { color: #E4C983; font-size: 24px; margin: 0 0 4px; }
+  .lead { color: #A29E95; font-size: 13px; margin-bottom: 10px; }
   table.details { width: 100%; border-collapse: collapse; }
-  table.details td { padding: 10px 4px; border-bottom: 1px solid #2d2960; font-size: 15px; vertical-align: top; }
-  td.k { color: #9b96b0; width: 42%; }
-  td.v { color: #f0ece8; }
-  p.body { font-size: 14.5px; line-height: 1.75; color: #ded9e6; margin: 0 0 12px; }
-  .dir { border-left: 2px solid #d9a441; padding: 4px 0 4px 14px; margin-bottom: 14px; }
+  table.details td { padding: 10px 4px; border-bottom: 1px solid #2E2A22; font-size: 15px; vertical-align: top; }
+  td.k { color: #A29E95; width: 42%; }
+  td.v { color: #FDFBF7; }
+  p.body { font-size: 14.5px; line-height: 1.75; color: #E8E3DA; margin: 0 0 12px; }
+  .dir { border-left: 2px solid #C5A059; padding: 4px 0 4px 14px; margin-bottom: 14px; }
   .dir-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .dir-name { color: #f0ece8; font-size: 16px; }
-  .dir-el { color: #d9a441; font-size: 12px; letter-spacing: 0.5px; }
-  .dir-assess { color: #cfc9dd; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
-  .zone { border: 1px solid #2d2960; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
+  .dir-name { color: #FDFBF7; font-size: 16px; }
+  .dir-el { color: #C5A059; font-size: 12px; letter-spacing: 0.5px; }
+  .dir-assess { color: #C9C4BC; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
+  .zone { border: 1px solid #2E2A22; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px;
           background: rgba(30,27,69,0.6); }
   .zone-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-  .zone-area { color: #f0ece8; font-size: 17px; }
-  .zone-dir { color: #d9a441; font-size: 12px; letter-spacing: 1px; }
-  .zone-assess { color: #cfc9dd; font-size: 13.5px; line-height: 1.6; margin: 4px 0; }
-  .zone-rec { color: #ded9e6; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
-  .rec-label { color: #e6c063; }
-  .dosha { border: 1px solid #3a2f4a; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px;
+  .zone-area { color: #FDFBF7; font-size: 17px; }
+  .zone-dir { color: #C5A059; font-size: 12px; letter-spacing: 1px; }
+  .zone-assess { color: #C9C4BC; font-size: 13.5px; line-height: 1.6; margin: 4px 0; }
+  .zone-rec { color: #E8E3DA; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
+  .rec-label { color: #E4C983; }
+  .dosha { border: 1px solid #211E26; border-radius: 10px; padding: 12px 16px; margin-bottom: 12px;
            background: rgba(60,30,40,0.25); }
-  .dosha-issue { color: #e6c063; font-size: 15px; margin-bottom: 4px; }
-  .dosha-line { color: #cfc9dd; font-size: 13.5px; line-height: 1.6; margin: 2px 0; }
-  .dl { color: #d9a441; }
-  .score-box { text-align: center; border: 1px solid #2d2960; border-radius: 14px; padding: 26px;
+  .dosha-issue { color: #E4C983; font-size: 15px; margin-bottom: 4px; }
+  .dosha-line { color: #C9C4BC; font-size: 13.5px; line-height: 1.6; margin: 2px 0; }
+  .dl { color: #C5A059; }
+  .score-box { text-align: center; border: 1px solid #2E2A22; border-radius: 14px; padding: 26px;
                background: rgba(30,27,69,0.6); margin: 8px 0 16px; }
   .score-num { font-size: 62px; color: ${scoreColor}; }
-  .score-cap { color: #9b96b0; font-size: 13px; letter-spacing: 1px; }
-  .verdict { color: #ded9e6; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; }
+  .score-cap { color: #A29E95; font-size: 13px; letter-spacing: 1px; }
+  .verdict { color: #E8E3DA; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; }
   ul.list { padding-left: 20px; margin: 0; }
-  ul.list li { font-size: 14.5px; line-height: 1.7; color: #ded9e6; margin-bottom: 8px; }
+  ul.list li { font-size: 14.5px; line-height: 1.7; color: #E8E3DA; margin-bottom: 8px; }
   .two { display: flex; gap: 20px; }
   .two .col { flex: 1; }
-  .col h3 { color: #e6c063; font-size: 17px; margin-bottom: 8px; }
-  .foot { color: #6b6585; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
+  .col h3 { color: #E4C983; font-size: 17px; margin-bottom: 8px; }
+  .foot { color: #6E6A62; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
 </style></head><body>
 
   <section class="page cover">
@@ -468,7 +469,7 @@ function renderVastuHtml(answers: any, a: VastuAnalysis): string {
     <h2 class="section">Vaastu Score</h2>
     <div class="divider"></div>
     <div class="score-box">
-      <div class="score-num">${a.score}<span style="font-size:26px;color:#9b96b0">/100</span></div>
+      <div class="score-num">${a.score}<span style="font-size:26px;color:#A29E95">/100</span></div>
       <div class="score-cap">OVERALL VAASTU COMPLIANCE</div>
     </div>
     ${a.verdict ? `<p class="verdict">“${esc(a.verdict)}”</p>` : ''}
@@ -827,7 +828,7 @@ function renderChart(p: Person, style: 'north' | 'south'): string {
 
 function renderMatchHtml(a: Person, b: Person, m: Milan, x: MatchAnalysis, style: 'north' | 'south'): string {
   const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
-  const scoreColor = m.percent >= 66 ? '#52a87c' : m.percent >= 44 ? '#e6c063' : '#e05252';
+  const scoreColor = m.percent >= 66 ? '#7FA36F' : m.percent >= 44 ? '#E4C983' : '#C7524B';
   const fmt = (p: Person) => {
     const [y, mo, d] = p.dob.split('-');
     return `${Number(d)}/${Number(mo)}/${y} · ${p.tob.slice(0, 5)} · ${esc(p.birth_place)}`;
@@ -844,7 +845,7 @@ function renderMatchHtml(a: Person, b: Person, m: Milan, x: MatchAnalysis, style
   const kootaRows = m.kootas.map((k) => `
     <tr>
       <td class="kn">${esc(k.name)}</td>
-      <td class="kp"><span style="color:${k.got >= k.max * 0.5 ? '#52a87c' : '#e6a05a'}">${k.got}</span> / ${k.max}</td>
+      <td class="kp"><span style="color:${k.got >= k.max * 0.5 ? '#7FA36F' : '#C5A059'}">${k.got}</span> / ${k.max}</td>
       <td class="kd">${esc(k.note)}</td>
     </tr>`).join('');
 
@@ -858,66 +859,67 @@ function renderMatchHtml(a: Person, b: Person, m: Milan, x: MatchAnalysis, style
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap');
   @page { margin: 0; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #f0ece8;
-         background: #14122b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: 'Fraunces', Georgia, 'Times New Roman', serif; color: #FDFBF7;
+         background: #0B0B0D; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { min-height: 100vh; padding: 46px 40px; page-break-after: always;
-          background: linear-gradient(160deg, #14122b 0%, #1e1b45 100%); }
+          background: linear-gradient(160deg, #0B0B0D 0%, #171519 100%); }
   .page:last-child { page-break-after: auto; }
   h1, h2, h3 { font-weight: normal; margin: 0; }
-  .brand { color: #d9a441; font-size: 14px; letter-spacing: 3px; }
-  .divider { height: 1px; background: linear-gradient(90deg, transparent, #d9a441, transparent); margin: 18px 0; }
+  .brand { color: #C5A059; font-size: 14px; letter-spacing: 3px; }
+  .divider { height: 1px; background: linear-gradient(90deg, transparent, #C5A059, transparent); margin: 18px 0; }
   .cover { display: flex; flex-direction: column; justify-content: center; text-align: center; }
-  .cover .logo { font-size: 40px; color: #d9a441; }
-  .cover h1 { font-size: 38px; color: #f0ece8; margin: 8px 0; }
-  .cover .sub { color: #9b96b0; font-size: 15px; }
-  .pair { margin-top: 30px; color: #e6c063; font-size: 24px; }
-  .pair .amp { color: #d9a441; font-size: 18px; margin: 0 10px; }
-  .cover .date { color: #6b6585; font-size: 13px; margin-top: 8px; }
-  h2.section { color: #e6c063; font-size: 24px; margin: 0 0 4px; }
-  .lead { color: #9b96b0; font-size: 13px; margin-bottom: 10px; }
-  p.body { font-size: 14.5px; line-height: 1.75; color: #ded9e6; margin: 0 0 12px; }
+  .cover .logo { font-size: 40px; color: #C5A059; }
+  .cover h1 { font-size: 38px; color: #FDFBF7; margin: 8px 0; }
+  .cover .sub { color: #A29E95; font-size: 15px; }
+  .pair { margin-top: 30px; color: #E4C983; font-size: 24px; }
+  .pair .amp { color: #C5A059; font-size: 18px; margin: 0 10px; }
+  .cover .date { color: #6E6A62; font-size: 13px; margin-top: 8px; }
+  h2.section { color: #E4C983; font-size: 24px; margin: 0 0 4px; }
+  .lead { color: #A29E95; font-size: 13px; margin-bottom: 10px; }
+  p.body { font-size: 14.5px; line-height: 1.75; color: #E8E3DA; margin: 0 0 12px; }
   table.details { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
-  table.details td { padding: 7px 4px; border-bottom: 1px solid #2d2960; font-size: 13.5px; vertical-align: top; }
-  td.k { color: #9b96b0; width: 34%; } td.v { color: #f0ece8; }
-  .who { color: #e6c063; font-size: 17px; margin: 14px 0 6px; }
+  table.details td { padding: 7px 4px; border-bottom: 1px solid #2E2A22; font-size: 13.5px; vertical-align: top; }
+  td.k { color: #A29E95; width: 34%; } td.v { color: #FDFBF7; }
+  .who { color: #E4C983; font-size: 17px; margin: 14px 0 6px; }
   /* score */
-  .score-box { text-align: center; border: 1px solid #2d2960; border-radius: 14px; padding: 22px;
+  .score-box { text-align: center; border: 1px solid #2E2A22; border-radius: 14px; padding: 22px;
                background: rgba(30,27,69,0.6); margin: 8px 0 16px; }
   .score-num { font-size: 58px; color: ${scoreColor}; }
-  .score-cap { color: #9b96b0; font-size: 13px; letter-spacing: 1px; }
+  .score-cap { color: #A29E95; font-size: 13px; letter-spacing: 1px; }
   .band { color: ${scoreColor}; font-size: 16px; letter-spacing: 1px; margin-top: 4px; }
-  .verdict { color: #ded9e6; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; }
+  .verdict { color: #E8E3DA; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; }
   /* koota table */
   table.koota { width: 100%; border-collapse: collapse; }
-  table.koota th { text-align: left; color: #9b96b0; font-size: 11px; letter-spacing: 1px;
-                   padding: 6px 6px; border-bottom: 1px solid #d9a441; }
-  table.koota td { padding: 9px 6px; border-bottom: 1px solid #2d2960; vertical-align: top; }
-  td.kn { color: #f0ece8; font-size: 14px; width: 22%; }
-  td.kp { color: #ded9e6; font-size: 15px; width: 16%; }
-  td.kd { color: #cfc9dd; font-size: 12.5px; line-height: 1.5; }
-  tr.tot td { border-top: 1px solid #d9a441; color: #e6c063; font-size: 15px; padding-top: 10px; }
+  table.koota th { text-align: left; color: #A29E95; font-size: 11px; letter-spacing: 1px;
+                   padding: 6px 6px; border-bottom: 1px solid #C5A059; }
+  table.koota td { padding: 9px 6px; border-bottom: 1px solid #2E2A22; vertical-align: top; }
+  td.kn { color: #FDFBF7; font-size: 14px; width: 22%; }
+  td.kp { color: #E8E3DA; font-size: 15px; width: 16%; }
+  td.kd { color: #C9C4BC; font-size: 12.5px; line-height: 1.5; }
+  tr.tot td { border-top: 1px solid #C5A059; color: #E4C983; font-size: 15px; padding-top: 10px; }
   ul.list { padding-left: 20px; margin: 0; }
-  ul.list li { font-size: 14px; line-height: 1.65; color: #ded9e6; margin-bottom: 7px; }
+  ul.list li { font-size: 14px; line-height: 1.65; color: #E8E3DA; margin-bottom: 7px; }
   /* charts */
   .charts { display: flex; gap: 18px; }
   .charts .col { flex: 1; text-align: center; }
-  .col h3 { color: #e6c063; font-size: 15px; margin-bottom: 8px; }
+  .col h3 { color: #E4C983; font-size: 15px; margin-bottom: 8px; }
   svg.chart { width: 100%; max-width: 240px; }
-  svg.chart .cl { fill: none; stroke: #d9a441; stroke-width: 1; }
-  svg.chart .cs { fill: #8f8aa8; font-size: 9px; text-anchor: middle; }
-  svg.chart .cg { fill: #f0ece8; font-size: 11px; text-anchor: middle; }
+  svg.chart .cl { fill: none; stroke: #C5A059; stroke-width: 1; }
+  svg.chart .cs { fill: #8B8478; font-size: 9px; text-anchor: middle; }
+  svg.chart .cg { fill: #FDFBF7; font-size: 11px; text-anchor: middle; }
   .sgrid { display: grid; grid-template-columns: repeat(4,1fr); grid-template-rows: repeat(4,52px);
-           border: 1px solid #d9a441; max-width: 240px; margin: 0 auto; }
-  .sc { border: 0.5px solid #2d2960; padding: 3px; display: flex; flex-direction: column;
+           border: 1px solid #C5A059; max-width: 240px; margin: 0 auto; }
+  .sc { border: 0.5px solid #2E2A22; padding: 3px; display: flex; flex-direction: column;
         align-items: flex-start; justify-content: flex-start; overflow: hidden; }
   .sc.lag { background: rgba(217,164,65,0.16); }
-  .sc.mid { align-items: center; justify-content: center; color: #d9a441; font-size: 11px; border: none; }
-  .ss { color: #8f8aa8; font-size: 9px; }
-  .sg { color: #f0ece8; font-size: 11px; line-height: 1.25; }
-  .chartnote { color: #6b6585; font-size: 11px; text-align: center; margin-top: 10px; }
-  .foot { color: #6b6585; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
+  .sc.mid { align-items: center; justify-content: center; color: #C5A059; font-size: 11px; border: none; }
+  .ss { color: #8B8478; font-size: 9px; }
+  .sg { color: #FDFBF7; font-size: 11px; line-height: 1.25; }
+  .chartnote { color: #6E6A62; font-size: 11px; text-align: center; margin-top: 10px; }
+  .foot { color: #6E6A62; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
 </style></head><body>
 
   <section class="page cover">
@@ -970,7 +972,7 @@ function renderMatchHtml(a: Person, b: Person, m: Milan, x: MatchAnalysis, style
     <h2 class="section">Compatibility Score</h2>
     <div class="divider"></div>
     <div class="score-box">
-      <div class="score-num">${m.percent}<span style="font-size:24px;color:#9b96b0">%</span></div>
+      <div class="score-num">${m.percent}<span style="font-size:24px;color:#A29E95">%</span></div>
       <div class="score-cap">${m.total} / 36 GUNAS MATCHED</div>
       <div class="band">${esc(m.band)}</div>
     </div>
@@ -1714,7 +1716,7 @@ export function renderChartHtml(type: ChartReportType, p: ChartPerson, f: ChartF
   const meta = CHART_META[type];
   const dateStr = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
   const reportId = `RTH-${type.slice(0, 3).toUpperCase()}-${(hashStr(`${p.name}|${p.dob}|${type}`) % 100000).toString().padStart(5, '0')}`;
-  const scoreColor = f.score >= 70 ? '#52a87c' : f.score >= 50 ? '#e6c063' : '#e05252';
+  const scoreColor = f.score >= 70 ? '#7FA36F' : f.score >= 50 ? '#E4C983' : '#C7524B';
   const fmtM = (dt: Date) => dt.toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
   const [by, bm, bd] = p.dob.split('-');
   const birthLine = `${Number(bd)}/${Number(bm)}/${by} · ${p.tob.slice(0, 5)} · ${esc(p.birth_place)}`;
@@ -1746,7 +1748,7 @@ export function renderChartHtml(type: ChartReportType, p: ChartPerson, f: ChartF
       <td>${esc(h.sign)}</td>
       <td>${esc(h.lord)}${h.lordHouse ? ` <span class="mut">(${ordinal(h.lordHouse)})</span>` : ''}</td>
       <td>${h.occupants.length ? h.occupants.map((o) => esc(o.name)).join(', ') : '<span class="mut">—</span>'}</td>
-      <td class="hs"><span style="color:${h.strength >= 65 ? '#52a87c' : h.strength >= 45 ? '#e6c063' : '#e0a05a'}">${h.strength}</span></td>
+      <td class="hs"><span style="color:${h.strength >= 65 ? '#7FA36F' : h.strength >= 45 ? '#E4C983' : '#C5A059'}">${h.strength}</span></td>
     </tr>`).join('');
 
   // yogas
@@ -1799,61 +1801,62 @@ export function renderChartHtml(type: ChartReportType, p: ChartPerson, f: ChartF
   return `<!doctype html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap');
   @page { margin: 0; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #f0ece8;
-         background: #14122b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: 'Fraunces', Georgia, 'Times New Roman', serif; color: #FDFBF7;
+         background: #0B0B0D; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { min-height: 100vh; padding: 46px 40px; page-break-after: always;
-          background: linear-gradient(160deg, #14122b 0%, #1e1b45 100%); }
+          background: linear-gradient(160deg, #0B0B0D 0%, #171519 100%); }
   .page:last-child { page-break-after: auto; }
   h1, h2, h3 { font-weight: normal; letter-spacing: 0.3px; margin: 0; }
-  .brand { color: #d9a441; font-size: 14px; letter-spacing: 3px; }
-  .divider { height: 1px; background: linear-gradient(90deg, transparent, #d9a441, transparent); margin: 16px 0; }
+  .brand { color: #C5A059; font-size: 14px; letter-spacing: 3px; }
+  .divider { height: 1px; background: linear-gradient(90deg, transparent, #C5A059, transparent); margin: 16px 0; }
   .cover { display: flex; flex-direction: column; justify-content: center; text-align: center; }
-  .cover .logo { font-size: 42px; color: #d9a441; margin-bottom: 6px; }
-  .cover h1 { font-size: 38px; color: #f0ece8; margin: 8px 0; }
-  .cover .sub { color: #9b96b0; font-size: 15px; }
-  .cover .who { margin-top: 30px; color: #e6c063; font-size: 24px; }
-  .cover .bd { color: #9b96b0; font-size: 13px; margin-top: 6px; }
-  .cover .rid { color: #6b6585; font-size: 12px; letter-spacing: 1px; margin-top: 18px; }
-  .cover .date { color: #6b6585; font-size: 13px; margin-top: 4px; }
-  h2.section { color: #e6c063; font-size: 23px; margin: 0 0 4px; }
-  .lead { color: #9b96b0; font-size: 13px; margin-bottom: 8px; }
-  p.body { font-size: 14.5px; line-height: 1.75; color: #ded9e6; margin: 0 0 12px; }
+  .cover .logo { font-size: 42px; color: #C5A059; margin-bottom: 6px; }
+  .cover h1 { font-size: 38px; color: #FDFBF7; margin: 8px 0; }
+  .cover .sub { color: #A29E95; font-size: 15px; }
+  .cover .who { margin-top: 30px; color: #E4C983; font-size: 24px; }
+  .cover .bd { color: #A29E95; font-size: 13px; margin-top: 6px; }
+  .cover .rid { color: #6E6A62; font-size: 12px; letter-spacing: 1px; margin-top: 18px; }
+  .cover .date { color: #6E6A62; font-size: 13px; margin-top: 4px; }
+  h2.section { color: #E4C983; font-size: 23px; margin: 0 0 4px; }
+  .lead { color: #A29E95; font-size: 13px; margin-bottom: 8px; }
+  p.body { font-size: 14.5px; line-height: 1.75; color: #E8E3DA; margin: 0 0 12px; }
   table.details { width: 100%; border-collapse: collapse; }
-  table.details td { padding: 9px 4px; border-bottom: 1px solid #2d2960; font-size: 14.5px; vertical-align: top; }
-  td.k { color: #9b96b0; width: 40%; } td.v { color: #f0ece8; }
+  table.details td { padding: 9px 4px; border-bottom: 1px solid #2E2A22; font-size: 14.5px; vertical-align: top; }
+  td.k { color: #A29E95; width: 40%; } td.v { color: #FDFBF7; }
   /* score box */
-  .score-box { text-align: center; border: 1px solid #2d2960; border-radius: 14px; padding: 22px;
+  .score-box { text-align: center; border: 1px solid #2E2A22; border-radius: 14px; padding: 22px;
                background: rgba(30,27,69,0.6); margin: 12px 0 16px; }
   .score-num { font-size: 58px; color: ${scoreColor}; }
-  .score-cap { color: #9b96b0; font-size: 12px; letter-spacing: 1px; }
+  .score-cap { color: #A29E95; font-size: 12px; letter-spacing: 1px; }
   /* generic table */
   table.grid { width: 100%; border-collapse: collapse; }
-  table.grid th { text-align: left; color: #9b96b0; font-size: 11px; letter-spacing: 1px;
-                  padding: 7px 6px; border-bottom: 1px solid #d9a441; }
-  table.grid td { padding: 8px 6px; border-bottom: 1px solid #2d2960; font-size: 13px; color: #ded9e6; vertical-align: top; }
-  td.pn, td.hh, td.dl { color: #f0ece8; }
-  .mut { color: #8f8aa8; } .dig { color: #e6c063; font-size: 12px; }
+  table.grid th { text-align: left; color: #A29E95; font-size: 11px; letter-spacing: 1px;
+                  padding: 7px 6px; border-bottom: 1px solid #C5A059; }
+  table.grid td { padding: 8px 6px; border-bottom: 1px solid #2E2A22; font-size: 13px; color: #E8E3DA; vertical-align: top; }
+  td.pn, td.hh, td.dl { color: #FDFBF7; }
+  .mut { color: #8B8478; } .dig { color: #E4C983; font-size: 12px; }
   td.hs, td.kp { text-align: center; }
-  tr.now td { background: rgba(217,164,65,0.12); color: #f0ece8; }
-  .tag { color: #14122b; background: #d9a441; font-size: 9px; padding: 1px 5px; border-radius: 6px; letter-spacing: 0.5px; }
+  tr.now td { background: rgba(217,164,65,0.12); color: #FDFBF7; }
+  .tag { color: #0B0B0D; background: #C5A059; font-size: 9px; padding: 1px 5px; border-radius: 6px; letter-spacing: 0.5px; }
   /* yogas */
-  .yoga { border-left: 2px solid #d9a441; padding: 4px 0 4px 14px; margin-bottom: 14px; }
-  .yoga.yc { border-left-color: #e0a05a; }
-  .yoga-name { color: #f0ece8; font-size: 15.5px; }
-  .yoga-detail { color: #cfc9dd; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
+  .yoga { border-left: 2px solid #C5A059; padding: 4px 0 4px 14px; margin-bottom: 14px; }
+  .yoga.yc { border-left-color: #C5A059; }
+  .yoga-name { color: #FDFBF7; font-size: 15.5px; }
+  .yoga-detail { color: #C9C4BC; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
   /* chart diagram */
   .chartwrap { text-align: center; margin: 6px 0; }
   svg.chart { width: 100%; max-width: 260px; }
-  svg.chart .cl { fill: none; stroke: #d9a441; stroke-width: 1; }
-  svg.chart .cs { fill: #8f8aa8; font-size: 9px; text-anchor: middle; }
-  svg.chart .cg { fill: #f0ece8; font-size: 11px; text-anchor: middle; }
-  .chartnote { color: #6b6585; font-size: 11px; text-align: center; margin-top: 8px; }
+  svg.chart .cl { fill: none; stroke: #C5A059; stroke-width: 1; }
+  svg.chart .cs { fill: #8B8478; font-size: 9px; text-anchor: middle; }
+  svg.chart .cg { fill: #FDFBF7; font-size: 11px; text-anchor: middle; }
+  .chartnote { color: #6E6A62; font-size: 11px; text-align: center; margin-top: 8px; }
   ul.list { padding-left: 20px; margin: 8px 0 0; }
-  ul.list li { font-size: 14px; line-height: 1.7; color: #ded9e6; margin-bottom: 7px; }
-  .verdict { color: #ded9e6; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; margin-top: 8px; }
-  .foot { color: #6b6585; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
+  ul.list li { font-size: 14px; line-height: 1.7; color: #E8E3DA; margin-bottom: 7px; }
+  .verdict { color: #E8E3DA; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; margin-top: 8px; }
+  .foot { color: #6E6A62; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
 </style></head><body>
 
   <section class="page cover">
@@ -1891,7 +1894,7 @@ export function renderChartHtml(type: ChartReportType, p: ChartPerson, f: ChartF
     <div class="brand">RITHAM · ${esc(meta.brand)}</div>
     <h2 class="section">Overview</h2>
     <div class="score-box">
-      <div class="score-num">${f.score}<span style="font-size:24px;color:#9b96b0">/100</span></div>
+      <div class="score-num">${f.score}<span style="font-size:24px;color:#A29E95">/100</span></div>
       <div class="score-cap">${esc(meta.scoreCap)}</div>
     </div>
     ${paras(a.overview)}
@@ -1925,7 +1928,7 @@ export function renderChartHtml(type: ChartReportType, p: ChartPerson, f: ChartF
       <thead><tr><th>MAHADASHA</th><th>PERIOD</th><th>LENGTH</th></tr></thead>
       <tbody>${timelineRows}</tbody>
     </table>
-    <h3 style="color:#e6c063;font-size:16px;margin:18px 0 6px;">Sub-periods (Antardasha) within ${esc(d.current.lord)}</h3>
+    <h3 style="color:#E4C983;font-size:16px;margin:18px 0 6px;">Sub-periods (Antardasha) within ${esc(d.current.lord)}</h3>
     <table class="grid">
       <thead><tr><th>SUB-PERIOD</th><th>WINDOW</th></tr></thead>
       <tbody>${antarRows}</tbody>

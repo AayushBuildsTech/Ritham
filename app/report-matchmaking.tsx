@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
-  KeyboardAvoidingView, Platform,
+  View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Alert,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -14,7 +14,9 @@ import { REPORT_PRICES, paiseTo } from '../config/pricing';
 import { CITIES } from '../constants/cities';
 import { searchPlaces, GeoPlace } from '../lib/geocoding';
 import { SelectModal, Option } from '../components/SelectModal';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth } from '../constants/theme';
+import { Icon } from '../components/Icon';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -185,16 +187,17 @@ export default function MatchmakingIntake() {
   if (!self) {
     return (
       <View style={styles.center}>
-        <Text style={styles.needIcon}>✦</Text>
+        <View style={styles.needCrest}><Icon name="heart" size={26} color={Colors.gold} /></View>
         <Text style={styles.needTitle}>Create your Kundli first</Text>
         <Text style={styles.needSub}>
           A matchmaking report compares your chart with your partner’s. Please add your birth
           details, then come back to run the match.
         </Text>
-        <TouchableOpacity style={styles.needBtn} onPress={() => router.replace('/profile')}>
-          <Text style={styles.needBtnText}>Add my birth details →</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.needBack}>Back</Text></TouchableOpacity>
+        <Pressable style={styles.needBtn} onPress={() => router.replace('/profile')} android_ripple={{ color: Colors.goldDeep }}>
+          <Text style={styles.needBtnText}>Add my birth details</Text>
+          <Icon name="arrowRight" size={15} color={Colors.canvas} />
+        </Pressable>
+        <Pressable onPress={() => router.back()}><Text style={styles.needBack}>Back</Text></Pressable>
       </View>
     );
   }
@@ -210,14 +213,14 @@ export default function MatchmakingIntake() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
-          <Text style={styles.title}>Matchmaking</Text>
-          <View style={{ width: 48 }} />
-        </View>
-
+    <View style={styles.root}>
+      <ScreenHeader title="Matchmaking" onBack={() => router.back()} />
+      <KeyboardAwareScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={24}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.lead}>
           We’ll compare your chart with your partner’s using the Ashtakoot Guna Milan. Enter your
           partner’s birth details as accurately as you can.
@@ -227,62 +230,62 @@ export default function MatchmakingIntake() {
         <View style={styles.selfCard}>
           <Text style={styles.selfLabel}>YOU</Text>
           <Text style={styles.selfName}>{self.name}</Text>
-          <Text style={styles.selfMeta}>🌙 Moon in {self.moon_sign} · {self.nakshatra}</Text>
+          <Text style={styles.selfMeta}>Moon in {self.moon_sign} · {self.nakshatra}</Text>
         </View>
 
         <Text style={styles.sectionLabel}>Your partner</Text>
 
-        <Text style={styles.label}>Full name *</Text>
+        <Text style={styles.label}>FULL NAME *</Text>
         <TextInput
           style={styles.input} placeholder="e.g. Priya Sharma" placeholderTextColor={Colors.textDim}
           value={name} onChangeText={setName}
         />
 
-        <Text style={styles.label}>Gender *</Text>
+        <Text style={styles.label}>GENDER *</Text>
         <View style={styles.pillRow}>
           {(['male', 'female', 'other'] as Gender[]).map((g) => (
-            <TouchableOpacity key={g} style={[styles.pill, gender === g && styles.pillActive]} onPress={() => setGender(g)}>
+            <Pressable key={g} style={[styles.pill, gender === g && styles.pillActive]} onPress={() => setGender(g)}>
               <Text style={[styles.pillText, gender === g && styles.pillTextActive]}>{g[0].toUpperCase() + g.slice(1)}</Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
 
-        <Text style={styles.label}>Date of birth *</Text>
+        <Text style={styles.label}>DATE OF BIRTH *</Text>
         <View style={styles.row3}>
           <Field flex={1} label={day || 'Day'} placeholder onPress={() => setModal('day')} />
           <Field flex={1.6} label={monthLabel || 'Month'} placeholder={!month} onPress={() => setModal('month')} />
           <Field flex={1.2} label={year || 'Year'} placeholder={!year} onPress={() => setModal('year')} />
         </View>
 
-        <Text style={styles.label}>Time of birth *</Text>
+        <Text style={styles.label}>TIME OF BIRTH *</Text>
         <View style={styles.row3}>
           <Field flex={1} label={hour || 'Hr'} placeholder={!hour} onPress={() => setModal('hour')} />
           <Field flex={1} label={minute !== '' ? pad2(Number(minute)) : 'Min'} placeholder={minute === ''} onPress={() => setModal('minute')} />
           <Field flex={1} label={ampm || 'AM/PM'} placeholder={!ampm} onPress={() => setModal('ampm')} />
         </View>
 
-        <Text style={styles.label}>Birth place *</Text>
+        <Text style={styles.label}>BIRTH PLACE *</Text>
         <Field label={city || 'Select city'} placeholder={!city} onPress={() => setModal('city')} />
 
-        <Text style={styles.label}>Chart style</Text>
+        <Text style={styles.label}>CHART STYLE</Text>
         <View style={styles.pillRow}>
           {(['north', 'south'] as ChartStyle[]).map((s) => (
-            <TouchableOpacity key={s} style={[styles.pill, chartStyle === s && styles.pillActive]} onPress={() => setChartStyle(s)}>
+            <Pressable key={s} style={[styles.pill, chartStyle === s && styles.pillActive]} onPress={() => setChartStyle(s)}>
               <Text style={[styles.pillText, chartStyle === s && styles.pillTextActive]}>
                 {s === 'north' ? 'North Indian' : 'South Indian'}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </View>
 
-        <TouchableOpacity style={[styles.generateBtn, busy && styles.btnDisabled]} onPress={generate} disabled={busy}>
+        <Pressable style={[styles.generateBtn, busy && styles.btnDisabled]} onPress={generate} disabled={busy} android_ripple={{ color: Colors.goldDeep }}>
           {busy
-            ? <ActivityIndicator color={Colors.bg} />
+            ? <ActivityIndicator color={Colors.canvas} />
             : <Text style={styles.generateText}>Continue · {paiseTo(REPORT_PRICES.matchmaking.price_paise)}</Text>}
-        </TouchableOpacity>
+        </Pressable>
         <Text style={styles.note}>You’ll pay only after your details are ready. One report per purchase.</Text>
         <View style={{ height: Spacing.xxl }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* pickers */}
       <SelectModal visible={modal === 'day'} title="Day" options={dayOpts} selectedValue={day}
@@ -301,7 +304,7 @@ export default function MatchmakingIntake() {
       <SelectModal visible={modal === 'city'} title="Birth Place" options={cityOpts}
         selectedValue={place ? `${place.name}|${place.lat}|${place.lon}` : undefined}
         remoteSearch={cityRemoteSearch} onSelect={onSelectCity} onClose={() => setModal(null)} />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -309,72 +312,74 @@ function Field({ label, onPress, flex, placeholder }: {
   label: string; onPress: () => void; flex?: number; placeholder?: boolean;
 }) {
   return (
-    <TouchableOpacity style={[styles.field, flex ? { flex } : { alignSelf: 'stretch' }]} onPress={onPress}>
+    <Pressable style={[styles.field, flex ? { flex } : { alignSelf: 'stretch' }]} onPress={onPress} android_ripple={{ color: Colors.goldFaint }}>
       <Text style={[styles.fieldText, placeholder && styles.fieldPlaceholder]}>{label}</Text>
-      <Text style={styles.chevron}>▾</Text>
-    </TouchableOpacity>
+      <Icon name="chevronDown" size={16} color={Colors.textDim} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  content: { padding: Spacing.lg, paddingTop: 52, paddingBottom: Spacing.xxl },
-  center: { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
+  root: { flex: 1, backgroundColor: Colors.canvas },
+  content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  center: { flex: 1, backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
 
-  genTitle: { fontSize: Fonts.size.lg, color: Colors.text, fontWeight: '700', textAlign: 'center', marginTop: Spacing.md },
-  genSub: { fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  genTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: Colors.text, textAlign: 'center', marginTop: Spacing.md },
+  genSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
 
-  needIcon: { fontSize: 44, color: Colors.gold },
-  needTitle: { fontSize: Fonts.size.xl, color: Colors.text, fontWeight: '700', textAlign: 'center' },
-  needSub: { fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
-  needBtn: { backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl, marginTop: Spacing.sm },
-  needBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  needBack: { color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.xs },
+  needCrest: {
+    width: 64, height: 64, borderRadius: Radius.pill, backgroundColor: Colors.goldFaint,
+    borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center',
+  },
+  needTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: Colors.text, textAlign: 'center' },
+  needSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
+  needBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 13, paddingHorizontal: Spacing.xl, marginTop: Spacing.sm,
+  },
+  needBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md },
+  needBack: { fontFamily: Fonts.bodyMedium, color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.xs },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
-  back: { color: Colors.goldLight, fontSize: Fonts.size.md, width: 48 },
-  title: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700' },
-  lead: { color: Colors.textMuted, fontSize: Fonts.size.sm, lineHeight: 20, marginBottom: Spacing.lg },
+  lead: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, lineHeight: 20, marginTop: Spacing.xs, marginBottom: Spacing.lg },
 
   selfCard: {
-    backgroundColor: Colors.bgCard, borderRadius: 12, padding: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.lg,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md, ...Depth.card,
   },
-  selfLabel: { color: Colors.textDim, fontSize: Fonts.size.xs, letterSpacing: 1, fontWeight: '700' },
-  selfName: { color: Colors.goldLight, fontSize: Fonts.size.lg, fontWeight: '700', marginTop: 2 },
-  selfMeta: { color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
+  selfLabel: { fontFamily: Fonts.bodySemibold, color: Colors.gold, fontSize: Fonts.size.xs, letterSpacing: 2 },
+  selfName: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.xl, marginTop: 2 },
+  selfMeta: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
 
-  sectionLabel: { color: Colors.text, fontSize: Fonts.size.md, fontWeight: '700', marginTop: Spacing.sm, marginBottom: Spacing.xs },
-  label: { color: Colors.goldLight, fontSize: Fonts.size.sm, fontWeight: '700', marginBottom: Spacing.sm, marginTop: Spacing.md },
+  sectionLabel: { fontFamily: Fonts.displayBold, color: Colors.text, fontSize: Fonts.size.lg, marginTop: Spacing.sm, marginBottom: Spacing.xs },
+  label: { fontFamily: Fonts.bodySemibold, color: Colors.textMuted, fontSize: Fonts.size.xs, letterSpacing: 1.5, marginBottom: Spacing.sm, marginTop: Spacing.md },
   input: {
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: Spacing.md,
-    color: Colors.text, backgroundColor: Colors.bgMid, fontSize: Fonts.size.md,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.md,
+    color: Colors.text, backgroundColor: Colors.surfaceSunken, fontFamily: Fonts.body, fontSize: Fonts.size.md,
   },
 
   pillRow: { flexDirection: 'row', gap: Spacing.sm },
   pill: {
-    flex: 1, paddingVertical: Spacing.md, borderRadius: 10, borderWidth: 1,
-    borderColor: Colors.border, backgroundColor: Colors.bgMid, alignItems: 'center',
+    flex: 1, paddingVertical: Spacing.md, borderRadius: Radius.sm, borderWidth: 1,
+    borderColor: Colors.border, backgroundColor: Colors.surfaceSunken, alignItems: 'center',
   },
-  pillActive: { borderColor: Colors.gold, backgroundColor: Colors.bgCard },
-  pillText: { color: Colors.textMuted, fontSize: Fonts.size.sm },
-  pillTextActive: { color: Colors.goldLight, fontWeight: '700' },
+  pillActive: { borderColor: Colors.borderStrong, backgroundColor: Colors.goldFaint },
+  pillText: { fontFamily: Fonts.bodyMedium, color: Colors.textMuted, fontSize: Fonts.size.sm },
+  pillTextActive: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight },
 
   row3: { flexDirection: 'row', gap: Spacing.sm },
   field: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10, padding: Spacing.md,
-    backgroundColor: Colors.bgMid,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.md,
+    backgroundColor: Colors.surfaceSunken,
   },
-  fieldText: { color: Colors.text, fontSize: Fonts.size.md },
+  fieldText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md },
   fieldPlaceholder: { color: Colors.textDim },
-  chevron: { color: Colors.textDim, fontSize: Fonts.size.sm, marginLeft: Spacing.xs },
 
   generateBtn: {
-    backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.md,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 15,
     alignItems: 'center', marginTop: Spacing.xl,
   },
-  generateText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
+  generateText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
   btnDisabled: { opacity: 0.6 },
-  note: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
+  note: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
 });

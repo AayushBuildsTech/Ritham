@@ -1,10 +1,24 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getMuhurats, MuhuratResult } from '../lib/muhuratService';
 import { MUHURAT_ACTIVITIES, activityById, FunnelTarget } from '../config/muhuratRules';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents } from '../constants/theme';
+import { Icon, IconName } from '../components/Icon';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { Reveal } from '../components/Reveal';
+
+// activity id → thin-line icon (replaces the emoji in MUHURAT_ACTIVITIES)
+const ACTIVITY_ICON: Record<string, IconName> = {
+  griha_pravesh: 'home',
+  marriage: 'heart',
+  vehicle: 'car',
+  business: 'briefcase',
+  naming: 'star',
+  property: 'compass',
+  travel: 'plane',
+};
 
 export default function MuhuratScreen() {
   const router = useRouter();
@@ -40,26 +54,27 @@ export default function MuhuratScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => (current ? (setActivity(null), setState('idle')) : router.back())}>
-          <Text style={styles.back}>‹ {current ? 'Activities' : 'Back'}</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Shubh Muhurat</Text>
-        <View style={{ width: 72 }} />
-      </View>
+      <ScreenHeader
+        title="Shubh Muhurat"
+        onBack={() => (current ? (setActivity(null), setState('idle')) : router.back())}
+      />
 
       {/* ── Activity picker ─────────────────────────────────────────────────── */}
       {!current ? (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.lead}>Find auspicious dates for…</Text>
-          {MUHURAT_ACTIVITIES.map((a) => (
-            <TouchableOpacity key={a.id} style={styles.activityRow} activeOpacity={0.8} onPress={() => pick(a.id)}>
-              <Text style={styles.activityEmoji}>{a.emoji}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.activityLabel}>{a.hindi} <Text style={styles.activityEn}>({a.label})</Text></Text>
-              </View>
-              <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+          {MUHURAT_ACTIVITIES.map((a, i) => (
+            <Reveal key={a.id} index={i}>
+              <Pressable style={styles.activityRow} android_ripple={{ color: Colors.goldFaint }} onPress={() => pick(a.id)}>
+                <View style={styles.activityIcon}>
+                  <Icon name={ACTIVITY_ICON[a.id] ?? 'calendar'} size={20} color={Accents.emerald.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityLabel}>{a.hindi} <Text style={styles.activityEn}>({a.label})</Text></Text>
+                </View>
+                <Icon name="chevron" size={20} color={Colors.textDim} />
+              </Pressable>
+            </Reveal>
           ))}
           <Text style={styles.disclaimer}>
             Muhurat suggestions are computed from Panchang for guidance only. For important events,
@@ -68,10 +83,11 @@ export default function MuhuratScreen() {
         </ScrollView>
       ) : (
         /* ── Results ──────────────────────────────────────────────────────── */
-        <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.resultTitle}>
-            {current.emoji}  {current.hindi} <Text style={styles.activityEn}>({current.label})</Text>
-          </Text>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.resultTitleRow}>
+            <Icon name={ACTIVITY_ICON[current.id] ?? 'calendar'} size={20} color={Accents.emerald.color} />
+            <Text style={styles.resultTitle}>{current.hindi} <Text style={styles.activityEn}>({current.label})</Text></Text>
+          </View>
           {result?.place ? <Text style={styles.resultSub}>Near {result.place} · next {result?.end && result?.start ? daysLabel(result.start, result.end) : '45 days'}</Text> : null}
 
           {state === 'loading' ? (
@@ -82,42 +98,46 @@ export default function MuhuratScreen() {
           ) : state === 'error' ? (
             <View style={styles.center}>
               <Text style={styles.errorText}>Couldn’t load muhurats right now.</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => pick(current.id)}>
+              <Pressable style={styles.retryBtn} onPress={() => pick(current.id)}>
                 <Text style={styles.retryText}>Try again</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           ) : result && result.results && result.results.length > 0 ? (
             <>
-              {result.results.map((r) => (
-                <View key={r.date} style={styles.dayCard}>
-                  <View style={styles.dayHead}>
-                    <Text style={styles.dayDate}>{fmtDate(r.date)}</Text>
-                    <Text style={styles.dayWeekday}>{r.weekday}</Text>
+              {result.results.map((r, i) => (
+                <Reveal key={r.date} index={i}>
+                  <View style={styles.dayCard}>
+                    <View style={styles.dayHead}>
+                      <Text style={styles.dayDate}>{fmtDate(r.date)}</Text>
+                      <Text style={styles.dayWeekday}>{r.weekday}</Text>
+                    </View>
+                    <View style={styles.windowPill}>
+                      <Icon name="star" size={12} color={Colors.success} />
+                      <Text style={styles.windowText}>{r.window}</Text>
+                    </View>
+                    <Text style={styles.factors}>
+                      {r.nakshatra} nakshatra · {r.tithi} · {r.yoga} yoga
+                    </Text>
                   </View>
-                  <View style={styles.windowPill}>
-                    <Text style={styles.windowText}>✦ {r.window}</Text>
-                  </View>
-                  <Text style={styles.factors}>
-                    {r.nakshatra} nakshatra · {r.tithi} · {r.yoga} yoga
-                  </Text>
-                </View>
+                </Reveal>
               ))}
 
               {/* Soft funnel toward the matching paid product / chat */}
               <View style={styles.hookCard}>
                 <Text style={styles.hookText}>{current.funnel.text}</Text>
-                <TouchableOpacity style={styles.hookBtn} onPress={() => goFunnel(current.funnel.target)}>
-                  <Text style={styles.hookBtnText}>{funnelCta(current.funnel.target)} →</Text>
-                </TouchableOpacity>
+                <Pressable style={styles.hookBtn} onPress={() => goFunnel(current.funnel.target)} android_ripple={{ color: Colors.goldDeep }}>
+                  <Text style={styles.hookBtnText}>{funnelCta(current.funnel.target)}</Text>
+                  <Icon name="arrowRight" size={15} color={Colors.canvas} />
+                </Pressable>
               </View>
             </>
           ) : (
             <View style={styles.center}>
               <Text style={styles.errorText}>No strongly auspicious dates found in this window.</Text>
               <Text style={styles.emptyHint}>Try again later, or ask the astrologer for a personalised muhurat.</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => goFunnel('chat')}>
+              <Pressable style={styles.retryBtn} onPress={() => goFunnel('chat')}>
                 <Text style={styles.retryText}>Ask the astrologer</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           )}
 
@@ -144,67 +164,67 @@ function fmtDate(iso: string): string {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 52, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.bgCard,
-  },
-  back: { color: Colors.goldLight, fontSize: Fonts.size.md, width: 90 },
-  headerTitle: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700' },
-
+  root: { flex: 1, backgroundColor: Colors.canvas },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  lead: { color: Colors.textMuted, fontSize: Fonts.size.md, marginBottom: Spacing.md },
+  lead: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, marginBottom: Spacing.md },
 
   activityRow: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: Colors.bgCard, borderRadius: 14, padding: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.md,
     borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm,
   },
-  activityEmoji: { fontSize: 24 },
-  activityLabel: { color: Colors.text, fontSize: Fonts.size.md, fontWeight: '700' },
-  activityEn: { color: Colors.textMuted, fontWeight: '400', fontSize: Fonts.size.sm },
-  chevron: { color: Colors.gold, fontSize: 22 },
+  activityIcon: {
+    width: 44, height: 44, borderRadius: Radius.sm,
+    backgroundColor: Accents.emerald.faint, borderWidth: 1, borderColor: Accents.emerald.soft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  activityLabel: { fontFamily: Fonts.bodySemibold, color: Colors.text, fontSize: Fonts.size.md },
+  activityEn: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
 
-  resultTitle: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700' },
-  resultSub: { color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2, marginBottom: Spacing.md },
+  resultTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  resultTitle: { fontFamily: Fonts.displayBold, color: Colors.text, fontSize: Fonts.size.xl },
+  resultSub: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 4, marginBottom: Spacing.md },
 
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xxl, gap: Spacing.sm },
-  loadingText: { color: Colors.textMuted, fontSize: Fonts.size.sm },
-  errorText: { color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
-  emptyHint: { color: Colors.textDim, fontSize: Fonts.size.sm, textAlign: 'center', paddingHorizontal: Spacing.lg },
+  loadingText: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
+  errorText: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
+  emptyHint: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.sm, textAlign: 'center', paddingHorizontal: Spacing.lg },
 
   dayCard: {
-    backgroundColor: Colors.bgCard, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.md, marginBottom: Spacing.sm,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.md, marginBottom: Spacing.sm, ...Depth.card,
   },
   dayHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  dayDate: { color: Colors.goldLight, fontSize: Fonts.size.md, fontWeight: '700' },
-  dayWeekday: { color: Colors.textMuted, fontSize: Fonts.size.sm },
+  dayDate: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.lg },
+  dayWeekday: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
   windowPill: {
-    alignSelf: 'flex-start', backgroundColor: Colors.bgMid, borderRadius: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    alignSelf: 'flex-start', backgroundColor: Colors.surfaceSunken, borderRadius: Radius.sm,
     paddingVertical: 4, paddingHorizontal: Spacing.sm, marginTop: Spacing.sm,
     borderWidth: 1, borderColor: Colors.border,
   },
-  windowText: { color: Colors.success, fontSize: Fonts.size.sm, fontWeight: '600' },
-  factors: { color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: Spacing.sm },
+  windowText: { fontFamily: Fonts.bodyMedium, color: Colors.success, fontSize: Fonts.size.sm },
+  factors: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: Spacing.sm },
 
   retryBtn: {
-    marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.gold, borderRadius: 10,
+    marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: Radius.sm,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
   },
-  retryText: { color: Colors.goldLight, fontSize: Fonts.size.sm, fontWeight: '700' },
+  retryText: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight, fontSize: Fonts.size.sm },
 
   hookCard: {
-    backgroundColor: Colors.bgMid, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong,
     padding: Spacing.lg, marginTop: Spacing.md, alignItems: 'center', gap: Spacing.md,
   },
-  hookText: { color: Colors.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
-  hookBtn: { backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xl },
-  hookBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
+  hookText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
+  hookBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
+  },
+  hookBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md },
 
   disclaimer: {
-    color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
+    fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
     textAlign: 'center', marginTop: Spacing.xl, paddingHorizontal: Spacing.sm,
   },
 });

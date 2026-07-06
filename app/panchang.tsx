@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getPanchang, Panchang } from '../lib/panchangService';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Accents } from '../constants/theme';
+import { Icon } from '../components/Icon';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function PanchangScreen() {
   const router = useRouter();
@@ -30,11 +32,7 @@ export default function PanchangScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
-        <Text style={styles.headerTitle}>Panchang</Text>
-        <View style={{ width: 48 }} />
-      </View>
+      <ScreenHeader title="Panchang" onBack={() => router.back()} />
 
       {state === 'loading' ? (
         <View style={styles.center}><ActivityIndicator color={Colors.gold} size="large" /></View>
@@ -43,13 +41,14 @@ export default function PanchangScreen() {
           <Text style={styles.errorText}>Couldn’t load today’s Panchang right now.</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.dateLine}>
             {data?.vaara}{data?.place ? `  ·  ${data.place}` : ''}
           </Text>
           <Text style={styles.dateSub}>{data?.date}</Text>
 
           {/* The five limbs (panch-anga) */}
+          <Text style={styles.sectionLabel}>PANCHANGA</Text>
           <View style={styles.group}>
             <Row label="Tithi" value={data?.tithi} />
             <Row label="Nakshatra" value={data?.nakshatra} />
@@ -93,9 +92,10 @@ export default function PanchangScreen() {
             <Text style={styles.hookText}>
               Curious what today holds for <Text style={styles.hookEm}>you</Text> specifically?
             </Text>
-            <TouchableOpacity style={styles.hookBtn} onPress={openChat}>
-              <Text style={styles.hookBtnText}>Ask the astrologer →</Text>
-            </TouchableOpacity>
+            <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: Colors.goldDeep }}>
+              <Text style={styles.hookBtnText}>Ask the astrologer</Text>
+              <Icon name="arrowRight" size={15} color={Colors.canvas} />
+            </Pressable>
           </View>
 
           <Text style={styles.footnote}>
@@ -120,43 +120,37 @@ function Row({ label, value, last, good, bad }: {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 52, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.bgCard,
-  },
-  back: { color: Colors.goldLight, fontSize: Fonts.size.md, width: 48 },
-  headerTitle: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700' },
+  root: { flex: 1, backgroundColor: Colors.canvas },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  errorText: { color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
+  errorText: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, textAlign: 'center' },
 
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  dateLine: { color: Colors.goldLight, fontSize: Fonts.size.lg, fontWeight: '700' },
-  dateSub: { color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2, marginBottom: Spacing.md },
+  dateLine: { fontFamily: Fonts.displayBold, color: Colors.goldLight, fontSize: Fonts.size.xxl },
+  dateSub: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
 
-  sectionLabel: { color: Colors.textDim, fontSize: Fonts.size.xs, letterSpacing: 1, fontWeight: '700', marginBottom: Spacing.sm, marginTop: Spacing.lg },
+  sectionLabel: { fontFamily: Fonts.bodySemibold, color: Accents.saffron.color, fontSize: Fonts.size.xs, letterSpacing: 2, marginBottom: Spacing.sm, marginTop: Spacing.lg },
   group: {
-    backgroundColor: Colors.bgCard, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md, gap: Spacing.md },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  rowLabel: { color: Colors.textMuted, fontSize: Fonts.size.md },
-  rowValue: { color: Colors.text, fontSize: Fonts.size.md, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
+  rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.divider },
+  rowLabel: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md },
+  rowValue: { fontFamily: Fonts.bodySemibold, color: Colors.text, fontSize: Fonts.size.md, flexShrink: 1, textAlign: 'right' },
   good: { color: Colors.success },
   bad: { color: Colors.error },
 
   hookCard: {
-    backgroundColor: Colors.bgMid, borderRadius: 14, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.borderStrong,
     padding: Spacing.lg, marginTop: Spacing.xl, alignItems: 'center', gap: Spacing.md,
   },
-  hookText: { color: Colors.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
-  hookEm: { color: Colors.goldLight, fontWeight: '700' },
+  hookText: { fontFamily: Fonts.body, color: Colors.text, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
+  hookEm: { fontFamily: Fonts.bodySemibold, color: Colors.goldLight },
   hookBtn: {
-    backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.xl,
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 12, paddingHorizontal: Spacing.xl,
   },
-  hookBtnText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
+  hookBtnText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md },
 
-  footnote: { color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17, textAlign: 'center', marginTop: Spacing.lg },
+  footnote: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17, textAlign: 'center', marginTop: Spacing.lg },
 });

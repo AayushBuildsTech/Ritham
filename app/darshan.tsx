@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { TEMPLES, Temple } from '../config/temples';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing } from '../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Depth, Accents } from '../constants/theme';
+import { Icon } from '../components/Icon';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { Reveal } from '../components/Reveal';
 
 export default function DarshanScreen() {
   const router = useRouter();
@@ -23,36 +26,38 @@ export default function DarshanScreen() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
-        <Text style={styles.headerTitle}>Live Darshan</Text>
-        <View style={{ width: 48 }} />
-      </View>
+      <ScreenHeader title="Live Darshan" onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.lead}>
           Watch live aarti & darshan from major temples, streamed on their official YouTube channels.
         </Text>
 
-        {TEMPLES.map((t) => (
-          <View key={t.id} style={styles.card}>
-            <View style={styles.cardHead}>
-              <Text style={styles.icon}>{t.icon}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name}>{t.name}</Text>
-                <Text style={styles.location}>{t.location}</Text>
+        {TEMPLES.map((t, i) => (
+          <Reveal key={t.id} index={i}>
+            <View style={styles.card}>
+              <View style={styles.cardHead}>
+                <View style={styles.icon}><Icon name="temple" size={24} color={Accents.ruby.color} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>{t.name}</Text>
+                  <Text style={styles.location}>{t.location}</Text>
+                </View>
               </View>
-            </View>
-            <Text style={styles.deity}>{t.deity}</Text>
-            <Text style={styles.timings}>🕰️  {t.timings}</Text>
+              <Text style={styles.deity}>{t.deity}</Text>
+              <View style={styles.timingRow}>
+                <Icon name="clock" size={14} color={Colors.textMuted} />
+                <Text style={styles.timings}>{t.timings}</Text>
+              </View>
 
-            <TouchableOpacity style={styles.watchBtn} onPress={() => watch(t)} activeOpacity={0.85}>
-              <Text style={styles.watchText}>Watch Live Darshan ↗</Text>
-            </TouchableOpacity>
-            <Text style={styles.unverified}>
-              Opens the {t.source === 'youtube' ? 'official YouTube channel' : 'official temple website'}
-            </Text>
-          </View>
+              <Pressable style={styles.watchBtn} onPress={() => watch(t)} android_ripple={{ color: Colors.goldDeep }}>
+                <Text style={styles.watchText}>Watch Live Darshan</Text>
+                <Icon name="external" size={15} color={Colors.canvas} />
+              </Pressable>
+              <Text style={styles.unverified}>
+                Opens the {t.source === 'youtube' ? 'official YouTube channel' : 'official temple website'}
+              </Text>
+            </View>
+          </Reveal>
         ))}
 
         {/* Legal / safety disclaimer */}
@@ -67,41 +72,35 @@ export default function DarshanScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 52, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.bgCard,
-  },
-  back: { color: Colors.goldLight, fontSize: Fonts.size.md, width: 48 },
-  headerTitle: { color: Colors.text, fontSize: Fonts.size.lg, fontWeight: '700' },
-
+  root: { flex: 1, backgroundColor: Colors.canvas },
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl },
-  lead: { color: Colors.textMuted, fontSize: Fonts.size.md, lineHeight: 22, marginBottom: Spacing.md },
+  lead: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.md, lineHeight: 22, marginBottom: Spacing.md },
 
   card: {
-    backgroundColor: Colors.bgCard, borderRadius: 16, borderWidth: 1, borderColor: Colors.border,
-    padding: Spacing.lg, marginBottom: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.lg, marginBottom: Spacing.md, ...Depth.card,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   icon: {
-    fontSize: 28, width: 52, height: 52, borderRadius: 26, textAlign: 'center', lineHeight: 50,
-    backgroundColor: Colors.bgMid, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+    width: 52, height: 52, borderRadius: Radius.sm,
+    backgroundColor: Accents.ruby.faint, borderWidth: 1, borderColor: Accents.ruby.soft,
+    alignItems: 'center', justifyContent: 'center',
   },
-  name: { color: Colors.text, fontSize: Fonts.size.md, fontWeight: '700' },
-  location: { color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
-  deity: { color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.md },
-  timings: { color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 4 },
+  name: { fontFamily: Fonts.displayBold, color: Colors.text, fontSize: Fonts.size.lg },
+  location: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
+  deity: { fontFamily: Fonts.bodyMedium, color: Colors.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.md },
+  timingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  timings: { fontFamily: Fonts.body, color: Colors.textMuted, fontSize: Fonts.size.sm },
 
   watchBtn: {
-    backgroundColor: Colors.gold, borderRadius: 12, paddingVertical: Spacing.sm,
-    alignItems: 'center', marginTop: Spacing.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    backgroundColor: Colors.gold, borderRadius: Radius.sm, paddingVertical: 13, marginTop: Spacing.md,
   },
-  watchText: { color: Colors.bg, fontSize: Fonts.size.md, fontWeight: '700' },
-  unverified: { color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
+  watchText: { fontFamily: Fonts.bodySemibold, color: Colors.canvas, fontSize: Fonts.size.md, letterSpacing: 0.3 },
+  unverified: { fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, textAlign: 'center', marginTop: Spacing.sm },
 
   disclaimer: {
-    color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
+    fontFamily: Fonts.body, color: Colors.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
     textAlign: 'center', marginTop: Spacing.lg, paddingHorizontal: Spacing.sm,
   },
 });

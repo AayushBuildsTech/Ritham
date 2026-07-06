@@ -4,8 +4,8 @@ import { Colors, Fonts, Spacing } from '../constants/theme';
 export function LoadingScreen() {
   return (
     <View style={styles.root}>
-      <Text style={styles.logo}>✦</Text>
       <Text style={styles.title}>Ritham</Text>
+      <View style={styles.rule} />
       <ActivityIndicator color={Colors.gold} size="small" style={styles.spinner} />
     </View>
   );
@@ -14,18 +14,23 @@ export function LoadingScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.canvas,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: { fontSize: 48, color: Colors.gold },
   title: {
-    fontSize: Fonts.size.xxl,
+    fontFamily: Fonts.displayBold,
+    fontSize: Fonts.size.hero,
     color: Colors.goldLight,
-    fontWeight: '700',
-    letterSpacing: 3,
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xl,
+    letterSpacing: 1,
   },
-  spinner: { marginTop: Spacing.md },
+  rule: {
+    width: 90,
+    height: 1,
+    backgroundColor: Colors.gold,
+    opacity: 0.7,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  spinner: { marginTop: Spacing.xs },
 });
