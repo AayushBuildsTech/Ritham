@@ -1131,3 +1131,38 @@ one-per-phone (rule #5). No entitlement changes.**
 - Panchang/Muhurat use the active person's birth city (fine); no separate current-location.
 - No per-member unread/notification state (push is dropped for v1 anyway).
 - Matchmaking's "self" side is the active person; the partner is still entered fresh each time.
+
+---
+
+## 30. Family — onboarding surfacing, header cleanup, user-sync fix (DONE)
+
+Follow-ups on §29, all verified on device.
+
+**Onboarding surfacing (so family isn't hidden):** new signup flow is now
+**OTP → create your Kundli → "Add your family?" step → Home.** `app/profile.tsx` first-run
+(`wasNew`) now `router.replace('/onboarding-family')` instead of `/(tabs)`. New screen
+`app/onboarding-family.tsx` — welcoming "YOU'RE ALL SET / Add your family?" with the value pitch
+(shared wallet), an "Add a family member" gold button (→ relation picker → the birth form, returns
+here so several can be added; added members list with a ✓), and "Skip for now / Continue to Ritham"
+→ Home. Shows once (tied to first self-creation); editing self later never re-triggers it.
+⚠️ New route files need a full app reload for expo-router to register (Fast Refresh 404s until reload).
+
+**Home header redesign (was cluttered — 3 icons + big name + wrapping moon row):** now **one**
+settings icon on the right; the name stays the person switcher (⌄); the Moon sign is a compact
+single-line **gold pill** (`moonChip`, `numberOfLines={1}`). Theme toggle removed from the header
+(still in Settings → Appearance); family reachable via the name switcher's "Manage family" + Settings.
+Only `app/(tabs)/index.tsx` (dropped the `useTheme`/`isDark`/`toggle` usage). Plan file:
+`~/.claude/plans/the-header-of-home-frolicking-yeti.md`.
+
+**User-sync FK fix (migration `014_fix_user_sync.sql`):** creating a Kundli failed with
+`profiles_user_id_fkey` violation — the signed-in auth user had **no `public.users` row** (the 002
+sync trigger didn't populate it, same class as the old 003 "signup 500" referral-trigger bug). 014
+re-asserts a search-path-safe `generate_referral_code`, re-asserts the `on_auth_user_created`
+auth→users sync trigger (002), and **backfills** a `public.users` row for every auth user missing one.
+Re-runnable.
+
+### To go live
+- **Run migration `014_fix_user_sync.sql`** in the SQL editor — clears the FK error immediately
+  (part c backfills the missing row) and makes future signups self-heal.
+- Onboarding + header are **JS-only** — reload Metro, no rebuild, no Edge Function change.
+- `npx tsc --noEmit` passes.

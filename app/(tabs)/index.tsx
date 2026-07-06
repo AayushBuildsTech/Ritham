@@ -10,7 +10,7 @@ import { getNumerology } from '../../lib/numerologyService';
 import { Numerology } from '../../lib/numerology';
 import { track } from '../../lib/analytics';
 import { Colors, Fonts, Spacing, Radius, Type, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
-import { useColors, useTheme } from '../../context/ThemeContext';
+import { useColors } from '../../context/ThemeContext';
 import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
@@ -32,7 +32,6 @@ const PERIODS: { id: HoroscopePeriod; label: string }[] = [
 export default function HomeScreen() {
   const th = useColors();
   const styles = makeStyles(th);
-  const { isDark, toggle } = useTheme();
   const { user } = useAuth();
   const { members, activeId, loading: profilesLoading, setActive } = useActiveProfile();
   const router = useRouter();
@@ -173,17 +172,15 @@ export default function HomeScreen() {
               )}
             </View>
             {profile?.moonSign ? (
-              <View style={styles.moonRow}>
-                <Icon name="moon" size={14} color={th.gold} />
-                <Text style={styles.rashi}>Moon in {profile.moonSign}</Text>
+              <View style={styles.moonChip}>
+                <Icon name="moon" size={13} color={th.gold} />
+                <Text style={styles.rashi} numberOfLines={1}>{profile.moonSign}</Text>
               </View>
             ) : (
               <Text style={styles.phone}>{user?.phone ?? ''}</Text>
             )}
           </Pressable>
           <View style={styles.headerBtns}>
-            <IconButton icon={isDark ? 'sun' : 'moon'} onPress={toggle} />
-            <IconButton icon="family" onPress={() => router.push('/family')} />
             <IconButton icon="settings" onPress={() => router.push('/settings')} />
           </View>
         </View>
@@ -351,8 +348,13 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginBottom: 6 },
   name: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, lineHeight: Fonts.size.hero + 4, flexShrink: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  moonRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  rashi: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: th.goldLight, letterSpacing: 0.3 },
+  moonChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    marginTop: Spacing.sm, paddingVertical: 5, paddingHorizontal: Spacing.md,
+    backgroundColor: th.goldFaint, borderRadius: Radius.pill,
+    borderWidth: 1, borderColor: th.border, maxWidth: '100%',
+  },
+  rashi: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.goldLight, letterSpacing: 0.3, flexShrink: 1 },
   phone: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 4 },
   headerBtns: { flexDirection: 'row', gap: Spacing.sm, marginLeft: Spacing.md, marginTop: 4 },
   iconBtn: {

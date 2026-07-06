@@ -228,8 +228,9 @@ export default function ProfileScreen() {
       }
       if (wasNew) {
         track('profile_created');
-        // first-run onboarding: after creating the Kundli, go to Home
-        router.replace('/(tabs)');
+        // first-run onboarding: after creating the Kundli, offer to add family
+        // (skippable) so the feature is discoverable, then Home.
+        router.replace('/onboarding-family');
         return;
       }
       setProfile({ ...row, kundli_chart: kundli, kundli_summary: kundli.summary, kundli_source: kundli.source, kundli_computed_at: kundli.computed_at });
