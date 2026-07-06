@@ -8,11 +8,14 @@ import { getHoroscope, HoroscopePeriod } from '../../lib/horoscopeService';
 import { getPanchang, Panchang } from '../../lib/panchangService';
 import { getNumerology } from '../../lib/numerologyService';
 import { Numerology } from '../../lib/numerology';
+import { track } from '../../lib/analytics';
 import { Colors, Fonts, Spacing, Radius, Type, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
 import { useColors, useTheme } from '../../context/ThemeContext';
+import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { GradientCard } from '../../components/GradientCard';
+import { SelectModal, Option } from '../../components/SelectModal';
 import { TAB_BAR_HEIGHT } from './_layout';
 
 type Entry = 'loading' | 'need_kundli' | 'ready';
@@ -31,11 +34,13 @@ export default function HomeScreen() {
   const styles = makeStyles(th);
   const { isDark, toggle } = useTheme();
   const { user } = useAuth();
+  const { members, activeId, loading: profilesLoading, setActive } = useActiveProfile();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   const [entry, setEntry] = useState<Entry>('loading');
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [switcher, setSwitcher] = useState(false);
 
   const [period, setPeriod] = useState<HoroscopePeriod>('daily');
   // per-period cache so switching tabs doesn't refetch
@@ -47,20 +52,27 @@ export default function HomeScreen() {
   const [panchang, setPanchang] = useState<Panchang | null>(null);
   const [numerology, setNumerology] = useState<Numerology | null>(null);
 
-  // ── load profile (birth details + Moon sign) ─────────────────────────────────
+  // ── load the ACTIVE person (birth details + Moon sign) ───────────────────────
+  // Everything on Home follows the active family member: horoscope, panchang,
+  // numerology and muhurat all receive this profile's id.
   useEffect(() => {
+    if (profilesLoading) return;
+    // No people at all → guided onboarding (create self).
+    if (!activeId) { if (members.length === 0) router.replace('/profile'); return; }
+
+    let cancelled = false;
     (async () => {
-      if (!user) return;
+      setEntry('loading');
+      // switching person: drop the previous person's cached content
+      setTexts({}); setErrors({}); setLoadingPeriod(null);
+      setPanchang(null); setNumerology(null);
+
       // NOTE: do NOT select `numerology` here — that column only exists after
-      // migration 010. Selecting a missing column makes PostgREST reject the whole
-      // query, which would strand Home on its loading screen. Numerology is cheap to
-      // recompute, so we just compute it on demand (getNumerology) instead.
+      // migration 010; selecting a missing column rejects the whole query.
       const { data } = await supabase
         .from('profiles').select('id, name, dob, birth_place, latitude, longitude, kundli_chart')
-        .eq('user_id', user.id).order('created_at', { ascending: true })
-        .limit(1).maybeSingle();
-
-      // Guided onboarding: no profile yet → straight to Kundli creation.
+        .eq('id', activeId).maybeSingle();
+      if (cancelled) return;
       if (!data) { router.replace('/profile'); return; }
 
       const moonSign: string | undefined = data.kundli_chart?.moon_sign;
@@ -70,7 +82,24 @@ export default function HomeScreen() {
       });
       setEntry(moonSign ? 'ready' : 'need_kundli');
     })();
-  }, [user]);
+    return () => { cancelled = true; };
+  }, [activeId, profilesLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // person switcher options: each family member + a "Manage family" entry
+  const switcherOpts: Option[] = [
+    ...members.map((m) => ({
+      label: m.name,
+      value: m.id,
+      sublabel: (m.relation === 'self' ? 'You' : RELATION_LABEL[m.relation] ?? 'Family')
+        + (m.moonSign ? ` · Moon in ${m.moonSign}` : ''),
+    })),
+    { label: 'Manage family', value: '__manage' },
+  ];
+  function onSwitch(value: string) {
+    setSwitcher(false);
+    if (value === '__manage') { router.push('/family'); return; }
+    if (value !== activeId) { setActive(value); track('active_profile_switched'); }
+  }
 
   // ── fetch the horoscope for the selected period (once) ───────────────────────
   useEffect(() => {
@@ -118,6 +147,7 @@ export default function HomeScreen() {
   const firstName = profile?.name?.trim().split(/\s+/)[0];
 
   return (
+    <>
     <ScrollView
       style={styles.root}
       contentContainerStyle={[styles.content, {
@@ -129,9 +159,19 @@ export default function HomeScreen() {
       {/* Header */}
       <Reveal index={0}>
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
+          <Pressable
+            style={{ flex: 1 }}
+            onPress={() => setSwitcher(true)}
+            disabled={members.length === 0}
+            android_ripple={{ color: th.goldFaint }}
+          >
             <Text style={styles.eyebrow}>NAMASTE</Text>
-            <Text style={styles.name}>{firstName || 'Seeker'}</Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.name} numberOfLines={1}>{firstName || 'Seeker'}</Text>
+              {members.length > 0 && (
+                <Icon name="chevronDown" size={22} color={th.gold} style={{ marginTop: 8 }} />
+              )}
+            </View>
             {profile?.moonSign ? (
               <View style={styles.moonRow}>
                 <Icon name="moon" size={14} color={th.gold} />
@@ -140,10 +180,10 @@ export default function HomeScreen() {
             ) : (
               <Text style={styles.phone}>{user?.phone ?? ''}</Text>
             )}
-          </View>
+          </Pressable>
           <View style={styles.headerBtns}>
             <IconButton icon={isDark ? 'sun' : 'moon'} onPress={toggle} />
-            <IconButton icon="profile" onPress={() => router.push('/profile')} />
+            <IconButton icon="family" onPress={() => router.push('/family')} />
             <IconButton icon="settings" onPress={() => router.push('/settings')} />
           </View>
         </View>
@@ -248,6 +288,16 @@ export default function HomeScreen() {
       </Reveal>
       <View style={{ height: Spacing.xl }} />
     </ScrollView>
+
+    <SelectModal
+      visible={switcher}
+      title="Who is this for?"
+      options={switcherOpts}
+      selectedValue={activeId ?? undefined}
+      onSelect={onSwitch}
+      onClose={() => setSwitcher(false)}
+    />
+    </>
   );
 }
 
@@ -299,7 +349,8 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.xl },
   eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginBottom: 6 },
-  name: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, lineHeight: Fonts.size.hero + 4 },
+  name: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, lineHeight: Fonts.size.hero + 4, flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   moonRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   rashi: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: th.goldLight, letterSpacing: 0.3 },
   phone: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 4 },

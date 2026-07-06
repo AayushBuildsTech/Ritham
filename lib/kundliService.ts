@@ -26,6 +26,7 @@ export interface BirthProfile {
 export interface ProfileRow extends BirthProfile {
   id: string;
   user_id: string;
+  relation?: string; // 'self' | 'spouse' | 'son' | … (migration 013)
   kundli_chart: Kundli | null;
   kundli_summary: string | null;
   kundli_source: string | null;

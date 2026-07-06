@@ -23,7 +23,10 @@ export type EventName =
   | 'muhurat_results_viewed'
   | 'muhurat_funnel_clicked'
   | 'darshan_opened'
-  | 'darshan_temple_clicked';
+  | 'darshan_temple_clicked'
+  | 'family_member_added'
+  | 'family_member_removed'
+  | 'active_profile_switched';
 
 export function track(name: EventName, props?: Record<string, unknown>): void {
   // intentionally not awaited by callers — never block the UI on analytics

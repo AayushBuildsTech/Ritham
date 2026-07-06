@@ -3,9 +3,10 @@ import {
   View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useActiveProfile, FAMILY_RELATIONS, RELATION_LABEL } from '../context/ProfileContext';
 import { supabase } from '../lib/supabase';
 import { computeAndStoreKundli, ProfileRow, Kundli } from '../lib/kundliService';
 import { track } from '../lib/analytics';
@@ -24,7 +25,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 type Mode = 'loading' | 'form' | 'view';
 type Gender = 'male' | 'female' | 'other';
-type ModalKind = 'day' | 'month' | 'year' | 'hour' | 'minute' | 'ampm' | 'city' | null;
+type ModalKind = 'day' | 'month' | 'year' | 'hour' | 'minute' | 'ampm' | 'city' | 'relation' | null;
 interface SelectedPlace { name: string; lat: number; lon: number; tz: string }
 
 const pad2 = (n: number | string) => String(n).padStart(2, '0');
@@ -51,6 +52,9 @@ export default function ProfileScreen() {
   const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
+  const params = useLocalSearchParams<{ id?: string; new?: string; relation?: string }>();
+  const { refresh } = useActiveProfile();
+  const isAdding = params.new === '1'; // adding a new family member
 
   const [mode, setMode] = useState<Mode>('loading');
   const [profile, setProfile] = useState<ProfileRow | null>(null);
@@ -59,6 +63,7 @@ export default function ProfileScreen() {
   const [modal, setModal] = useState<ModalKind>(null);
 
   // form fields
+  const [relation, setRelation] = useState<string>('self');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<Gender | ''>('');
   const [day, setDay] = useState('');
@@ -70,27 +75,37 @@ export default function ProfileScreen() {
   const [city, setCity] = useState(''); // display name
   const [place, setPlace] = useState<SelectedPlace | null>(null);
 
-  // ── load existing profile ──────────────────────────────────────────────────
+  // adding a family member, or editing an existing non-self member
+  const isFamily = isAdding || relation !== 'self';
+
+  // ── load: add new / edit by id / self (legacy oldest) ────────────────────────
   useEffect(() => {
     (async () => {
       if (!user) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
+
+      if (isAdding) { // brand-new family member — empty form
+        setProfile(null);
+        setRelation(params.relation ?? 'other');
+        setMode('form');
+        return;
+      }
+
+      const base = supabase.from('profiles').select('*').eq('user_id', user.id);
+      const { data } = params.id
+        ? await base.eq('id', params.id).maybeSingle()
+        : await base.order('created_at', { ascending: true }).limit(1).maybeSingle();
 
       if (data) {
         setProfile(data as ProfileRow);
+        setRelation((data as ProfileRow).relation ?? 'self');
         setMode(data.kundli_chart ? 'view' : 'form');
         if (!data.kundli_chart) prefill(data as ProfileRow);
       } else {
+        setRelation('self'); // no profile yet → self onboarding
         setMode('form');
       }
     })();
-  }, [user]);
+  }, [user, params.id, params.new]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function prefill(p: ProfileRow) {
     setName(p.name);
@@ -168,7 +183,7 @@ export default function ProfileScreen() {
     let hh = Number(hour) % 12;
     if (ampm === 'PM') hh += 12;
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: name.trim(),
       gender,
       dob: `${y}-${pad2(m)}-${pad2(d)}`,
@@ -183,6 +198,9 @@ export default function ProfileScreen() {
       kundli_source: null,
       kundli_computed_at: null,
     };
+    // Only family rows carry a relation; self relies on the column default ('self')
+    // so onboarding still works even before migration 013 is applied.
+    if (isFamily) payload.relation = relation;
 
     setSaving(true);
     try {
@@ -201,6 +219,13 @@ export default function ProfileScreen() {
 
       // compute + cache the Kundli via the single service entry point
       const kundli = await computeAndStoreKundli(row);
+      await refresh(); // keep the family list / active person in sync
+
+      if (isAdding) {
+        track('family_member_added');
+        router.back(); // return to the Family screen
+        return;
+      }
       if (wasNew) {
         track('profile_created');
         // first-run onboarding: after creating the Kundli, go to Home
@@ -247,12 +272,20 @@ export default function ProfileScreen() {
       >
         <BackHeader onBack={() => router.back()} />
 
-        <Text style={styles.eyebrow}>{profile ? 'EDIT BIRTH DETAILS' : 'YOUR KUNDLI'}</Text>
-        <Text style={styles.h1}>{profile ? 'Edit Birth Details' : 'Create Your Kundli'}</Text>
+        <Text style={styles.eyebrow}>{isAdding ? 'ADD FAMILY MEMBER' : profile ? 'EDIT BIRTH DETAILS' : 'YOUR KUNDLI'}</Text>
+        <Text style={styles.h1}>{isAdding ? 'Add Family Member' : profile ? 'Edit Birth Details' : 'Create Your Kundli'}</Text>
         <Text style={styles.sub}>
-          Your birth details power your chart, horoscopes, and AI consultations. Enter them as
-          accurately as you can — especially the time of birth.
+          {isFamily
+            ? 'Enter this person’s birth details to generate their Kundli, horoscope and reports. The time of birth matters most.'
+            : 'Your birth details power your chart, horoscopes, and AI consultations. Enter them as accurately as you can — especially the time of birth.'}
         </Text>
+
+        {isFamily && (
+          <>
+            <Text style={styles.label}>RELATIONSHIP</Text>
+            <Field label={RELATION_LABEL[relation] ?? 'Select'} onPress={() => setModal('relation')} />
+          </>
+        )}
 
         <Text style={styles.label}>FULL NAME</Text>
         <TextInput
@@ -312,6 +345,9 @@ export default function ProfileScreen() {
       </KeyboardAwareScrollView>
 
       {/* pickers */}
+      <SelectModal visible={modal === 'relation'} title="Relationship"
+        options={FAMILY_RELATIONS.map((r) => ({ label: RELATION_LABEL[r], value: r }))}
+        selectedValue={relation} onSelect={setRelation} onClose={() => setModal(null)} />
       <SelectModal visible={modal === 'day'} title="Day" options={dayOpts} selectedValue={day}
         onSelect={setDay} onClose={() => setModal(null)} />
       <SelectModal visible={modal === 'month'} title="Month" options={monthOpts} selectedValue={month}

@@ -17,6 +17,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { ProfileProvider } from '../context/ProfileContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { AnimatedSplash } from '../components/AnimatedSplash';
@@ -76,7 +77,9 @@ function RootLayoutInner() {
     <View style={{ flex: 1, backgroundColor: colors.canvas }} onLayout={onLayoutReady}>
       <StatusBar style={statusBarStyle} />
       <AuthProvider>
-        <AuthGate />
+        <ProfileProvider>
+          <AuthGate />
+        </ProfileProvider>
       </AuthProvider>
       {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
     </View>

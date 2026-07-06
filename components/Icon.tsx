@@ -47,6 +47,8 @@ const MAP = {
   arrowRight: ['feather', 'arrow-right'],
   chevronDown: ['feather', 'chevron-down'],
   chevronUp: ['feather', 'chevron-up'],
+  plus: ['feather', 'plus'],
+  family: ['feather', 'users'],
   // reports / store / features
   compass: ['feather', 'compass'],
   diamond: ['mci', 'diamond-stone'],

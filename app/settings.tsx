@@ -78,7 +78,8 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.group}>
           <Row icon="phone" label="Mobile number" value={user?.phone ?? '—'} />
-          <Row icon="moon" label="Your Kundli" value="View / edit" onPress={() => router.push('/profile')} last />
+          <Row icon="moon" label="Your Kundli" value="View / edit" onPress={() => router.push('/profile')} />
+          <Row icon="family" label="Family members" value="Add / manage" onPress={() => router.push('/family')} last />
         </View>
 
         {/* Legal */}

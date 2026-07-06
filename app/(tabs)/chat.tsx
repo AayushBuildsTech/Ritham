@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-co
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { useActiveProfile } from '../../context/ProfileContext';
 import { supabase } from '../../lib/supabase';
 import { sendChat, ChatResult, SessionKind, ChatBalance } from '../../lib/chatService';
 import { getBalance } from '../../lib/paymentService';
@@ -31,6 +32,7 @@ export default function ChatScreen() {
   const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
+  const { activeId } = useActiveProfile();
   const insets = useSafeAreaInsets();
   const kbVisible = useKeyboardState((s) => s.isVisible);
 
@@ -57,14 +59,20 @@ export default function ChatScreen() {
 
   const hasBalance = !!balance && (balance.questions > 0 || balance.seconds > 0);
 
-  // ── load profile + free-minute status + entitlement balance ──────────────────
+  // ── load the ACTIVE person + free-minute status + entitlement balance ─────────
+  // Chat is anchored to the active family member's chart. Switching person on
+  // Home starts a fresh conversation here (a new person = a new context).
   useEffect(() => {
+    if (!user || !activeId) return; // profiles still resolving (Home handles onboarding)
     (async () => {
-      if (!user) return;
+      // fresh conversation for the newly-active person
+      setMessages([]); setSessionId(null); setSessionKind(null);
+      setExpiresAt(null); setRemaining(null); setEnded(false); setBanner('');
+      setEntry('loading');
+
       const { data: p } = await supabase
         .from('profiles').select('id, name, kundli_chart')
-        .eq('user_id', user.id).order('created_at', { ascending: true })
-        .limit(1).maybeSingle();
+        .eq('id', activeId).maybeSingle();
 
       if (!p || !p.kundli_chart) { setEntry('need_profile'); return; }
       setProfile({ id: p.id, name: p.name });
@@ -75,7 +83,7 @@ export default function ChatScreen() {
       setBalance(await getBalance());
       setEntry('ready');
     })();
-  }, [user]);
+  }, [user, activeId]);
 
   // ── countdown (time-based sessions only) ─────────────────────────────────────
   useEffect(() => {

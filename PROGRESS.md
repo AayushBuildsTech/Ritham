@@ -1065,3 +1065,69 @@ Scope for the integration session: (1) add `ANTHROPIC_API_KEY` in Supabase → E
 run real chats/horoscopes/reports and tune each system prompt; (4) watch cost/caching (rule #4 caches
 already protect horoscope/report/panchang/muhurat; chat is per-message). Nothing here needs an app
 rebuild — Edge-Function-only.
+
+**API prompt review (done, deferred flip):** all 5 Claude call sites were reviewed against the current
+API and are already compliant — `claude-sonnet-5`, `thinking:{type:'disabled'}` (valid on Sonnet 5), no
+sampling params, correct `x-api-key`/`anthropic-version`. System prompts already enforce rule #2. **One
+hardening left for go-live:** the 3 report JSON parsers (`parseAnalysis`, matchmaking, `narrateChart`)
+call `JSON.parse` with no try/catch — a live model returning malformed/truncated JSON would fail the
+report. Wrap in try/catch (or switch to structured outputs) when flipping the key; needs a `report`
+redeploy. **Decision: stay on Sonnet 5** (margins already ~65–95% gross; cost levers = prompt caching for
+chat + Haiku for horoscopes, both optional/later).
+
+---
+
+## 29. Family members — multi-profile (CODE DONE; one migration; JS-only, no rebuild)
+
+Let one account hold **self + family** (spouse, children, parents…). The backend was already
+per-profile — every Edge Function takes a `profileId`, and `profiles` always allowed many rows per user
+(migration 004 comment: "self + family later"). So this is almost entirely a **client** feature: an
+"active person" concept + a Family screen, pointing the screens that hardcoded `.limit(1)` at the
+active person instead. **Decisions (user):** switching a member changes the WHOLE app; manage from the
+Home header + Profile/Settings.
+
+**What was built:**
+- Migration `013_family_members.sql` — adds `profiles.relation` (`self`/`spouse`/`son`/`daughter`/
+  `father`/`mother`/`brother`/`sister`/`friend`/`other`, default `'self'`) + check constraint + index.
+  RLS from 004 (own-rows) already covers every member. Existing single-profile users are `'self'` by default.
+- `context/ProfileContext.tsx` — `ProfileProvider` (wrapped in `app/_layout.tsx` inside `AuthProvider`) +
+  `useActiveProfile()` → `{ members, activeId, active, loading, setActive, refresh }`. Active person
+  persists to AsyncStorage `ritham.activeProfileId`; defaults to self. **Resilient:** if the `relation`
+  column isn't there yet it falls back to inferring relation from row order, so the app never bricks
+  pre-migration. Exports `RELATION_LABEL` + `FAMILY_RELATIONS`.
+- `app/family.tsx` — Family screen: list members (name · relation · Moon sign), tap to switch active,
+  chevron → view/edit their Kundli, trash → delete (non-self only, confirm). "Add a family member" →
+  relation picker → the birth-details form. Design-system native (ScreenHeader/Reveal/Icon/SelectModal).
+- `app/profile.tsx` — now param-aware: `?new=1&relation=…` (add member), `?id=…` (edit specific),
+  none (self onboarding, unchanged). Shows a RELATION picker for family; writes `relation` only for
+  family rows (self uses the DB default → onboarding still works pre-migration). Add → `router.back()`
+  to Family; onboarding → Home; edit → view. Calls `refresh()` after save.
+- Wired the active person into: **Home** (`app/(tabs)/index.tsx` — name is a person switcher with a
+  "Manage family" entry; a `family` header icon → `/family`; Home passes the active id to horoscope/
+  panchang/numerology/muhurat, so all of them follow automatically), **Chat** (anchors to the active
+  member; switching starts a fresh conversation), **report-chart** + **report-matchmaking** (subject/
+  self side = active person). **Settings** → Account → "Family members".
+- `components/Icon.tsx` +`plus`/`family`; `lib/analytics.ts` +`family_member_added`/`_removed`/
+  `active_profile_switched`; `lib/kundliService.ts` `ProfileRow.relation?`. `npx tsc --noEmit` passes.
+
+**Entitlements are per-account (shared across the whole family — one wallet); the free 1-min chat stays
+one-per-phone (rule #5). No entitlement changes.**
+
+### To go live
+1. **Migration:** run `013_family_members.sql` in the SQL editor. **Required before adding members**
+   (the add-member insert writes `relation`). Existing self-only users keep working either way.
+2. **No Edge Function redeploy** (they already accept `profileId`), **no new secrets**, **no native
+   rebuild** — JS-only client. Just reload Metro.
+
+### On-device test
+- Home header: the name now has a ⌄; tap → switcher (initially just "You" + "Manage family"). The
+  people icon → Family screen.
+- Family → Add a family member → pick relation → birth form → Generate Kundli → back to Family.
+- Switch to them on Home → horoscope/panchang/numerology recompute for them; Chat anchors to them;
+  a report's subject = them. Delete a non-self member; self can't be deleted; deleting the active
+  member falls back to self.
+
+### Not yet done (follow-ups)
+- Panchang/Muhurat use the active person's birth city (fine); no separate current-location.
+- No per-member unread/notification state (push is dropped for v1 anyway).
+- Matchmaking's "self" side is the active person; the partner is still entered fresh each time.

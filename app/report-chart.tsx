@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { useActiveProfile } from '../context/ProfileContext';
 import { supabase } from '../lib/supabase';
 import { ProfileRow } from '../lib/kundliService';
 import { generateChartReport, reportCredits, MatchPerson } from '../lib/reportService';
@@ -70,6 +71,7 @@ export default function ChartReportIntake() {
   const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
+  const { activeId } = useActiveProfile();
   const params = useLocalSearchParams<{ type: string }>();
   const type: ChartReportType = isChartReport(params.type ?? '') ? (params.type as ChartReportType) : 'life';
 
@@ -85,14 +87,13 @@ export default function ChartReportIntake() {
 
   useEffect(() => {
     (async () => {
-      if (!user) return;
+      if (!user || !activeId) { if (user) setLoadingSelf(false); return; }
       const { data } = await supabase
-        .from('profiles').select('*').eq('user_id', user.id)
-        .order('created_at', { ascending: true }).limit(1).maybeSingle();
+        .from('profiles').select('*').eq('id', activeId).maybeSingle();
       if (data) setSelf(personFromProfile(data as ProfileRow));
       setLoadingSelf(false);
     })();
-  }, [user]);
+  }, [user, activeId]);
 
   async function generate() {
     if (!self || busy || generating) return;

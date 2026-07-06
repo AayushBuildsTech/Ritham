@@ -5,6 +5,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
+import { useActiveProfile } from '../context/ProfileContext';
 import { supabase } from '../lib/supabase';
 import { computeKundli, ProfileRow, BirthProfile } from '../lib/kundliService';
 import { generateMatchmaking, reportCredits, MatchPerson, ChartStyle } from '../lib/reportService';
@@ -46,6 +47,7 @@ export default function MatchmakingIntake() {
   const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
+  const { activeId } = useActiveProfile();
 
   const [self, setSelf] = useState<MatchPerson | null>(null);
   const [loadingSelf, setLoadingSelf] = useState(true);
@@ -71,14 +73,13 @@ export default function MatchmakingIntake() {
   // ── load the user's own chart (needed for both sides of the match) ──────────
   useEffect(() => {
     (async () => {
-      if (!user) return;
+      if (!user || !activeId) { if (user) setLoadingSelf(false); return; }
       const { data } = await supabase
-        .from('profiles').select('*').eq('user_id', user.id)
-        .order('created_at', { ascending: true }).limit(1).maybeSingle();
+        .from('profiles').select('*').eq('id', activeId).maybeSingle();
       if (data) setSelf(personFromProfile(data as ProfileRow));
       setLoadingSelf(false);
     })();
-  }, [user]);
+  }, [user, activeId]);
 
   // ── picker options ──────────────────────────────────────────────────────────
   const dayOpts: Option[] = useMemo(
