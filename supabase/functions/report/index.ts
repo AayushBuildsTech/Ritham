@@ -101,36 +101,49 @@ Deno.serve(async (req) => {
       .from('reports').insert(insertRow).select().single();
     if (rErr) return json({ error: 'report_create_failed', detail: rErr.message }, 500);
 
-    try {
-      let html: string;
-      let score: number | null = null;
-      if (type === 'vastu') {
-        const analysis = await generateVastu(admin, body.floorplanPath, body.answers);
-        html = renderVastuHtml(body.answers, analysis);
-        score = analysis.score;
-      } else if (type === 'matchmaking') {
-        const milan = computeMilan(body.self, body.partner);
-        const analysis = await generateMatch(body.self, body.partner, milan);
-        html = renderMatchHtml(body.self, body.partner, milan, analysis, style);
-        score = milan.percent;
-      } else if (Chart.isChartType(type)) {
-        const person = body.self as Chart.ChartPerson;
-        const facts = Chart.computeChartFacts(person, type);
-        const analysis = await Chart.narrateChart(type, person, facts, { apiKey: ANTHROPIC_API_KEY, model: MODEL });
-        html = Chart.renderChartHtml(type, person, facts, analysis);
-        score = facts.score;
+    // Generate in the BACKGROUND. A report is a long, non-streaming Claude call
+    // (5000–8000 tokens → 1–3 minutes), which a synchronous request cannot hold:
+    // the mobile fetch / API gateway time out and the worker is dropped early
+    // (observed as an "EarlyDrop" shutdown). Instead we return the report_id right
+    // away with status 'generating' and let the client poll the reports row
+    // (reportService.getReport) until it flips to 'ready' or 'failed'. The paid
+    // entitlement is consumed ONLY on success, so a failed run preserves the credit.
+    const generate = async () => {
+      try {
+        let html: string;
+        let score: number | null = null;
+        if (type === 'vastu') {
+          const analysis = await generateVastu(admin, body.floorplanPath, body.answers);
+          html = renderVastuHtml(body.answers, analysis);
+          score = analysis.score;
+        } else if (type === 'matchmaking') {
+          const milan = computeMilan(body.self, body.partner);
+          const analysis = await generateMatch(body.self, body.partner, milan);
+          html = renderMatchHtml(body.self, body.partner, milan, analysis, style);
+          score = milan.percent;
+        } else if (Chart.isChartType(type)) {
+          const person = body.self as Chart.ChartPerson;
+          const facts = Chart.computeChartFacts(person, type);
+          const analysis = await Chart.narrateChart(type, person, facts, { apiKey: ANTHROPIC_API_KEY, model: MODEL });
+          html = Chart.renderChartHtml(type, person, facts, analysis);
+          score = facts.score;
+        }
+
+        await admin.from('reports')
+          .update({ status: 'ready', html: html!, score }).eq('id', report.id);
+        await admin.from('entitlements_ledger')
+          .update({ consumed_at: new Date().toISOString() }).eq('id', ent.id);
+      } catch (genErr) {
+        await admin.from('reports').update({ status: 'failed' }).eq('id', report.id);
+        console.error('report generation failed', report.id, String((genErr as Error)?.message ?? genErr));
       }
+    };
 
-      await admin.from('reports')
-        .update({ status: 'ready', html, score }).eq('id', report.id);
-      await admin.from('entitlements_ledger')
-        .update({ consumed_at: new Date().toISOString() }).eq('id', ent.id);
+    // Keep the worker alive until generation finishes, even though we've responded.
+    // @ts-ignore EdgeRuntime is provided by the Supabase edge runtime
+    EdgeRuntime.waitUntil(generate());
 
-      return json({ report_id: report.id, status: 'ready', score });
-    } catch (genErr) {
-      await admin.from('reports').update({ status: 'failed' }).eq('id', report.id);
-      return json({ error: 'generation_failed', detail: String((genErr as Error)?.message ?? genErr) }, 500);
-    }
+    return json({ report_id: report.id, status: 'generating' });
   } catch (e) {
     return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
   }
@@ -211,11 +224,23 @@ async function generateVastu(admin: any, floorplanPath: string, answers: any): P
   return parseAnalysis(text);
 }
 
-function parseAnalysis(text: string): VastuAnalysis {
+// Robustly pull the JSON object out of a model reply. A live model can wrap the
+// JSON in prose/fences, truncate it, or (very rarely) refuse and return no text.
+// Fail with a clear domain error instead of a raw SyntaxError so the report is
+// marked `failed` cleanly and the paid entitlement is preserved for a retry.
+function parseJsonReply(text: string): any {
   const s = text.indexOf('{');
   const e = text.lastIndexOf('}');
   const slice = s >= 0 && e > s ? text.slice(s, e + 1) : text;
-  const obj = JSON.parse(slice);
+  try {
+    return JSON.parse(slice);
+  } catch {
+    throw new Error('ai_bad_json: model did not return valid JSON');
+  }
+}
+
+function parseAnalysis(text: string): VastuAnalysis {
+  const obj = parseJsonReply(text);
   const arr = (v: any) => (Array.isArray(v) ? v : []);
   return {
     overview: String(obj.overview ?? ''),
@@ -708,8 +733,7 @@ async function generateMatch(a: Person, b: Person, m: Milan): Promise<MatchAnaly
   if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
   const data = await res.json();
   const text = (data.content ?? []).find((x: any) => x.type === 'text')?.text ?? '';
-  const s = text.indexOf('{'), e = text.lastIndexOf('}');
-  const obj = JSON.parse(s >= 0 && e > s ? text.slice(s, e + 1) : text);
+  const obj = parseJsonReply(text);
   const arr = (v: any) => (Array.isArray(v) ? v.map(String) : []);
   return {
     overview: String(obj.overview ?? ''),
@@ -1334,8 +1358,7 @@ export async function narrateChart(
   if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
   const data = await res.json();
   const text = (data.content ?? []).find((b: any) => b.type === 'text')?.text ?? '';
-  const s = text.indexOf('{'), e = text.lastIndexOf('}');
-  const obj = JSON.parse(s >= 0 && e > s ? text.slice(s, e + 1) : text);
+  const obj = parseJsonReply(text);
   const arr = (v: any) => (Array.isArray(v) ? v.map(String) : []);
   const secs = Array.isArray(obj.sections) ? obj.sections : [];
   return {

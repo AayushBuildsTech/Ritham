@@ -1068,12 +1068,48 @@ rebuild — Edge-Function-only.
 
 **API prompt review (done, deferred flip):** all 5 Claude call sites were reviewed against the current
 API and are already compliant — `claude-sonnet-5`, `thinking:{type:'disabled'}` (valid on Sonnet 5), no
-sampling params, correct `x-api-key`/`anthropic-version`. System prompts already enforce rule #2. **One
-hardening left for go-live:** the 3 report JSON parsers (`parseAnalysis`, matchmaking, `narrateChart`)
-call `JSON.parse` with no try/catch — a live model returning malformed/truncated JSON would fail the
-report. Wrap in try/catch (or switch to structured outputs) when flipping the key; needs a `report`
-redeploy. **Decision: stay on Sonnet 5** (margins already ~65–95% gross; cost levers = prompt caching for
-chat + Haiku for horoscopes, both optional/later).
+sampling params, correct `x-api-key`/`anthropic-version`. System prompts already enforce rule #2. **Decision:
+stay on Sonnet 5** (margins already ~65–95% gross; cost levers = prompt caching for chat + Haiku for
+horoscopes, both optional/later).
+
+**JSON hardening — DONE (2026-07-07).** The 3 report JSON parsers (`parseAnalysis`, matchmaking narration,
+`Chart.narrateChart`) previously called `JSON.parse` with no try/catch — a live model returning
+malformed/truncated/refused JSON would throw a raw `SyntaxError`. Added a shared top-level helper
+`parseJsonReply(text)` in `report/index.ts` (extracts the `{…}` slice, try/catches, throws a clean
+`ai_bad_json` domain error); all 3 sites now route through it. Top-level function is visible inside
+`namespace Chart`, so `narrateChart` uses it too. Failure path already safe: on a generation throw the
+report is marked `status:'failed'` and 500 is returned **before** the entitlement is consumed (consume is
+last, after html is built) — so a bad-JSON failure preserves the user's paid credit for a retry, doesn't
+lose money. Verified: `esbuild` single-file bundle of `report/index.ts` passes (exit 0, 98.9 kb). Only
+`JSON.parse` left in the file is inside `parseJsonReply` itself. **Needs a `report` redeploy for this to
+take effect** (single-file `index.ts`); chat (`bright-processor`) + horoscope unchanged (no redeploy).
+
+**Async report generation — DONE (2026-07-07), fixes live-report timeout.** First real end-to-end chart
+report (key set, all of §23 deployed) failed with the client showing "couldn't generate your report" and
+the Edge log showing a **`reason:"EarlyDrop"` shutdown with only 41 ms CPU** — i.e. the worker was killed
+while *waiting*, not a key/JSON error (those return a normal 500 in <1 s). Root cause: reports are long,
+non-streaming Claude calls (5000–8000 tokens → 1–3 min) but `report/index.ts` generated **synchronously**
+and `reportService` `await`ed the whole `functions.invoke`; the mobile fetch / Supabase gateway time out
+long before Claude finishes → EarlyDrop. Chat/horoscope are unaffected (700–1024 tokens). **Fix = async +
+poll:** `report/index.ts` now inserts the row (`generating`), runs generation inside
+`EdgeRuntime.waitUntil(...)`, and returns `{report_id, status:'generating'}` immediately; the background
+task updates the row to `ready`/`failed` and consumes the entitlement only on success (credit preserved on
+failure). Client `app/report-view.tsx` now **polls** `getReport(id)` every 3 s (cap ~4 min) and shows a
+"Preparing your report…" state (+ a `failed` state). No `max_tokens` change needed — the server was idle
+waiting (41 ms CPU), so the background task has ample wall-clock. `tsc` + `esbuild` (report, 99 kb) pass.
+**Needs a `report` REDEPLOY** (ships with the JSON hardening) + Metro reload (report-view is JS-only). The
+earlier failed attempt left a stuck `generating` row and an **unconsumed credit** — retry is free.
+
+**To flip real AI on (Edge-Function-only, no app rebuild):**
+1. Get an Anthropic API key (console.anthropic.com).
+2. Supabase → Edge Functions → **Secrets** → add `ANTHROPIC_API_KEY=sk-ant-…` (project-wide secret; all
+   functions read it). chat + horoscope go live immediately with NO redeploy (they read the secret at
+   runtime). This is the only step needed to swap the mock for real Claude on those two.
+3. Redeploy `report` (single-file `index.ts`) so the JSON hardening ships alongside the live key. (Note:
+   the chart-reports version of `report` + migration `012` + `create-order` redeploy from §23 are still
+   deploy-pending — bundle those together.)
+4. Quality pass: run real chats/horoscopes/one report of each type, tune each system prompt in place
+   (Edge-Function-only), watch cost/caching.
 
 ---
 
@@ -1166,3 +1202,36 @@ Re-runnable.
   (part c backfills the missing row) and makes future signups self-heal.
 - Onboarding + header are **JS-only** — reload Metro, no rebuild, no Edge Function change.
 - `npx tsc --noEmit` passes.
+
+---
+
+## 31. Real-AI integration session + GO-LIVE runbook (2026-07-07)
+
+Worked toward flipping on real Claude (§28). Outcome this session: **all code is ready; the only
+remaining work is dashboard deploys + Anthropic credits**, consolidated into a new single runbook file
+**`GO-LIVE.md`** at the project root (the authoritative go-live checklist — read it first).
+
+**Done this session (code, all typechecks + bundles clean):**
+- Reviewed all 5 Claude call sites against the current API — already compliant (`claude-sonnet-5`,
+  `thinking:{type:'disabled'}` valid on Sonnet 5, no sampling params, correct headers; chat handles
+  `refusal`). Kept Sonnet 5 (documented business decision). See §28.
+- **Report JSON hardening** — shared `parseJsonReply()` in `report/index.ts`; all 3 parse sites route
+  through it (clean `ai_bad_json` instead of raw `SyntaxError`). See §28.
+- **Async report generation (real bug fixed).** First live report failed with `EarlyDrop` + 41 ms CPU —
+  a long non-streaming Claude call (5000–8000 tok, 1–3 min) can't be held synchronously; the mobile
+  fetch/gateway drops it. Fix: `report/index.ts` now generates in `EdgeRuntime.waitUntil(...)` and
+  returns `{report_id, status:'generating'}` immediately; `app/report-view.tsx` polls `getReport` every
+  3 s (cap ~4 min) with `generating`/`failed` states. Entitlement consumed only on success → failed run
+  preserves the paid credit. See §28.
+- Confirmed the whole go-live surface: 8 functions, client slugs all mapped
+  (`chat`→`bright-processor`, others 1:1), `create-order` prices in sync with `config/pricing.ts`, and
+  migrations 009/010/011/013/014 all safe to re-run.
+
+**Live-flip status (the actual "flip"):** `ANTHROPIC_API_KEY` **is set**, key is **valid** (auth passed),
+but the Anthropic **account has $0 credits** → every AI call returns `400 "credit balance is too low"`.
+So real AI is one billing top-up away (console.anthropic.com → Billing). Chat/horoscope go live the
+instant credits land (no redeploy); `report` needs its re-deploy (async + hardening) — both in `GO-LIVE.md`.
+
+**Still deploy-pending (see `GO-LIVE.md` for the exact list):** migrations `009`/`010`/`011`
+(+`013`/`014` if not already run); (re)deploy `report`, and first-time deploy `panchang` / `muhurat` /
+`delete-account` (watch for dashboard slug auto-rename). No new secrets, no native rebuild.
