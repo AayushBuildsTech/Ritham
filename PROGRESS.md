@@ -13,6 +13,7 @@ This session took the app from "mock charts + mock AI, deploy-pending" to a full
 - **`supabase/functions/kundli/index.ts`** — the Edge Function: local birth time → UTC via IANA timezone (DST-aware), computes the chart, returns the same shape the app already used. Auth-gated.
 - **`supabase/functions/kundli/astro.test.ts`** — validation harness (dev-only, NOT bundled). Run: `node --experimental-strip-types astro.test.ts`. **All checks pass**: Sankranti ingress dates exact (Makar Jan 15 / Mesha Apr 14 / Karka Jul 16 for 2024), ascendant cycles all 12 signs/day, Rahu-Ketu 180° apart, ayanamsa 24.13° (2020). Deployed function verified end-to-end.
 - **`lib/kundliService.ts`** — mock deleted; `fetchKundliFromProvider` now calls the `kundli` function. `source: 'lahiri'`. **`getKundli` self-heals**: any legacy `source:'mock'` chart is transparently recomputed with the real engine on next view.
+- **Panchang & Muhurat unified on the SAME engine (later 2026-07-07):** `astro.ts` moved to **`supabase/functions/_shared/astro.ts`** (shared across functions). `panchang` and `muhurat` now derive Sun/Moon + an accurate sunrise/sunset from it (validated to ±1 min at Delhi solstices) instead of their old lower-precision math + a slightly different ayanamsa — so a user's Panchang/Muhurat nakshatra now agrees with their Kundli. All three functions redeployed. (The `mock*` fallbacks in `report`/`horoscope` are inert — only used if `ANTHROPIC_API_KEY` is unset, which it isn't.)
 
 **2. Chat quality (the user's complaints).** In `supabase/functions/chat/index.ts`:
 - Replies were essay-length ("2–5 paragraphs" prompt) → now **2–4 sentences, no headings/lists/preamble**; `max_tokens` 1024 → 512. Shorter output also cuts latency (thinking already disabled).
@@ -733,8 +734,9 @@ hook into Chat.
 ### Not yet done (follow-ups)
 - No cron pre-warm for Panchang (first viewer per city/day pays the ~ms compute; trivially cheap).
 - Panchang uses profile birth-place as the city (no separate current-location capture in v1).
-- Astronomy is low-precision (good to a few arc-minutes) — fine for a free daily almanac; a real
-  ephemeris/provider could sharpen it later at the same cache boundary.
+- ~~Astronomy is low-precision~~ **RESOLVED 2026-07-07:** Panchang/Muhurat now use the shared
+  `supabase/functions/_shared/astro.ts` engine (same as the Kundli — Lahiri sidereal, arc-minute
+  Sun/Moon, validated sunrise/sunset). No provider, still zero runtime cost.
 
 ---
 

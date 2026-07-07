@@ -8,7 +8,7 @@
 // (caching onto the profile row) stays on the client, exactly as before. Auth is
 // required so the endpoint can't be hit anonymously.
 
-import { computeLongitudes, SIGNS, NAKSHATRAS, signIndexOf, nakshatraOf, rev } from './astro.ts';
+import { computeLongitudes, SIGNS, NAKSHATRAS, signIndexOf, nakshatraOf, rev } from '../_shared/astro.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',

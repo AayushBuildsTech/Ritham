@@ -3,18 +3,19 @@
 // Vehicle, Business, Naming, Property, Travel) in the user's city.
 //
 // ⚠️ ZERO AI / ZERO PROVIDER COST. For each day in the range we COMPUTE the Panchang
-// in pure TypeScript (same astronomy as functions/panchang/index.ts) and match the
-// activity's FIXED rule set — there is NO Claude/OpenAI call and no astrology-provider
-// request. The whole result is cached per (activity, city, date-range) for the day.
+// with the shared Vedic astronomy engine (`../_shared/astro.ts` — the SAME engine and
+// Lahiri ayanamsa the Kundli and Panchang use) and match the activity's FIXED rule
+// set. There is NO Claude/OpenAI call and no astrology-provider request. The whole
+// result is cached per (activity, city, date-range) for the day.
 //
-// Rules mirror config/muhuratRules.ts (Deno can't import that file through the
-// dashboard deploy — keep the two in sync, same as the pricing tables).
+// Rules mirror config/muhuratRules.ts (keep the two in sync, same as the pricing tables).
 //
 // v1 simplification (see DECISIONS.md): a day qualifies when its (sunrise) nakshatra
 // and weekday are favourable and the tithi isn't Rikta/Amavasya; the auspicious time
 // window reported is the universally-auspicious Abhijit Muhurta for that day.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { computeLongitudes, sunTimesUTC, NAKSHATRAS, rev } from '../_shared/astro.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -97,7 +98,6 @@ Deno.serve(async (req) => {
     const lng = Number(profile.longitude);
     if (!isFinite(lat) || !isFinite(lng)) return json({ error: 'place_missing' }, 400);
 
-    // Resolve the IST date range (default: today … today+45, capped at +90).
     const today = istToday();
     const start = isISO(startDate) ? startDate : today;
     let end = isISO(endDate) ? endDate : addDaysISO(start, DEFAULT_HORIZON);
@@ -106,13 +106,11 @@ Deno.serve(async (req) => {
     const placeKey = `${lat.toFixed(1)},${lng.toFixed(1)}`;
     const rangeKey = `${start}_${end}`;
 
-    // Cache hit? (shared per activity/city/range for the day)
     const { data: cached } = await admin
       .from('muhurat_cache').select('data')
       .eq('activity', activity).eq('place_key', placeKey).eq('range_key', rangeKey).maybeSingle();
     if (cached) return json({ ...cached.data, cached: true });
 
-    // Miss → COMPUTE each day's Panchang and match the rule (pure code, no AI).
     const results: any[] = [];
     for (const day of dateRange(start, end)) {
       if (results.length >= MAX_RESULTS) break;
@@ -131,7 +129,7 @@ Deno.serve(async (req) => {
           tithi: p.tithiLabel,
           nakshatra: nakName,
           yoga: YOGAS[p.yogaIdx],
-          window: p.abhijit,      // auspicious time window (Abhijit Muhurta)
+          window: p.abhijit,
           sunrise: fmtTime(p.sunriseIST),
           sunset: fmtTime(p.sunsetIST),
         });
@@ -144,7 +142,7 @@ Deno.serve(async (req) => {
       start, end,
       count: results.length,
       results,
-      method: 'computed', // never AI-generated
+      method: 'computed', // never AI-generated; shared Lahiri sidereal engine
     };
 
     const { error: insErr } = await admin.from('muhurat_cache').insert({
@@ -163,7 +161,7 @@ Deno.serve(async (req) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Date helpers (IST) + PURE ASTRONOMY (mirror of functions/panchang/index.ts).
+// Date helpers (IST) + per-day Panchang from the shared astronomy engine.
 // ══════════════════════════════════════════════════════════════════════════════
 const isISO = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -188,94 +186,17 @@ function* dateRange(startISO: string, endISO: string) {
   }
 }
 
-const D2R = Math.PI / 180;
-const R2D = 180 / Math.PI;
-const norm360 = (x: number) => ((x % 360) + 360) % 360;
-const sinD = (x: number) => Math.sin(x * D2R);
-const cosD = (x: number) => Math.cos(x * D2R);
-const tanD = (x: number) => Math.tan(x * D2R);
-
 const VAARA = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const TITHI_NAMES = ['Pratipada', 'Dwitiya', 'Tritiya', 'Chaturthi', 'Panchami', 'Shashthi',
   'Saptami', 'Ashtami', 'Navami', 'Dashami', 'Ekadashi', 'Dwadashi', 'Trayodashi', 'Chaturdashi'];
-const NAKSHATRAS = ['Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu',
-  'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni', 'Hasta', 'Chitra', 'Swati',
-  'Vishakha', 'Anuradha', 'Jyeshtha', 'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana',
-  'Dhanishta', 'Shatabhisha', 'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati'];
 const YOGAS = ['Vishkambha', 'Priti', 'Ayushman', 'Saubhagya', 'Shobhana', 'Atiganda', 'Sukarma',
   'Dhriti', 'Shula', 'Ganda', 'Vriddhi', 'Dhruva', 'Vyaghata', 'Harshana', 'Vajra', 'Siddhi',
   'Vyatipata', 'Variyana', 'Parigha', 'Shiva', 'Siddha', 'Sadhya', 'Shubha', 'Shukla', 'Brahma',
   'Indra', 'Vaidhriti'];
 
-function julianDay(y: number, m: number, d: number, hourUT: number): number {
-  if (m <= 2) { y -= 1; m += 12; }
-  const A = Math.floor(y / 100);
-  const B = 2 - A + Math.floor(A / 4);
-  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5 + hourUT / 24;
-}
-function ayanamsa(jd: number): number {
-  return 23.85 + ((jd - 2451545.0) / 365.25) * (50.2388475 / 3600);
-}
-function sunLongitude(jd: number): number {
-  const T = (jd - 2451545.0) / 36525;
-  const L0 = norm360(280.46646 + 36000.76983 * T + 0.0003032 * T * T);
-  const M = norm360(357.52911 + 35999.05029 * T - 0.0001537 * T * T);
-  const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * sinD(M)
-    + (0.019993 - 0.000101 * T) * sinD(2 * M) + 0.000289 * sinD(3 * M);
-  return norm360(L0 + C);
-}
-function moonLongitude(jd: number): number {
-  const T = (jd - 2451545.0) / 36525;
-  const Lp = norm360(218.3164477 + 481267.88123421 * T - 0.0015786 * T * T + T * T * T / 538841 - T * T * T * T / 65194000);
-  const D = norm360(297.8501921 + 445267.1114034 * T - 0.0018819 * T * T + T * T * T / 545868 - T * T * T * T / 113065000);
-  const M = norm360(357.5291092 + 35999.0502909 * T - 0.0001536 * T * T + T * T * T / 24490000);
-  const Mp = norm360(134.9633964 + 477198.8675055 * T + 0.0087414 * T * T + T * T * T / 69699 - T * T * T * T / 14712000);
-  const F = norm360(93.2720950 + 483202.0175233 * T - 0.0036539 * T * T - T * T * T / 3526000 + T * T * T * T / 863310000);
-  const E = 1 - 0.002516 * T - 0.0000074 * T * T;
-  const terms: [number, number, number, number, number, number][] = [
-    [6288774, 0, 0, 1, 0, 0], [1274027, 2, 0, -1, 0, 0], [658314, 2, 0, 0, 0, 0],
-    [213618, 0, 0, 2, 0, 0], [-185116, 0, 1, 0, 0, 1], [-114332, 0, 0, 0, 2, 0],
-    [58793, 2, 0, -2, 0, 0], [57066, 2, -1, -1, 0, 1], [53322, 2, 0, 1, 0, 0],
-    [45758, 2, -1, 0, 0, 1], [-40923, 0, 1, -1, 0, 1], [-34720, 1, 0, 0, 0, 0],
-    [-30383, 0, 1, 1, 0, 1], [15327, 2, 0, 0, -2, 0], [-12528, 0, 0, 1, 2, 0],
-    [10980, 0, 0, 1, -2, 0], [10675, 4, 0, -1, 0, 0], [10034, 0, 0, 3, 0, 0],
-    [8548, 4, 0, -2, 0, 0], [-7888, 2, 1, -1, 0, 1], [-6766, 2, 1, 0, 0, 1],
-    [-5163, 1, 0, -1, 0, 0], [4987, 1, 1, 0, 0, 1], [4036, 2, -1, 1, 0, 1],
-    [3994, 2, 0, 2, 0, 0], [3861, 4, 0, 0, 0, 0], [3665, 2, 0, -3, 0, 0],
-  ];
-  let sum = 0;
-  for (const [c, dd, mm, mp, ff, ep] of terms) {
-    let coeff = c;
-    if (ep === 1) coeff *= E; else if (ep === 2) coeff *= E * E;
-    sum += coeff * sinD(dd * D + mm * M + mp * Mp + ff * F);
-  }
-  return norm360(Lp + sum / 1_000_000);
-}
-function sunEventIST(y: number, m: number, d: number, lat: number, lng: number, rise: boolean): number | null {
-  const N = dayOfYear(y, m, d);
-  const zenith = 90.833;
-  const lngHour = lng / 15;
-  const t = rise ? N + (6 - lngHour) / 24 : N + (18 - lngHour) / 24;
-  const M = 0.9856 * t - 3.289;
-  const L = norm360(M + 1.916 * sinD(M) + 0.020 * sinD(2 * M) + 282.634);
-  let RA = norm360(R2D * Math.atan(0.91764 * tanD(L)));
-  RA += (Math.floor(L / 90) * 90 - Math.floor(RA / 90) * 90);
-  RA /= 15;
-  const sinDec = 0.39782 * sinD(L);
-  const cosDec = Math.cos(Math.asin(sinDec));
-  const cosH = (cosD(zenith) - sinDec * sinD(lat)) / (cosDec * cosD(lat));
-  if (cosH > 1 || cosH < -1) return null;
-  const H = (rise ? 360 - R2D * Math.acos(cosH) : R2D * Math.acos(cosH)) / 15;
-  const T = H + RA - 0.06571 * t - 6.622;
-  const UT = ((T - lngHour) % 24 + 24) % 24;
-  return (UT + IST_OFFSET) % 24;
-}
-function dayOfYear(y: number, m: number, d: number): number {
-  const n1 = Math.floor(275 * m / 9);
-  const n2 = Math.floor((m + 9) / 12);
-  const n3 = 1 + Math.floor((y - 4 * Math.floor(y / 4) + 2) / 3);
-  return n1 - n2 * n3 + d - 30;
-}
+const istHours = (dt: Date): number =>
+  ((dt.getUTCHours() + dt.getUTCMinutes() / 60 + dt.getUTCSeconds() / 3600) + IST_OFFSET) % 24;
+
 function fmtTime(hours: number | null): string {
   if (hours == null) return '—';
   let h = Math.floor(hours);
@@ -289,18 +210,17 @@ function fmtTime(hours: number | null): string {
 // Lean per-day Panchang: the fields the Muhurat rules and display need.
 function dayPanchang(y: number, m: number, d: number, lat: number, lng: number) {
   const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  const sunriseIST = sunEventIST(y, m, d, lat, lng, true);
-  const sunsetIST = sunEventIST(y, m, d, lat, lng, false);
-  const jd = julianDay(y, m, d, (sunriseIST ?? 6) - IST_OFFSET);
+  const { riseUTC, setUTC } = sunTimesUTC(y, m, d, lat, lng);
+  const sunriseIST = riseUTC ? istHours(riseUTC) : null;
+  const sunsetIST = setUTC ? istHours(setUTC) : null;
 
-  const sunLon = sunLongitude(jd);
-  const moonLon = moonLongitude(jd);
-  const ayan = ayanamsa(jd);
-  const moonSid = norm360(moonLon - ayan);
-  const sunSid = norm360(sunLon - ayan);
+  const anchorUTC = riseUTC ?? new Date(Date.UTC(y, m - 1, d, 0, 30, 0)); // 06:00 IST
+  const L = computeLongitudes(anchorUTC, lat, lng);
+  const moonSid = L.sidereal.Moon;
+  const sunSid = L.sidereal.Sun;
   const nakSpan = 360 / 27;
 
-  const elong = norm360(moonLon - sunLon);
+  const elong = rev(L.tropical.Moon - L.tropical.Sun);
   const tithiIdx = Math.floor(elong / 12); // 0..29
   const paksha = tithiIdx < 15 ? 'Shukla' : 'Krishna';
   const within = tithiIdx % 15;
@@ -308,9 +228,8 @@ function dayPanchang(y: number, m: number, d: number, lat: number, lng: number) 
     : within === 14 && paksha === 'Krishna' ? 'Amavasya' : TITHI_NAMES[within];
 
   const nakIdx = Math.floor(moonSid / nakSpan);
-  const yogaIdx = Math.floor(norm360(sunSid + moonSid) / nakSpan);
+  const yogaIdx = Math.floor(rev(sunSid + moonSid) / nakSpan);
 
-  // Abhijit Muhurta (8th of 15 day-muhurtas).
   let abhijit = '—';
   if (sunriseIST != null && sunsetIST != null) {
     const dayLen = ((sunsetIST - sunriseIST) + 24) % 24;

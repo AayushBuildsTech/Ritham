@@ -166,10 +166,11 @@ a static text library. This keeps a growing free surface from adding any margina
 (rule #4 taken to its limit — the cost isn't just bounded, it's zero).
 
 ### Panchang: computed in pure code (no provider), cached per city per day
-There is no real astrology provider wired in (`kundliService` is a deterministic mock with
-no Panchang endpoint), so the "simpler working option" per the brief is to COMPUTE the
-almanac directly. The `panchang` Edge Function derives Sun/Moon ecliptic longitudes (Meeus
-low-precision, truncated ELP for the Moon) at local sunrise, then the five limbs — tithi
+The almanac is COMPUTED directly — no external provider. As of 2026-07-07 the `panchang`
+Edge Function uses the **shared Vedic engine** (`_shared/astro.ts`) — the SAME Sun/Moon model
+and Lahiri ayanamsa the Kundli uses (Schlyter method with perturbation terms; sunrise/sunset
+derived from the same Sun model), so a user's Panchang nakshatra agrees with their chart. It
+reads the five limbs at local sunrise — tithi
 (12° elongation), nakshatra (sidereal Moon, Lahiri ayanamsa), yoga (sidereal Sun+Moon),
 karana (6° half-tithis), vaara (weekday) — plus sunrise/sunset (Almanac-for-Computers
 algorithm) and the muhurta windows (Rahu Kaal / Yamaganda / Gulika from the standard weekday
@@ -210,8 +211,8 @@ chat"). Clicks fire `home_hook_clicked {source}`. Views fire `panchang_viewed` /
 The Muhurat Finder is pure rule-matching, not AI. `config/muhuratRules.ts` is the single source
 of truth: each of 7 activities (Griha Pravesh, Marriage, Vehicle, Business, Naming, Property,
 Travel) carries a fixed set of favourable nakshatras + weekdays. The `muhurat` Edge Function
-iterates each day in the range, COMPUTES that day's Panchang with the same self-contained
-astronomy as `panchang/index.ts` (no provider — the mock kundliService has no endpoint), and
+iterates each day in the range, COMPUTES that day's Panchang with the shared Vedic engine
+(`_shared/astro.ts`, the same one the Kundli and Panchang use — no provider), and
 keeps a day when its nakshatra + weekday are favourable and the tithi isn't Rikta (4/9/14) or
 Amavasya. No Claude/OpenAI call anywhere.
 
