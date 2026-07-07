@@ -181,6 +181,12 @@ export default function HomeScreen() {
             )}
           </Pressable>
           <View style={styles.headerBtns}>
+            {activeId && (
+              <IconButton
+                icon="moon"
+                onPress={() => router.push({ pathname: '/profile', params: { id: activeId } })}
+              />
+            )}
             <IconButton icon="settings" onPress={() => router.push('/settings')} />
           </View>
         </View>

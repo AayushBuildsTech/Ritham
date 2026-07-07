@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
+import { useActiveProfile } from '../context/ProfileContext';
 import { deleteAccount } from '../lib/accountService';
 import { CONTACT_EMAIL } from '../constants/legal';
 import { Colors, Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
@@ -16,6 +17,10 @@ export default function SettingsScreen() {
   const styles = makeStyles(th);
   const router = useRouter();
   const { user, signOut } = useAuth();
+  // The whole app operates on the ACTIVE person (self or a family member). The
+  // Kundli link must follow that too — otherwise it always opened the account
+  // owner's chart even while a family member was selected.
+  const { active, activeId } = useActiveProfile();
   const version = Constants.expoConfig?.version ?? '1.0.0';
   const [deleting, setDeleting] = useState(false);
 
@@ -78,7 +83,12 @@ export default function SettingsScreen() {
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.group}>
           <Row icon="phone" label="Mobile number" value={user?.phone ?? '—'} />
-          <Row icon="moon" label="Your Kundli" value="View / edit" onPress={() => router.push('/profile')} />
+          <Row
+            icon="moon"
+            label={active && active.relation !== 'self' ? `${active.name}’s Kundli` : 'Your Kundli'}
+            value="View / edit"
+            onPress={() => router.push(activeId ? { pathname: '/profile', params: { id: activeId } } : '/profile')}
+          />
           <Row icon="family" label="Family members" value="Add / manage" onPress={() => router.push('/family')} last />
         </View>
 
