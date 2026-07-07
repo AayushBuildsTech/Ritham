@@ -41,3 +41,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Supabase CLI local link metadata (machine-local; contains project-ref/pooler-url)
+supabase/.temp/

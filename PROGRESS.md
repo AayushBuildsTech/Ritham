@@ -4,6 +4,31 @@
 
 ---
 
+## 0. Latest Session (2026-07-07) — GO-LIVE: real Kundli, live AI, everything deployed
+
+This session took the app from "mock charts + mock AI, deploy-pending" to a fully live backend. **All 9 Edge Functions are deployed via the Supabase CLI, all migrations are applied + tracked, and every secret is set — the app now runs on real astronomy and real Claude.**
+
+**1. Real Kundli engine (the big fix).** The old `kundliService` returned a **fake chart** — it seeded a PRNG from a hash of the birth details and randomly picked signs/nakshatra/houses (`source: 'mock'`). Replaced with a real Vedic sidereal engine:
+- **`supabase/functions/kundli/astro.ts`** — dependency-free astronomy (Schlyter/Meeus): real geocentric longitudes for Sun, Moon, 5 planets + Rahu/Ketu (with Moon + Jupiter/Saturn perturbation terms), **Lahiri ayanamsa** (Indian govt standard), **whole-sign houses**. Runs identically in Node and Deno. Open-source, free, no API key, no per-chart cost.
+- **`supabase/functions/kundli/index.ts`** — the Edge Function: local birth time → UTC via IANA timezone (DST-aware), computes the chart, returns the same shape the app already used. Auth-gated.
+- **`supabase/functions/kundli/astro.test.ts`** — validation harness (dev-only, NOT bundled). Run: `node --experimental-strip-types astro.test.ts`. **All checks pass**: Sankranti ingress dates exact (Makar Jan 15 / Mesha Apr 14 / Karka Jul 16 for 2024), ascendant cycles all 12 signs/day, Rahu-Ketu 180° apart, ayanamsa 24.13° (2020). Deployed function verified end-to-end.
+- **`lib/kundliService.ts`** — mock deleted; `fetchKundliFromProvider` now calls the `kundli` function. `source: 'lahiri'`. **`getKundli` self-heals**: any legacy `source:'mock'` chart is transparently recomputed with the real engine on next view.
+
+**2. Chat quality (the user's complaints).** In `supabase/functions/chat/index.ts`:
+- Replies were essay-length ("2–5 paragraphs" prompt) → now **2–4 sentences, no headings/lists/preamble**; `max_tokens` 1024 → 512. Shorter output also cuts latency (thinking already disabled).
+- Hindi replies used too much English → now **majority-Hindi** when the user writes Hindi (Devanagari or Hinglish), English only for genuine loan-terms.
+- **Chat slug standardized: `bright-processor` → `chat`.** `CHAT_FUNCTION` in `lib/chatService.ts` is now `'chat'`; deployed from the `chat` folder. The old `bright-processor` function is **orphaned — delete it in the dashboard.**
+
+**3. Deploy + infra (all via CLI now).** Auth is a **Personal Access Token** (`npx supabase login --token sbp_…`); the browser flow fails in this non-TTY env. Deploy per function: `npx supabase functions deploy <name> --project-ref eaxdqizerkuqkujxacru` (Docker not needed — deploys via API). **All 9 deployed:** kundli · chat · horoscope · create-order · verify-payment · report · panchang · muhurat · delete-account.
+- **Secrets confirmed set:** `ANTHROPIC_API_KEY` (AI is LIVE — chat/horoscope/report return real Claude, no more mock), `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`.
+- **Migrations:** the CLI history table didn't exist (schema was built via dashboard). Verified via the Management API that **all 14 migrations' objects genuinely exist** (columns, constraints, functions, triggers), then `npx supabase migration repair --status applied 001..014` synced the history (metadata only, no DDL). Local = remote for all 14. Project is now properly CLI-managed.
+
+**4. Security TODO (do these now):** the CLI access token (`sbp_…`) and the DB password were pasted in-session — **rotate the access token** (dashboard → Account → Access Tokens) and **reset the DB password** (Settings → Database). App is unaffected (uses anon key).
+
+**Verify before calling it final:** open a profile → cross-check its new chart against Prokerala/AstroSage (should match); send a Hindi chat message (should come back short + Hindi-dominant).
+
+---
+
 ## 1. What Is Ritham
 
 An AI-powered Vedic astrology Android app (React Native + Expo). Users create a profile with birth details → get a Kundli (birth chart) → chat with an AI astrologer anchored to their chart → buy time-based or question-based chat packs → read daily/weekly/monthly horoscopes → buy PDF reports (Vastu, Matchmaking) → browse an affiliate store.
@@ -21,7 +46,7 @@ An AI-powered Vedic astrology Android app (React Native + Expo). Users create a 
 | Backend / DB / Auth | Supabase (Postgres, Auth, Storage, Edge Functions) |
 | Payments | Razorpay (server-side order create + verify) |
 | AI | Anthropic Claude API — **called only from Edge Functions, never client** |
-| Kundli | Third-party API (Prokerala / VedicAstroAPI) behind `kundliService` module |
+| Kundli | **Self-hosted Vedic sidereal engine** (Lahiri ayanamsa, whole-sign houses) in the `kundli` Edge Function — real astronomy, no API/key/cost. See §0. Client entry point still `kundliService` (rule #1). |
 | Push notifications | **DROPPED for v1** — add after revenue |
 | Analytics | Events table in Supabase |
 
@@ -126,8 +151,8 @@ ritham/
 - [x] Phone auth enabled (test OTP `919986692684=123456`, valid until Jul 30 2026)
 - [x] Migrations 001–005 all run (users, auth sync, referral fix, profiles, chat)
 - [x] `.env.local` filled with real SUPABASE_URL and SUPABASE_ANON_KEY
-- [x] Edge Function deployed (slug `bright-processor`; source `supabase/functions/chat`)
-- [ ] `ANTHROPIC_API_KEY` secret — NOT set yet (chat returns mock until added)
+- [x] Edge Function deployed — **slug is now `chat`** (2026-07-07; old `bright-processor` orphaned, delete it); source `supabase/functions/chat`
+- [x] `ANTHROPIC_API_KEY` secret **SET** (2026-07-07) — chat/horoscope/report return real Claude output
 - [ ] SMS provider (Twilio) — not needed until production launch (test numbers bypass it)
 - [x] **Phase 4:** migration `006_phase4_payments.sql` run (payment_orders + entitlements_ledger)
 - [x] **Phase 4:** Edge Functions `create-order` + `verify-payment` deployed; `chat` redeployed
@@ -140,10 +165,10 @@ ritham/
 - [x] **Phase 7:** app rebuilt (image-picker / print / sharing / webview); **Vastu verified on device**
 - [x] **Phase 7:** Matchmaking added — `report` fn redeployed with the Ashtakoot engine; **verified on device** (JS-only client, no rebuild)
 - [x] **Phase 7b — Chart-based reports (5 new) — REVERTED.** Back to 2 reports (Vastu + Matchmaking). removed `app/report-chart.tsx`, `ChartReportType`, `generateChartReport`, `computeChartFacts`, `generateChartNarration`, `renderChartReportHtml`. Reports tab simplified to 2 cards. No migration needed.
-- [ ] **Phase 10:** run migration `009_phase10_analytics.sql` (events table). Until run, `track()` no-ops silently — app works, no events recorded. No other deploy; rest is JS-only.
-- [ ] **Free Home features:** run migration `010_panchang_numerology.sql` (panchang_cache + profiles.numerology) AND deploy the `panchang` Edge Function. No new secrets. Numerology needs no deploy (client-only). See §20.
-- [ ] **Shubh Muhurat Finder:** run migration `011_muhurat.sql` (muhurat_cache) AND deploy the `muhurat` Edge Function. No new secrets. See §21.
-- [ ] **5 new chart reports (Life/Career/Love/Health/Education):** run migration `012_chart_reports.sql` (widens `reports.type`), redeploy the `report` Edge Function (single-file `index.ts` — the chart engine is inlined as `namespace Chart`), and redeploy `create-order` (new prices). No rebuild, no new secrets. See §23.
+- [x] **Phase 10:** migration `009_phase10_analytics.sql` (events table) — APPLIED + synced 2026-07-07. `events` table live.
+- [x] **Free Home features:** migration `010_panchang_numerology.sql` APPLIED + `panchang` Edge Function DEPLOYED (2026-07-07). See §20.
+- [x] **Shubh Muhurat Finder:** migration `011_muhurat.sql` APPLIED + `muhurat` Edge Function DEPLOYED (2026-07-07). See §21.
+- [x] **Migrations 012 (chart_reports type widen), 013 (profiles.relation), 014 (user-sync FK fix):** all APPLIED + synced 2026-07-07. `report`/`create-order` deployed. (Chart reports feature itself was reverted — §9 — but the harmless `reports.type` widening is applied.)
 
 ---
 

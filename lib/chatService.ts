@@ -4,10 +4,10 @@
 
 import { supabase } from './supabase';
 
-// Supabase Edge Function slug. The dashboard "Via Editor" deploy auto-named the
-// function `bright-processor`; keep this in sync with the deployed function name.
-// (To rename: deploy a function literally named `chat` and set this to 'chat'.)
-const CHAT_FUNCTION = 'bright-processor';
+// Supabase Edge Function slug. Deployed from supabase/functions/chat via the CLI,
+// so the slug matches the folder. (The earlier dashboard deploy under the name
+// `bright-processor` is now orphaned and can be deleted.)
+const CHAT_FUNCTION = 'chat';
 
 export type SessionKind = 'free_minute' | 'paid_time' | 'paid_questions';
 
