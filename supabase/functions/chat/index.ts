@@ -18,6 +18,17 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
 const MODEL = 'claude-sonnet-5';
 const FREE_SECONDS = 60;
+const MAX_MESSAGE_CHARS = 2000; // cost/abuse guardrail on a single chat message
+const CHAT_HISTORY_MAX = 20;    // only send the tail of the conversation to Claude
+
+// The astrologer's opening greeting — the first message of every new chat. Kept
+// server-side (single source of truth) and referenced in the system prompt below.
+// Leads in the natural Hindi-English style our audience speaks and mentions the
+// language freedom exactly once. The client fetches this to display; app UI stays English.
+const GREETING =
+  'Namaste 🙏 Main aapka jyotishi hoon. Aapki kundli ke hisaab se main aapke ' +
+  'sawaalon ke jawab dunga. Aap mujhse Hindi ya English — jaise comfortable ho — ' +
+  'baat kar sakte hain. Batayein, aaj kya jaanna chahenge?';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -50,10 +61,15 @@ Deno.serve(async (req) => {
     // service client for privileged reads/writes (bypasses RLS)
     const admin = createClient(supabaseUrl, serviceKey);
 
-    const { profileId, message, sessionId, useKind } = await req.json();
+    const body = await req.json();
+    // Lightweight: the client fetches the astrologer's opening greeting to show as
+    // the first message on a new chat (no session, entitlement, or Claude call).
+    if (body?.greetingOnly) return json({ greeting: GREETING });
+    const { profileId, message, sessionId, useKind } = body;
     if (!message || typeof message !== 'string' || !message.trim()) {
       return json({ error: 'empty_message' }, 400);
     }
+    if (message.length > MAX_MESSAGE_CHARS) return json({ error: 'message_too_long' }, 400);
     if (!profileId) return json({ error: 'missing_profile' }, 400);
 
     // profile must belong to this user, and have a computed Kundli
@@ -80,22 +96,30 @@ Deno.serve(async (req) => {
       }
       session = s;
     } else {
-      const { data: u } = await admin
-        .from('users').select('free_minute_used_at').eq('id', user.id).maybeSingle();
+      // Atomically CLAIM the free minute (rule #5: one per verified phone). The
+      // conditional update (free_minute_used_at IS NULL) means two concurrent
+      // first-requests can't both be granted a free session.
+      const { data: claimedFree } = await admin
+        .from('users')
+        .update({ free_minute_used_at: new Date().toISOString() })
+        .eq('id', user.id).is('free_minute_used_at', null)
+        .select('id').maybeSingle();
 
-      if (!u?.free_minute_used_at) {
-        // free 1-minute session — one per phone (rule #5)
-        const now = Date.now();
-        const expiresAt = new Date(now + FREE_SECONDS * 1000).toISOString();
+      if (claimedFree) {
+        // free 1-minute session
+        const expiresAt = new Date(Date.now() + FREE_SECONDS * 1000).toISOString();
         const { data: created, error: cErr } = await admin
           .from('chat_sessions')
           .insert({ user_id: user.id, profile_id: profileId, kind: 'free_minute', expires_at: expiresAt })
           .select().single();
-        if (cErr) return json({ error: 'session_create_failed', detail: cErr.message }, 500);
+        if (cErr) {
+          // roll the claim back so a transient error doesn't burn the user's free minute
+          await admin.from('users').update({ free_minute_used_at: null }).eq('id', user.id);
+          return json({ error: 'session_create_failed', detail: cErr.message }, 500);
+        }
         session = created;
-        await admin.from('users').update({ free_minute_used_at: new Date(now).toISOString() }).eq('id', user.id);
       } else {
-        // paid path — start a session backed by an entitlement (Phase 4)
+        // free minute already used → paid path backed by an entitlement (Phase 4)
         session = await startPaidSession(admin, user.id, profileId, useKind);
         if (!session) return json({ error: 'needs_purchase' }); // client opens the paywall
       }
@@ -116,7 +140,12 @@ Deno.serve(async (req) => {
       .from('chat_messages').select('role, content')
       .eq('session_id', session.id).order('created_at', { ascending: true });
 
-    const reply = await generateReply(profile, history ?? []);
+    // Cost guardrail: only send the tail of the conversation to Claude, and ensure
+    // it begins on a user turn (the API rejects a leading assistant message).
+    let recent = (history ?? []).slice(-CHAT_HISTORY_MAX);
+    while (recent.length && recent[0].role !== 'user') recent = recent.slice(1);
+
+    const reply = await generateReply(profile, recent);
 
     await admin.from('chat_messages').insert({ session_id: session.id, role: 'assistant', content: reply });
 
@@ -225,7 +254,12 @@ function buildSystemPrompt(profile: any): string {
     `- Keep replies concise (2–5 short paragraphs max), conversational, and specific to their chart.`,
     `- You may discuss career, relationships, timing, temperament, remedies (gemstones, mantras, charity) in a Vedic frame.`,
     `- Never give medical, legal, or guaranteed financial advice; suggest professionals for those.`,
-    `- Write in the user's language if they switch; otherwise clear, simple English with occasional Sanskrit terms.`,
+    ``,
+    `Language:`,
+    `- You have already greeted the user with: "${GREETING}" — do NOT repeat it or re-introduce yourself; answer their question directly and warmly.`,
+    `- MIRROR the user's language, script, and register in every reply. If they write in a natural mix of Hindi and English, reply in that same warm, natural mix. If they write in pure English, reply in clean English. If they write in Hindi (Devanagari), reply in Hindi.`,
+    `- Match how formal they are and how much English they mix in. Never comment on their language choice or switch languages unprompted.`,
+    `- Keep authentic Jyotisha terms in their original form in any language — kundli, rashi, graha, dasha, nakshatra, lagna, Shani, Mangal, Guru, and similar. Do NOT translate these into English equivalents inside a Hindi or mixed reply.`,
   ].join('\n');
 }
 

@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { useActiveProfile } from '../../context/ProfileContext';
 import { supabase } from '../../lib/supabase';
-import { sendChat, ChatResult, SessionKind, ChatBalance } from '../../lib/chatService';
+import { sendChat, fetchGreeting, ChatResult, SessionKind, ChatBalance } from '../../lib/chatService';
 import { getBalance } from '../../lib/paymentService';
 import { track } from '../../lib/analytics';
 import Paywall from '../../components/Paywall';
@@ -20,6 +20,15 @@ import { TAB_BAR_HEIGHT } from './_layout';
 
 type Entry = 'loading' | 'need_profile' | 'ready';
 interface Msg { role: 'user' | 'assistant'; content: string }
+
+// Starter questions for an empty chat — weighted to the natural Hindi-English style
+// our users speak, with one plain-English example so the language freedom is obvious.
+const STARTER_CHIPS = [
+  'Aaj mera din kaisa rahega?',
+  'Meri shaadi kab hogi?',
+  'Career mein growth kab aayegi?',
+  'Will I get a job this year?',
+];
 
 function mmss(sec: number) {
   const m = Math.floor(sec / 60);
@@ -41,6 +50,7 @@ export default function ChatScreen() {
   const [freeUsed, setFreeUsed] = useState(false);
 
   const [messages, setMessages] = useState<Msg[]>([]);
+  const [greeting, setGreeting] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -66,7 +76,7 @@ export default function ChatScreen() {
     if (!user || !activeId) return; // profiles still resolving (Home handles onboarding)
     (async () => {
       // fresh conversation for the newly-active person
-      setMessages([]); setSessionId(null); setSessionKind(null);
+      setMessages([]); setGreeting(null); setSessionId(null); setSessionKind(null);
       setExpiresAt(null); setRemaining(null); setEnded(false); setBanner('');
       setEntry('loading');
 
@@ -82,6 +92,8 @@ export default function ChatScreen() {
       setFreeUsed(!!u?.free_minute_used_at);
       setBalance(await getBalance());
       setEntry('ready');
+      // opening greeting (server-side text); fail-soft — chat opens without it
+      fetchGreeting().then(setGreeting);
     })();
   }, [user, activeId]);
 
@@ -233,10 +245,6 @@ export default function ChatScreen() {
           <View style={styles.introCard}>
             <Text style={styles.introEyebrow}>YOUR FIRST MINUTE IS FREE</Text>
             <Text style={styles.introTitle}>A conversation with the stars</Text>
-            <Text style={styles.introText}>
-              Ask your AI Vedic astrologer anything — career, relationships, timing, remedies.
-              Send a message to begin your free 1-minute session.
-            </Text>
             <Text style={styles.introDisclaimer}>
               For guidance and reflection — not a substitute for professional advice.
             </Text>
@@ -251,6 +259,29 @@ export default function ChatScreen() {
               {balance!.seconds > 0 && `You have ${formatSeconds(balance!.seconds)} of talk time. `}
               Send a message to begin.
             </Text>
+          </View>
+        )}
+
+        {/* Astrologer's opening greeting (server-side text) — the first message of a new chat */}
+        {greeting && inputVisible && (
+          <View style={[styles.bubble, styles.aiBubble]}>
+            <Text style={styles.aiText}>{greeting}</Text>
+          </View>
+        )}
+
+        {/* Tappable starters — only on an empty chat; disappear once chatting begins */}
+        {notStarted && inputVisible && (
+          <View style={styles.chipsWrap}>
+            {STARTER_CHIPS.map((q) => (
+              <Pressable
+                key={q}
+                style={styles.chip}
+                onPress={() => setInput(q)}
+                android_ripple={{ color: th.goldDeep }}
+              >
+                <Text style={styles.chipText}>{q}</Text>
+              </Pressable>
+            ))}
           </View>
         )}
 
@@ -285,12 +316,13 @@ export default function ChatScreen() {
         <View style={[styles.inputRow, { paddingBottom: kbVisible ? Spacing.sm : insets.bottom + TAB_BAR_HEIGHT }]}>
           <TextInput
             style={styles.input}
-            placeholder={inputLocked ? 'Session ended' : 'Ask about your chart…'}
+            placeholder={inputLocked ? 'Session ended' : 'Apna sawaal poochein... (Hindi ya English)'}
             placeholderTextColor={th.textDim}
             value={input}
             onChangeText={setInput}
             editable={!inputLocked}
             multiline
+            maxLength={2000}
             onSubmitEditing={handleSend}
           />
           <Pressable
@@ -344,6 +376,13 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   introTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginBottom: Spacing.sm },
   introText: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21 },
   introDisclaimer: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, lineHeight: 16, marginTop: Spacing.sm, fontStyle: 'italic' },
+
+  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+  chip: {
+    backgroundColor: th.surface, borderWidth: 1, borderColor: th.borderStrong,
+    borderRadius: Radius.pill, paddingVertical: 9, paddingHorizontal: Spacing.md,
+  },
+  chipText: { fontFamily: Fonts.body, color: th.goldLight, fontSize: Fonts.size.sm },
 
   bubble: { maxWidth: '85%', borderRadius: Radius.lg, padding: Spacing.md },
   userBubble: { alignSelf: 'flex-end', backgroundColor: th.goldSurface, borderBottomRightRadius: 4 },

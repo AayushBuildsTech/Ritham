@@ -5,6 +5,21 @@
 > `PROGRESS.md` (status/handoff) and `DECISIONS.md` (architecture rationale);
 > this PRD and `Ritham_BuildSpec.md` capture these two features specifically.
 
+## Chat — Hindi or English (auto language-mirroring)
+
+Users can chat with the astrologer in **Hindi or English** (most naturally mix the two). The AI
+automatically **mirrors the user's language, script, and register** on every reply — no language menu,
+selector, or setting. Authentic Jyotisha terms (kundli, rashi, graha, dasha, Shani, Mangal…) stay in
+their original form. The **app UI stays in English.**
+
+Language freedom is made discoverable with three small, in-chat touches only — no banners, popups, or
+extra screens:
+- **Opening greeting** (astrologer's first message, server-side with the system prompt) leads in the
+  natural Hindi-English style and mentions "Hindi ya English — jaise comfortable ho" exactly once.
+- **Input placeholder**: "Apna sawaal poochein... (Hindi ya English)".
+- **Starter chips** on an empty chat (weighted Hindi with one plain-English example); they disappear
+  once the user starts chatting.
+
 ## Free Home features: Panchang & Numerology
 
 ### Why

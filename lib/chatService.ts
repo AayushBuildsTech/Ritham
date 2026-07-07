@@ -31,6 +31,17 @@ export interface ChatResult {
   error?: string;
 }
 
+// The astrologer's opening greeting for a new chat. The text lives server-side
+// (with the system prompt); this just retrieves it. Fail-soft: returns null if the
+// function is unreachable, and the chat simply opens without the greeting bubble.
+export async function fetchGreeting(): Promise<string | null> {
+  const { data, error } = await supabase.functions.invoke(CHAT_FUNCTION, {
+    body: { greetingOnly: true },
+  });
+  if (error) return null;
+  return (data as { greeting?: string })?.greeting ?? null;
+}
+
 export async function sendChat(
   profileId: string,
   message: string,

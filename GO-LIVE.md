@@ -45,10 +45,14 @@ For each: open (or create) the function with the **exact slug** below, paste the
 
 | # | Slug | Source file | Client constant | New? |
 |---|------|-------------|-----------------|------|
-| 1 | `report` | `supabase/functions/report/index.ts` (single file — chart engine inlined as `namespace Chart`) | `REPORT_FUNCTION` in `lib/reportService.ts` | **re-deploy** (async generation + JSON hardening) |
-| 2 | `panchang` | `supabase/functions/panchang/index.ts` | `PANCHANG_FUNCTION` in `lib/panchangService.ts` | **new** |
-| 3 | `muhurat` | `supabase/functions/muhurat/index.ts` | `MUHURAT_FUNCTION` in `lib/muhuratService.ts` | **new** |
-| 4 | `delete-account` | `supabase/functions/delete-account/index.ts` | `DELETE_ACCOUNT_FN` in `lib/accountService.ts` | **new** |
+| 1 | `bright-processor` | `supabase/functions/chat/index.ts` | `CHAT_FUNCTION` in `lib/chatService.ts` | **re-deploy** (cost guardrails: message + history caps, atomic free-minute) |
+| 2 | `report` | `supabase/functions/report/index.ts` (single file — chart engine inlined as `namespace Chart`) | `REPORT_FUNCTION` in `lib/reportService.ts` | **re-deploy** (async generation + JSON hardening + credit claim/input caps) |
+| 3 | `panchang` | `supabase/functions/panchang/index.ts` | `PANCHANG_FUNCTION` in `lib/panchangService.ts` | **new** |
+| 4 | `muhurat` | `supabase/functions/muhurat/index.ts` | `MUHURAT_FUNCTION` in `lib/muhuratService.ts` | **new** |
+| 5 | `delete-account` | `supabase/functions/delete-account/index.ts` | `DELETE_ACCOUNT_FN` in `lib/accountService.ts` | **new** |
+
+> `bright-processor` is the deployed slug for the chat function (the dashboard auto-named it) — paste
+> `chat/index.ts` into the existing `bright-processor` function; don't create a new `chat` function.
 
 **No new secrets** for any of these — `panchang`/`muhurat` are pure compute (no AI), and `delete-account`
 uses the auto-injected service-role key.
@@ -78,6 +82,34 @@ Press **`R`** in the Metro terminal (or shake device → **Reload**). JS-only; n
 - **Settings** — Delete account works (use a throwaway login to verify).
 
 ---
+
+## Security guardrails
+
+### Enforced in code (active as soon as you deploy `bright-processor` + `report`)
+- **No forged entitlements.** `entitlements_ledger` / `payment_orders` are RLS **select-only** for clients
+  — only the service-role Edge Functions write them. Payments are verified server-side (HMAC, timing-safe
+  compare, amount recomputed from the stored order, idempotent grant).
+- **Report credit can't be multiplied.** The paid credit is **claimed atomically before** any Claude call,
+  so N concurrent requests off one purchase can't each trigger a (paid) generation; the claim is released
+  only if generation fails (retry-safe).
+- **Input caps on paid AI calls.** Chat message ≤ 2000 chars + only the last 20 turns are sent to Claude;
+  Vaastu questionnaire ≤ 4 KB and floor-plan image ≤ 6 MB; chart `placements` ≤ 30 and person object ≤ 8 KB.
+- **Free minute is one per phone**, claimed atomically (no concurrent double-grant).
+- **Own-data only.** Every function derives the user from the JWT and filters by it; RLS scopes reports,
+  chats, profiles, orders, entitlements, and Storage floor-plans to `auth.uid()`.
+
+### You must set these in the dashboard before real customers (NOT code)
+1. **Remove the test OTP `123456`.** Supabase → Authentication → Providers → Phone → **delete the test
+   number(s)**. Until then, anyone can log in as any phone number — this is the single biggest hole. (Fine
+   for your own testing; must be gone before launch.)
+2. **Lock down the `reports` Storage bucket.** Storage → `reports` bucket → set a **file-size limit
+   (~6 MB)** and restrict **allowed MIME types to images** (`image/png`, `image/jpeg`). RLS already scopes
+   it per-user; this bounds what can be uploaded.
+3. **Razorpay → live mode** (when taking real money): live keys + payment webhook, then redeploy
+   `create-order`/`verify-payment`. Deferred per PROGRESS §16.
+4. **Consider a rate limit** on the AI functions (chat/report) for launch — e.g. a per-user requests-per-
+   minute cap (a small `rpm` check against a counter table) — as defence-in-depth beyond the entitlement
+   gating. Not required for correctness; entitlements already bound paid spend.
 
 ## Notes / not blocking
 - **Razorpay is still in TEST mode.** For real customers you'll switch to live keys + add the payment

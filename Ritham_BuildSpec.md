@@ -4,6 +4,20 @@
 > (Panchang + Numerology). The authoritative architecture log is `DECISIONS.md`;
 > deploy/test status lives in `PROGRESS.md` §20. This file is the focused spec.
 
+## Chat — Hindi or English (language-mirroring)
+
+The chat function (`chat/index.ts`, deployed as `bright-processor`) drives all language behavior — the
+app UI stays English. The **system prompt** instructs the astrologer to mirror the user's language,
+script, and register on every reply (natural Hindi-English mix, pure English, or Devanagari Hindi) and to
+keep Jyotisha terms untranslated. User messages pass through unchanged so the model detects language
+naturally.
+
+- **Greeting**: a server-side `GREETING` constant (single source of truth, referenced in the system
+  prompt). The client fetches it via a lightweight `{ greetingOnly: true }` call (`fetchGreeting()` in
+  `lib/chatService.ts`) and renders it as the astrologer's first bubble; no session/entitlement/AI cost.
+- **Placeholder** + **starter chips**: in `app/(tabs)/chat.tsx` (chips shown only on an empty chat).
+- No new screens, banners, toggles, or language selector. Redeploy `bright-processor` to activate.
+
 ## §9 Brand (reference)
 Deep indigo background (`#14122b`→`#1e1b45`), gold accents (`#d9a441`/`#e6c063`),
 off-white text (`#f0ece8`); premium, calm, celestial — never kitschy. Both new features

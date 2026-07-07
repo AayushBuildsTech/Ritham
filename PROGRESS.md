@@ -1235,3 +1235,46 @@ instant credits land (no redeploy); `report` needs its re-deploy (async + harden
 **Still deploy-pending (see `GO-LIVE.md` for the exact list):** migrations `009`/`010`/`011`
 (+`013`/`014` if not already run); (re)deploy `report`, and first-time deploy `panchang` / `muhurat` /
 `delete-account` (watch for dashboard slug auto-rename). No new secrets, no native rebuild.
+
+### Security guardrails pass (2026-07-07)
+Hardened the AI-cost surface (real Anthropic money once credits land). Audit found payments + RLS already
+solid — `verify-payment` does HMAC + timing-safe compare + server-side amount + idempotent grant;
+`entitlements_ledger`/`payment_orders` are RLS **select-only** for clients (only service-role functions
+write them, so entitlements can't be forged); reports/storage/profiles all scoped to `auth.uid()`.
+**Fixed (code, in `chat` + `report` — both need redeploy to activate):**
+- **Report credit multiplication** — credit was consumed on *success*, so N concurrent requests (or
+  retries) off one purchase could each fire a ~$0.10 Claude report call. Now the credit is **claimed
+  atomically before** generation (conditional `update … where consumed_at is null`); losers get
+  `needs_purchase`; the claim is released on failure (retry-safe).
+- **Unbounded AI inputs** — added caps: chat message ≤ 2000 chars (+ client `maxLength`), only last
+  `CHAT_HISTORY_MAX=20` turns sent to Claude (trimmed to start on a user turn); Vaastu answers ≤ 4 KB,
+  floor-plan ≤ 6 MB; `isPerson` now caps name ≤ 120 + `placements` ≤ 30, plus an 8 KB person backstop.
+- **Free-minute race** — now an atomic conditional claim on `users.free_minute_used_at` (rollback on
+  session-create error) so concurrent first-requests can't double-grant (rule #5).
+`tsc` + `esbuild` (chat, report) pass. **Operational items for pre-launch (dashboard, NOT code) — in
+`GO-LIVE.md` → Security guardrails:** remove the **test OTP `123456`** (Auth → Phone), set the `reports`
+bucket to **image MIME + ~6 MB size limit**, Razorpay live mode, and optionally a per-user rate limit on
+chat/report.
+
+---
+
+## 32. Chat — Hindi/English discoverability (2026-07-07, JS + chat fn)
+
+Made language flexibility discoverable **without any UI clutter** — no banners, popups, screens, or
+language selector; app UI stays English. Audience skews Hindi-mixed-with-English, so we lead in that
+natural style and mention the English option subtly. **Never uses the word "Hinglish."** Three touches:
+- **Opening greeting** — server-side `GREETING` const in `chat/index.ts` (single source of truth,
+  referenced in the system prompt). Client fetches it via a lightweight `{ greetingOnly: true }` call
+  (`fetchGreeting()` in `lib/chatService.ts` → returns just the string; **no session/entitlement/AI
+  cost**) and renders it as the astrologer's first bubble on a new chat. Not hardcoded in the UI.
+- **Placeholder** — `app/(tabs)/chat.tsx`: `'Apna sawaal poochein... (Hindi ya English)'`.
+- **Starter chips** — 4 tappable chips on an empty chat (3 Hindi-style + 1 plain-English: "Will I get a
+  job this year?"); tap fills the input; they vanish once chatting starts. Brand-styled (indigo/gold).
+  Trimmed one redundant sentence from the free-minute intro card so the empty state stays clean.
+
+**Real mechanism = system prompt:** the astrologer MIRRORS the user's language/script/register every
+reply (natural Hindi-English mix / pure English / Devanagari Hindi), matches formality + English-mixing,
+and keeps Jyotisha terms authentic (kundli, rashi, graha, dasha, Shani, Mangal…). User messages pass
+through unchanged so the model detects language naturally. `tsc` + `esbuild` (chat) pass; "Hinglish"
+appears nowhere in the repo. **Activate: redeploy `bright-processor`** (greeting + language are
+server-side); placeholder/chips are JS-only. PRD + BuildSpec updated with a brief Chat-language section.

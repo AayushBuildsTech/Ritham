@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
     if (type === 'vastu') {
       const { answers, floorplanPath } = body;
       if (!answers || typeof answers !== 'object') return json({ error: 'missing_answers' }, 400);
+      if (JSON.stringify(answers).length > 4000) return json({ error: 'answers_too_large' }, 400);
       if (!floorplanPath) return json({ error: 'missing_floorplan' }, 400);
       if (!String(floorplanPath).startsWith(`${user.id}/`)) return json({ error: 'forbidden_path' }, 403);
       insertRow = {
@@ -81,6 +82,7 @@ Deno.serve(async (req) => {
     } else if (type === 'matchmaking') {
       const { self, partner, chartStyle } = body;
       if (!isPerson(self) || !isPerson(partner)) return json({ error: 'missing_people' }, 400);
+      if (tooBig(self) || tooBig(partner)) return json({ error: 'chart_too_large' }, 400);
       style = chartStyle === 'south' ? 'south' : 'north';
       insertRow = {
         user_id: user.id, order_id: ent.order_id, entitlement_id: ent.id,
@@ -91,23 +93,38 @@ Deno.serve(async (req) => {
       // single-person chart report: reads the user's own cached Kundli (rule #1)
       const { self } = body;
       if (!isPerson(self)) return json({ error: 'missing_chart' }, 400);
+      if (tooBig(self)) return json({ error: 'chart_too_large' }, 400);
       insertRow = {
         user_id: user.id, order_id: ent.order_id, entitlement_id: ent.id,
         type, status: 'generating', answers: { self }, // chart snapshot kept on the record
       };
     }
 
+    // Atomically CLAIM the credit BEFORE any paid Claude work. The conditional
+    // update (consumed_at IS NULL) means N concurrent requests sharing one credit
+    // can't each start a generation — only the first claim wins; the rest get
+    // needs_purchase. Prevents multiplying the Anthropic bill off a single purchase.
+    const { data: claimed } = await admin
+      .from('entitlements_ledger')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('id', ent.id).is('consumed_at', null)
+      .select().maybeSingle();
+    if (!claimed) return json({ error: 'needs_purchase' });
+
     const { data: report, error: rErr } = await admin
       .from('reports').insert(insertRow).select().single();
-    if (rErr) return json({ error: 'report_create_failed', detail: rErr.message }, 500);
+    if (rErr) {
+      await admin.from('entitlements_ledger').update({ consumed_at: null }).eq('id', ent.id);
+      return json({ error: 'report_create_failed', detail: rErr.message }, 500);
+    }
 
     // Generate in the BACKGROUND. A report is a long, non-streaming Claude call
     // (5000–8000 tokens → 1–3 minutes), which a synchronous request cannot hold:
     // the mobile fetch / API gateway time out and the worker is dropped early
     // (observed as an "EarlyDrop" shutdown). Instead we return the report_id right
     // away with status 'generating' and let the client poll the reports row
-    // (reportService.getReport) until it flips to 'ready' or 'failed'. The paid
-    // entitlement is consumed ONLY on success, so a failed run preserves the credit.
+    // (reportService.getReport) until it flips to 'ready' or 'failed'. The credit
+    // was claimed above and is RELEASED again only if generation fails (retry-safe).
     const generate = async () => {
       try {
         let html: string;
@@ -131,10 +148,11 @@ Deno.serve(async (req) => {
 
         await admin.from('reports')
           .update({ status: 'ready', html: html!, score }).eq('id', report.id);
-        await admin.from('entitlements_ledger')
-          .update({ consumed_at: new Date().toISOString() }).eq('id', ent.id);
+        // credit was already claimed before generation — nothing to consume here
       } catch (genErr) {
         await admin.from('reports').update({ status: 'failed' }).eq('id', report.id);
+        // release the claimed credit so the paying user can retry without losing it
+        await admin.from('entitlements_ledger').update({ consumed_at: null }).eq('id', ent.id);
         console.error('report generation failed', report.id, String((genErr as Error)?.message ?? genErr));
       }
     };
@@ -156,6 +174,7 @@ async function generateVastu(admin: any, floorplanPath: string, answers: any): P
   const { data: file, error: dErr } = await admin.storage.from('reports').download(floorplanPath);
   if (dErr || !file) throw new Error(`floorplan_download_failed: ${dErr?.message ?? 'no file'}`);
   const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length > 6 * 1024 * 1024) throw new Error('floorplan_too_large'); // cost guardrail: bound the vision request
   let bin = '';
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
   const b64 = btoa(bin);
@@ -554,9 +573,16 @@ interface MatchAnalysis {
 
 function isPerson(p: any): p is Person {
   return !!p && typeof p === 'object'
-    && typeof p.name === 'string'
+    && typeof p.name === 'string' && p.name.length <= 120
     && typeof p.moon_sign === 'string' && typeof p.nakshatra === 'string'
-    && Array.isArray(p.placements);
+    && Array.isArray(p.placements) && p.placements.length <= 30;
+}
+
+// Total-size backstop for an attacker-controllable person object that flows into a
+// paid Claude prompt (guards against name/placement-string bloat). ~8 KB is far
+// above any real chart (a full chart serializes to ~1 KB).
+function tooBig(p: any): boolean {
+  try { return JSON.stringify(p).length > 8000; } catch { return true; }
 }
 
 const M_SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
