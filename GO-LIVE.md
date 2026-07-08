@@ -31,6 +31,8 @@ you're unsure whether one already ran, just run it again.
 | 3 | `011_muhurat.sql` | `muhurat_cache` | Needed by step B3 |
 | 4 | `013_family_members.sql` | `profiles.relation` (family) | Run if not already |
 | 5 | `014_fix_user_sync.sql` | user→profile FK sync fix | Run if not already (re-runnable) |
+| 6 | `015_chat_history_delete.sql` | delete-own RLS on `chat_sessions` | Run if not already |
+| 7 | `016_vedastro_rich_kundli.sql` | VedAstro usage counter + per-profile horoscope cache | **VedAstro integration** (see §E) |
 
 ---
 
@@ -47,9 +49,11 @@ For each: open (or create) the function with the **exact slug** below, paste the
 |---|------|-------------|-----------------|------|
 | 1 | `bright-processor` | `supabase/functions/chat/index.ts` | `CHAT_FUNCTION` in `lib/chatService.ts` | **re-deploy** (cost guardrails: message + history caps, atomic free-minute) |
 | 2 | `report` | `supabase/functions/report/index.ts` (single file — chart engine inlined as `namespace Chart`) | `REPORT_FUNCTION` in `lib/reportService.ts` | **re-deploy** (async generation + JSON hardening + credit claim/input caps) |
-| 3 | `panchang` | `supabase/functions/panchang/index.ts` | `PANCHANG_FUNCTION` in `lib/panchangService.ts` | **new** |
+| 3 | `panchang` | `supabase/functions/panchang/index.ts` | `PANCHANG_FUNCTION` in `lib/panchangService.ts` | **new** — now VedAstro-sourced (§E) |
 | 4 | `muhurat` | `supabase/functions/muhurat/index.ts` | `MUHURAT_FUNCTION` in `lib/muhuratService.ts` | **new** |
 | 5 | `delete-account` | `supabase/functions/delete-account/index.ts` | `DELETE_ACCOUNT_FN` in `lib/accountService.ts` | **new** |
+| 6 | `kundli` | `supabase/functions/kundli/index.ts` (single file — engines inlined) | `KUNDLI_FUNCTION` in `lib/kundliService.ts` | **new** — VedAstro primary (§E) |
+| 7 | `horoscope` | `supabase/functions/horoscope/index.ts` | `HOROSCOPE_FUNCTION` in `lib/horoscopeService.ts` | **re-deploy** — now transit-aware (§E) |
 
 > `bright-processor` is the deployed slug for the chat function (the dashboard auto-named it) — paste
 > `chat/index.ts` into the existing `bright-processor` function; don't create a new `chat` function.
@@ -71,6 +75,36 @@ uses the auto-injected service-role key.
 
 ## D. Reload the app
 Press **`R`** in the Metro terminal (or shake device → **Reload**). JS-only; no rebuild.
+
+---
+
+## E. VedAstro integration (rich Kundli + Panchang data engine) — PROGRESS §35
+
+VedAstro (api.vedastro.org, Swiss Ephemeris) is now the source of truth for the Kundli + Panchang,
+behind `kundliService` (spec §0). It is **primary with an automatic local-engine fallback**, so onboarding
+never fails even if VedAstro is down/rate-limited.
+
+1. **Migration:** run `016_vedastro_rich_kundli.sql` (§A row 7) — adds the usage counter + per-profile
+   horoscope cache column. `kundli_source` is free text, so `'vedastro'` needs no constraint change.
+2. **Secret:** Edge Functions → Secrets → add **`VEDASTRO_API_KEY=FreeAPIUser`** (free tier, 5 req/min, no
+   card). Upgrade to a paid key later at scale (~₹79/mo) — no code change, just replace the secret value.
+3. **Deploy (single-file paste, dashboard):**
+   - **`kundli`** (§B row 6) — **new** function; VedAstro primary + local fallback (astro + kundliSummary +
+     the `Veda` client are all inlined into the one `index.ts`). Confirm the slug is literally `kundli`.
+   - **`panchang`** (§B row 3) — re-deploy the updated file (VedAstro almanac + local fallback).
+   - **`horoscope`** (§B row 7) — re-deploy (now per-profile, transit-aware; reads the stored chart, never
+     calls VedAstro).
+   - **`bright-processor` (chat)** — re-deploy `chat/index.ts` (injects the full VedAstro `chart_facts`;
+     fixed so a VedAstro v3 chart is never downgraded).
+4. **No app rebuild** (JS-only client) — reload Metro. Existing profiles auto-upgrade to the VedAstro chart
+   the next time their Kundli is opened (thin/legacy charts self-heal; the Kundli screen also has a
+   **"Refresh with VedAstro"** button for any chart still on the local fallback).
+5. **Verify locally first (optional):** `node scripts/vedastro-sample.mjs` hits the live API through the
+   real module and prints a rich chart, summary, panchang, numerology, and the chat-grounding proof.
+
+**Rate-limit note (§8):** VedAstro is called only **once per profile** (2 API calls) and **once per city
+per day** for Panchang (both cached). The `vedastro_usage` table logs daily call volume so you can watch
+free-tier headroom. Chat/horoscope/muhurat never call VedAstro.
 
 ---
 

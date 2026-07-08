@@ -1425,3 +1425,70 @@ output. `npx tsc --noEmit` passes (Deno fns excluded from app tsc, as before).
 into their dashboard functions (chat slug = `bright-processor`). **No migration, no app rebuild, no new
 secrets.** Real Claude replies stay mock until `ANTHROPIC_API_KEY` (§28 runbook) — the spec's §7 test
 script runs live once the key is set.
+
+## 35. VedAstro — single Vedic data engine (CODE DONE; deploy pending — 2026-07-08)
+
+Adopted **VedAstro** (`api.vedastro.org`, Swiss Ephemeris / NASA JPL, MIT-licensed, free `FreeAPIUser`
+tier @ 5 req/min) as the source of truth for the Kundli + Panchang + the chat/report grounding data,
+**with the existing self-hosted Lahiri engine as an automatic fallback** so onboarding never fails. This
+replaces the shallow local chart (9 signs + a hash-influenced dasha) with real depth: divisional charts,
+combustion/retrograde/Shadbala, D9/D10, full Vimshottari dates, richer yogas/doshas. See
+`Ritham_BuildSpec.md` → "Vedic data engine" and `Ritham_ChatEngine_Master.md`.
+
+**Architecture (single integration point — rule #1 / spec §0):**
+- **NEW `supabase/functions/_shared/vedastro.ts`** — the ONLY code that fetches VedAstro (wrapped in
+  `namespace Veda` so it never collides when co-inlined). Holds `VEDASTRO_API_KEY` (server-side).
+  `Veda.fetchRichKundli` (2 calls: `AllPlanetData` + `AllHouseData`, with retry/backoff) → a full
+  `chart_facts`; `Veda.fetchPanchang` (1 call: `PanchangaTable`); `Veda.bumpVedastroUsage`. The
+  Vimshottari timeline is computed from VedAstro's exact Moon longitude; transits/Sade Sati stay in
+  `currentDynamics` (fresh each session). **Client + chat + horoscope NEVER call VedAstro** (grep-proven).
+- **`kundli/index.ts`** — VedAstro primary → local `computeRichKundli` fallback; returns
+  `engine_version: 3`, `source: 'vedastro'`, `chart_facts` on `profiles.kundli_chart`. **Now a real
+  function to deploy** (was pure-compute).
+- **`chat/index.ts`** — injects the full `chart_facts` (doshas, retrograde/combust, D9) alongside the
+  existing structured block. **Bug fixed:** the old self-heal recomputed if `engine_version !== 2`, which
+  would DOWNGRADE a VedAstro v3 chart to the local engine — now it only heals *thin* charts and never
+  downgrades. Pre-send assertion tightened to require lagna + rashi + a non-empty dasha timeline.
+- **`panchang/index.ts`** — VedAstro almanac (5 limbs + sunrise/sunset) with the muhurta windows
+  computed locally from those sun-times; **local pure-compute fallback**. Same `(place_key, date_key)`
+  cache. Now self-contained (astro + Veda inlined).
+- **`horoscope/index.ts`** — **now per-profile & transit-aware** (§2): injects the profile's running
+  dasha + current gochar. Cache key is `(profile_id, period, period_key)`.
+- **`lib/kundliService.ts`** — `chart_facts` types + `source:'vedastro'` + `engine_version 2|3`;
+  self-heal accepts v2/v3 (no VedAstro spam), thin/mock → recompute (prefers VedAstro). §0 umbrella
+  surface: `getRichKundli`/`refreshKundli`/`getDailyPanchang`/`getMuhuratWindows`/`getNumerology`/
+  `getGunaMatch`. **Numerology stays local** (Pythagorean math + static text) behind the umbrella —
+  not astronomy, kept free/offline (deliberate deviation). **Muhurat unchanged** (local 45-day scan —
+  VedAstro per-day is infeasible on the free tier).
+- **`app/profile.tsx` `KundliView`** — rebuilt into the rich Kundli screen (§6): overview + lagna lord,
+  planetary table with degree/dignity/retro/combust/vargottama, house lords, current + upcoming dasha
+  (client-computed from the stored timeline), D9/D10, yogas & doshas, provider line, and a "Refresh with
+  VedAstro" action for charts still on the local fallback.
+- **`scripts/inline-functions.mjs`** — generalised to compose per-function engine sets: kundli =
+  astro+kundliSummary+vedastro, panchang = astro+vedastro, chat/horoscope = astro+kundliSummary
+  (VedAstro-free). **`migration 016_vedastro_rich_kundli.sql`** — `vedastro_usage` counter +
+  `bump_vedastro_usage()` + per-profile `horoscopes.profile_id`. **`scripts/vedastro-sample.mjs`** —
+  live proof (run with `npx tsx`).
+
+**Verified locally (I can't deploy/set the secret/run the device from here):** the sample script hit the
+LIVE API for a real DOB and produced a full `chart_facts` (9 grahas w/ dignity+retro+combust+D9/D10,
+12 house lords, dated Vimshottari timeline, yogas/doshas), a dense `summary_text`, current
+dasha+transits+active Sade Sati, a cached-Panchang sample, a numerology sample, and a **chat-grounding
+proof** (for "meri shaadi kab hogi" the prompt already carries dasha/nakshatra/transits → the AI never
+lacks details). All 4 inlined engines transpile with no duplicate declarations; `npx tsc --noEmit`
+passes; grep proves `api.vedastro.org` appears only in `_shared/vedastro.ts` + the inlined kundli/panchang.
+
+**To go live:** see `GO-LIVE.md` §E — run migration `016`, set secret `VEDASTRO_API_KEY=FreeAPIUser`,
+(re)deploy `kundli` (new) / `panchang` / `horoscope` / `bright-processor`, reload Metro. No app rebuild.
+Existing profiles self-heal to the VedAstro chart on next Kundli/chat view (or via the Refresh button).
+
+### Not yet done (follow-ups)
+- Live end-to-end (deployed + Anthropic credits) chat/report proof is pending the dashboard deploy + a
+  credit top-up (Anthropic is at $0 — §31). VedAstro itself needs no credits (free tier).
+- The Kundli screen shows current dasha (client-computed) but not live gochar transits (those need the
+  server ephemeris; they're surfaced in chat + horoscope). Fine for v1.
+- `getGunaMatch` computes the partner chart via VedAstro; the Ashtakoot scoring still runs in `report`
+  (rule #2). Wiring the report's Matchmaking self-side to VedAstro charts happens automatically now that
+  `kundliService` is VedAstro-backed.
+- MatchChecker / extra divisional endpoints (D2/D3/D7/…) are available on VedAstro but not wired (D9/D10
+  cover v1); add later if a report needs them.

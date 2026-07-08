@@ -50,6 +50,27 @@ export interface HouseLord {
 export interface Yoga { name: string; nature: 'benefic' | 'caution'; detail: string }
 export interface DashaPeriod { lord: string; start: string; end: string }
 
+// ── Rich VedAstro depth (chart_facts) — present when source === 'vedastro' (§1). ──
+// Client-side mirror of the shape built in supabase/functions/_shared/vedastro.ts.
+export interface GrahaFact {
+  graha: string; sign: string; sign_degree: string; house: number;
+  nakshatra: string; pada: number;
+  retrograde: boolean; combust: boolean;
+  dignity: 'Exalted' | 'Debilitated' | 'Own sign' | 'Neutral';
+  vargottama: boolean; navamsa_sign: string; dashamsa_sign: string;
+  shadbala: string; strong: boolean; longitude: number;
+}
+export interface DoshaFact { name: string; present: boolean; detail: string }
+export interface ChartFacts {
+  provider: 'vedastro'; ayanamsa: string;
+  lagna: string; lagna_lord: { graha: string; sign: string; house: number };
+  moon_sign: string; sun_sign: string; nakshatra: string; pada: number;
+  grahas: GrahaFact[]; houses: HouseLord[]; yogas: Yoga[]; doshas: DoshaFact[];
+  divisional: { d9: Record<string, string>; d10: Record<string, string> };
+  dasha_timeline: DashaPeriod[]; moon_longitude: number; birth_iso: string;
+  latitude: number; longitude: number;
+}
+
 export interface Kundli {
   lagna: string; // Ascendant sign
   moon_sign: string; // Rashi (Moon sign)
@@ -57,11 +78,12 @@ export interface Kundli {
   nakshatra: string; // birth star
   placements: Placement[];
   summary: string;
-  source: 'lahiri' | 'mock' | 'prokerala' | 'vedicastroapi';
+  // 'vedastro' = VedAstro (Swiss Ephemeris) primary; 'lahiri' = local fallback engine.
+  source: 'vedastro' | 'lahiri' | 'mock' | 'prokerala' | 'vedicastroapi';
   computed_at: string;
-  // Rich fields (engine v2 — §2 of the chat engine spec). Optional so legacy thin
-  // charts still type-check; getKundli() self-heals them on next load.
-  engine_version?: 2;
+  // Rich fields (engine v2 = local rich; v3 = VedAstro). Optional so legacy thin charts
+  // still type-check; getKundli() self-heals thin/mock charts on next load.
+  engine_version?: 2 | 3;
   pada?: number;
   lagna_lord?: { graha: string; sign: string; house: number };
   house_lords?: HouseLord[];
@@ -71,6 +93,8 @@ export interface Kundli {
   moon_longitude?: number;
   latitude?: number;
   longitude?: number;
+  // Full VedAstro depth (§1) — present when source === 'vedastro' (engine_version 3).
+  chart_facts?: ChartFacts;
 }
 
 // ── THE SINGLE ENTRY POINT for chart data ───────────────────────────────────────
@@ -85,6 +109,7 @@ async function fetchKundliFromProvider(p: BirthProfile): Promise<Kundli> {
       latitude: p.latitude,
       longitude: p.longitude,
       timezone: p.timezone,
+      birth_place: p.birth_place,
     },
   });
   if (error) throw new Error(`Kundli service failed: ${error.message ?? 'request_failed'}`);
@@ -115,12 +140,23 @@ export async function computeKundli(birth: BirthProfile): Promise<Kundli> {
  */
 export async function getKundli(profile: ProfileRow): Promise<Kundli> {
   const k = profile.kundli_chart;
-  const rich = !!k && k.engine_version === 2 && Array.isArray(k.dasha_timeline);
+  // A chart is "rich enough" if it carries a dasha timeline (engine v2 local OR v3
+  // VedAstro). Only thin/mock charts are recomputed — and a recompute always prefers
+  // VedAstro (the `kundli` fn tries it first), so a thin chart heals straight to v3.
+  // (v2 local-fallback charts are NOT force-refreshed here to avoid hammering VedAstro
+  //  on every view; the Kundli screen offers an explicit refresh via refreshKundli.)
+  const rich = !!k && (k.engine_version === 2 || k.engine_version === 3) && Array.isArray(k.dasha_timeline);
   if (k && profile.kundli_source && profile.kundli_source !== 'mock' && rich) {
     return k;
   }
   return computeAndStoreKundli(profile);
 }
+
+/** Alias for the §0 client surface — the rich Kundli for a profile. */
+export const getRichKundli = getKundli;
+
+/** Force a fresh VedAstro pull (used by the Kundli screen's refresh action). */
+export const refreshKundli = computeAndStoreKundli;
 
 /** Force (re)compute the Kundli and persist it to the profile row. */
 export async function computeAndStoreKundli(profile: ProfileRow): Promise<Kundli> {
@@ -138,4 +174,22 @@ export async function computeAndStoreKundli(profile: ProfileRow): Promise<Kundli
 
   if (error) throw new Error(`Failed to cache Kundli: ${error.message}`);
   return kundli;
+}
+
+// ── §0 single client surface ────────────────────────────────────────────────────
+// kundliService is the app's single documented entry point for Vedic data. These thin
+// delegators wrap the per-feature client services; ALL of them ultimately reach
+// VedAstro through the ONE server module (supabase/functions/_shared/vedastro.ts), so
+// swapping providers later touches only that file. (getRichKundli/refreshKundli above.)
+export { getPanchang as getDailyPanchang } from './panchangService';
+export { getMuhurats as getMuhuratWindows } from './muhuratService';
+export { getNumerology } from './numerologyService';
+
+/**
+ * Compute a partner's chart for matchmaking (Guna Milan). The self chart comes from the
+ * caller's profile; the Ashtakoot scoring itself runs server-side in the `report` fn
+ * (rule #2). Routed through this service so all chart data has one entry point (rule #1).
+ */
+export async function getGunaMatch(partner: BirthProfile): Promise<Kundli> {
+  return computeKundli(partner);
 }

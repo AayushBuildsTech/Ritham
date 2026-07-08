@@ -4,6 +4,43 @@
 > (Panchang + Numerology). The authoritative architecture log is `DECISIONS.md`;
 > deploy/test status lives in `PROGRESS.md` §20. This file is the focused spec.
 
+## Vedic data engine — VedAstro (single integration point)
+
+All Vedic calculation data (Kundli, Panchang, and the chart facts that ground the chat + reports)
+comes from **VedAstro** (`api.vedastro.org`, built on the Swiss Ephemeris / NASA JPL, MIT-licensed,
+free `FreeAPIUser` tier). It is the **source of truth, with the self-hosted Lahiri engine as an
+automatic fallback** so a call failure never blocks onboarding.
+
+- **The ONE integration point is `supabase/functions/_shared/vedastro.ts`** (wrapped in `namespace
+  Veda`). It is the ONLY code in the repo that fetches VedAstro; it holds the `VEDASTRO_API_KEY`
+  secret (server-side only). It is inlined into the `kundli` + `panchang` functions by
+  `scripts/inline-functions.mjs` (dashboard deploy ships one file per function). **chat, horoscope
+  and the client NEVER call VedAstro** — they read the stored chart. Swapping providers later touches
+  only this one file (rule #1).
+- **Client surface** — `lib/kundliService.ts` exposes `getRichKundli` / `getDailyPanchang` /
+  `getMuhuratWindows` / `getNumerology` / `getGunaMatch` and only ever `invoke`s Edge Functions.
+- **Rich Kundli (`chart_facts`)** — built from 2 VedAstro calls (`AllPlanetData` + `AllHouseData`) and
+  stored in `profiles.kundli_chart` (JSONB, `engine_version: 3`, `source: 'vedastro'`); the dense
+  render lives in `kundli_summary` (the `summary_text` injected into chat). `chart_facts` carries: all
+  9 grahas (sign + degree, whole-sign house, nakshatra+pada, retrograde, combust, dignity, vargottama,
+  Shadbala, D9/D10 signs, sidereal longitude), the 12 house lords, natal yogas + doshas (Manglik with a
+  cancellation note, Kaal Sarp, Nadi), the full **Vimshottari mahadasha timeline with dates** (computed
+  deterministically from VedAstro's exact Moon longitude), and the divisional D9/D10 maps. Any field
+  VedAstro doesn't return is marked `"not available"` — never a blank chart.
+- **Time-dependent facts** (current Maha/Antar dasha, gochar transits, Sade Sati) are derived FRESH at
+  chat/horoscope time by `kundliSummary.currentDynamics` — never cached (so they never go stale).
+- **Caching / cost (rule #4, spec §8):** VedAstro is called **once per profile** (rich Kundli) and
+  **once per city per day** (Panchang, cached in `panchang_cache`). Numerology stays a **local**
+  computation (Pythagorean math + the static `constants/numerology.ts` library) exposed through
+  `kundliService.getNumerology` — it isn't astronomy, so it doesn't need VedAstro (deliberate
+  deviation, kept free + offline). Muhurat's multi-day scan stays on the local engine (calling VedAstro
+  45× per lookup is infeasible on the free tier); the single "Today's Panchang" card uses VedAstro.
+  A `vedastro_usage` counter table logs daily call volume.
+- **Rich Kundli screen** — `app/profile.tsx` `KundliView` renders the full depth from `chart_facts`
+  (overview, planetary table with dignity/retro/combust, house lords, current + upcoming dasha,
+  D9/D10, yogas & doshas) and offers a "Refresh with VedAstro" action for any chart still on the local
+  fallback. See `PROGRESS.md` §35.
+
 ## Chat — Hindi or English (language-mirroring)
 
 The chat function (`chat/index.ts`, deployed as `bright-processor`) drives all language behavior — the

@@ -62,10 +62,13 @@ export interface RichKundli {
   nakshatra: string;
   placements: Placement[];
   summary: string;
-  source: 'lahiri';
+  // 'lahiri' = local fallback engine; 'vedastro' = VedAstro (Swiss Ephemeris) primary.
+  source: 'lahiri' | 'vedastro';
   computed_at: string;
   // — rich additions (§2) —
-  engine_version: 2;         // marker so consumers can detect/self-heal thin v1 charts
+  // 2 = local rich engine; 3 = VedAstro-sourced (carries chart_facts). Consumers
+  // treat both as "rich" (has dasha_timeline); thin/mock (v1) charts self-heal.
+  engine_version: 2 | 3;
   pada: number;              // 1..4, the nakshatra quarter of the Moon
   lagna_lord: { graha: string; sign: string; house: number };
   house_lords: HouseLord[];
@@ -75,6 +78,8 @@ export interface RichKundli {
   moon_longitude: number;        // sidereal, for Sade Sati / pada
   latitude: number;              // echoed so dynamics can recompute transits
   longitude: number;
+  // Full VedAstro depth (§1) when source==='vedastro'; absent on the local fallback.
+  chart_facts?: unknown;
 }
 
 // ── Time-dependent reading (never cached) ───────────────────────────────────────

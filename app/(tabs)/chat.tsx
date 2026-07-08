@@ -10,6 +10,7 @@ import { useActiveProfile } from '../../context/ProfileContext';
 import { supabase } from '../../lib/supabase';
 import { sendChat, fetchGreeting, ChatResult, SessionKind, ChatBalance } from '../../lib/chatService';
 import { getBalance } from '../../lib/paymentService';
+import { getKundli, ProfileRow } from '../../lib/kundliService';
 import { track } from '../../lib/analytics';
 import Paywall from '../../components/Paywall';
 import { formatSeconds } from '../../config/pricing';
@@ -81,10 +82,16 @@ export default function ChatScreen() {
       setEntry('loading');
 
       const { data: p } = await supabase
-        .from('profiles').select('id, name, kundli_chart')
+        .from('profiles').select('*')
         .eq('id', activeId).maybeSingle();
 
       if (!p || !p.kundli_chart) { setEntry('need_profile'); return; }
+      // §7 pre-send guarantee: a thin/legacy chart (no dasha timeline) is re-fetched via
+      // kundliService (which pulls VedAstro, falling back to the local engine) BEFORE any
+      // paid chat, so the astrologer always has the full chart and never lacks details.
+      if (!p.kundli_chart.dasha_timeline || !Array.isArray(p.kundli_chart.dasha_timeline)) {
+        try { await getKundli(p as ProfileRow); } catch (_) { /* server also self-heals */ }
+      }
       setProfile({ id: p.id, name: p.name });
 
       const { data: u } = await supabase

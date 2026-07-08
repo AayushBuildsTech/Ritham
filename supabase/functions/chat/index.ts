@@ -81,11 +81,13 @@ Deno.serve(async (req) => {
     if (!profile) return json({ error: 'profile_not_found' }, 404);
     if (!profile.kundli_chart) return json({ error: 'kundli_missing' }, 400);
 
-    // Self-heal to the RICH chart (§2). Profiles created before the rich engine hold
-    // a "thin" chart (no dasha timeline / house lords). Recompute it server-side from
-    // the stored birth details and persist, so every paid chat runs on the full chart
-    // without depending on the client having healed it first.
-    if (!profile.kundli_chart.dasha_timeline || profile.kundli_chart.engine_version !== 2) {
+    // Self-heal ONLY a thin chart (no dasha timeline). VedAstro charts are
+    // engine_version 3 (with chart_facts); local rich charts are 2 — BOTH are complete
+    // and must be left untouched (recomputing here would DOWNGRADE a VedAstro chart to
+    // the local engine, since chat must never call VedAstro itself — spec §7). A truly
+    // thin/legacy chart is healed with the LOCAL engine so the paid chat can still run;
+    // the client upgrades it to VedAstro on its next Kundli view via kundliService.
+    if (!profile.kundli_chart.dasha_timeline) {
       try {
         const rich = computeRichKundli({
           name: profile.name, gender: profile.gender, dob: profile.dob, tob: profile.tob,
@@ -98,9 +100,12 @@ Deno.serve(async (req) => {
         profile.kundli_chart = rich;
       } catch (_) { /* fall back to the thin chart; the prompt degrades gracefully */ }
     }
-    // Pre-send assertion: a paid chat must never start without the chart loaded.
-    if (!profile.kundli_chart.lagna || !profile.kundli_chart.moon_sign) {
-      return json({ error: 'kundli_missing' }, 400);
+    // Pre-send assertion (§7): a paid chat must never start without lagna, rashi, AND a
+    // current dasha resolvable from the stored chart. If any is missing, block and tell
+    // the client to re-fetch via kundliService (which pulls VedAstro) before retrying.
+    const kc = profile.kundli_chart;
+    if (!kc.lagna || !kc.moon_sign || !Array.isArray(kc.dasha_timeline) || kc.dasha_timeline.length === 0) {
+      return json({ error: 'kundli_incomplete' }, 400);
     }
 
     // ── resolve or create the session ──────────────────────────────────────
@@ -301,6 +306,19 @@ function buildSystemPrompt(profile: any, dyn: Dynamics): string {
   const lagnaLordPlacement = k.lagna_lord
     ? `${k.lagna_lord.sign} (house ${k.lagna_lord.house})` : 'not available';
 
+  // Extra VedAstro depth (§7) — present only on source==='vedastro' (chart_facts).
+  const cf: any = (k as any).chart_facts;
+  const doshaLine = cf?.doshas?.length
+    ? cf.doshas.filter((d: any) => d.present).map((d: any) => d.name).join(', ') || 'none flagged'
+    : 'computed within yogas above';
+  const flagsLine = cf?.grahas?.length
+    ? (cf.grahas.filter((g: any) => g.retrograde || g.combust)
+        .map((g: any) => `${g.graha}${g.retrograde ? ' retrograde' : ''}${g.combust ? ' combust' : ''}`).join('; ') || 'none')
+    : 'not available';
+  const d9Line = cf?.divisional?.d9
+    ? Object.entries(cf.divisional.d9).map(([g, s]) => `${g.split(' ')[0]}:${String(s).split(' ')[0]}`).join(', ')
+    : 'not available';
+
   return `You are "Ritham," a wise, warm, and highly knowledgeable Vedic astrologer (Jyotishi) — like a trusted family pandit with decades of experience who has this person's full birth chart (Kundli) open in front of you. This person has come to you for guidance and has paid for your time. Treat them with warmth, respect, and genuine care.
 
 # WHO YOU ARE
@@ -322,7 +340,10 @@ Current Antardasha: ${dyn.antardasha?.lord ?? 'not available'} (until ${monthYea
 Upcoming dasha: ${upcoming}
 Current major transits: Shani ${transitStr(dyn.transits?.saturn)}, Guru ${transitStr(dyn.transits?.jupiter)}, Rahu ${transitStr(dyn.transits?.rahu)} / Ketu ${transitStr(dyn.transits?.ketu)}
 Sade Sati status: ${dyn.sade_sati?.detail ?? 'not available'}
-Notable yogas/doshas: ${yogas}
+Notable yogas: ${yogas}
+Doshas (natal): ${doshaLine}
+Retrograde/combust grahas: ${flagsLine}
+Navamsa (D9) signs: ${d9Line}
 --- END CHART ---
 
 # CRITICAL RULE #1: YOU ALWAYS HAVE THE COMPLETE CHART — NEVER ASK FOR TECHNICAL DATA
@@ -433,10 +454,10 @@ async function generateReply(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  INLINED ENGINE — canonical source: supabase/functions/_shared/astro.ts +
-//  _shared/kundliSummary.ts. Inlined here because the dashboard deploy ships a
-//  single index.ts per function (new _shared files do not reach the bundler).
-//  Edit the _shared/*.ts originals, then run: node scripts/inline-functions.mjs
+//  INLINED ENGINE — canonical source: supabase/functions/_shared/*.ts.
+//  Inlined here because the dashboard deploy ships a single index.ts per function
+//  (new _shared files do not reach the bundler). Edit the _shared/*.ts originals,
+//  then run: node scripts/inline-functions.mjs
 // ═══════════════════════════════════════════════════════════════════════════
 
 // astro.ts — self-contained Vedic (sidereal) astronomy engine. SHARED across the
@@ -775,10 +796,13 @@ export interface RichKundli {
   nakshatra: string;
   placements: Placement[];
   summary: string;
-  source: 'lahiri';
+  // 'lahiri' = local fallback engine; 'vedastro' = VedAstro (Swiss Ephemeris) primary.
+  source: 'lahiri' | 'vedastro';
   computed_at: string;
   // — rich additions (§2) —
-  engine_version: 2;         // marker so consumers can detect/self-heal thin v1 charts
+  // 2 = local rich engine; 3 = VedAstro-sourced (carries chart_facts). Consumers
+  // treat both as "rich" (has dasha_timeline); thin/mock (v1) charts self-heal.
+  engine_version: 2 | 3;
   pada: number;              // 1..4, the nakshatra quarter of the Moon
   lagna_lord: { graha: string; sign: string; house: number };
   house_lords: HouseLord[];
@@ -788,6 +812,8 @@ export interface RichKundli {
   moon_longitude: number;        // sidereal, for Sade Sati / pada
   latitude: number;              // echoed so dynamics can recompute transits
   longitude: number;
+  // Full VedAstro depth (§1) when source==='vedastro'; absent on the local fallback.
+  chart_facts?: unknown;
 }
 
 // ── Time-dependent reading (never cached) ───────────────────────────────────────

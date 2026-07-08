@@ -258,6 +258,10 @@ export default function ProfileScreen() {
         kundli={profile.kundli_chart}
         onEdit={() => { prefill(profile); setMode('form'); }}
         onBack={() => router.back()}
+        onRefresh={async () => {
+          const fresh = await computeAndStoreKundli(profile);
+          setProfile({ ...profile, kundli_chart: fresh, kundli_summary: fresh.summary, kundli_source: fresh.source, kundli_computed_at: fresh.computed_at });
+        }}
       />
     );
   }
@@ -382,11 +386,40 @@ function Field({ label, onPress, flex }: { label: string; onPress: () => void; f
 }
 
 // ── Kundli view ────────────────────────────────────────────────────────────────
-function KundliView({ profile, kundli, onEdit, onBack }: {
-  profile: ProfileRow; kundli: Kundli; onEdit: () => void; onBack: () => void;
+// ── client-side dasha helpers (from the stored Vimshottari timeline; no server call) ──
+const DASHA_YEARS: Record<string, number> = { Ketu: 7, Venus: 20, Sun: 6, Moon: 10, Mars: 7, Rahu: 18, Jupiter: 16, Saturn: 19, Mercury: 17 };
+const DASHA_ORDER = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury'];
+const monthYear = (iso?: string) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+};
+function currentMaha(timeline?: { lord: string; start: string; end: string }[]) {
+  if (!Array.isArray(timeline) || !timeline.length) return null;
+  const now = Date.now();
+  return timeline.find((p) => now >= Date.parse(p.start) && now < Date.parse(p.end)) ?? timeline[0];
+}
+function currentAntar(maha?: { lord: string; start: string; end: string } | null) {
+  if (!maha) return null;
+  const start = Date.parse(maha.start), span = Date.parse(maha.end) - start, now = Date.now();
+  const i0 = DASHA_ORDER.indexOf(maha.lord);
+  if (i0 < 0) return null;
+  const seq = [...DASHA_ORDER.slice(i0), ...DASHA_ORDER.slice(0, i0)];
+  let cursor = start;
+  for (const lord of seq) {
+    const end = cursor + span * (DASHA_YEARS[lord] / 120);
+    if (now >= cursor && now < end) return { lord, start: new Date(cursor).toISOString(), end: new Date(end).toISOString() };
+    cursor = end;
+  }
+  return null;
+}
+
+function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
+  profile: ProfileRow; kundli: Kundli; onEdit: () => void; onBack: () => void; onRefresh: () => void;
 }) {
   const th = useColors();
   const styles = makeStyles(th);
+  const [refreshing, setRefreshing] = useState(false);
   const dobLabel = (() => {
     const [y, m, d] = profile.dob.split('-');
     return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
@@ -399,6 +432,25 @@ function KundliView({ profile, kundli, onEdit, onBack }: {
     return `${pad2(h12)}:${mmS} ${ap}`;
   })();
 
+  const cf = kundli.chart_facts;                       // rich VedAstro depth (may be undefined on legacy v2)
+  const grahas = cf?.grahas ?? null;
+  const houses = cf?.houses ?? kundli.house_lords ?? [];
+  const yogas = cf?.yogas ?? kundli.yogas ?? [];
+  const doshas = cf?.doshas ?? [];
+  const timeline = kundli.dasha_timeline ?? [];
+  const maha = currentMaha(timeline);
+  const antar = currentAntar(maha);
+  const upcoming = timeline.filter((p) => Date.parse(p.start) > Date.now()).slice(0, 3);
+  const d9 = cf?.divisional?.d9 ?? null;
+  const d10 = cf?.divisional?.d10 ?? null;
+  const provider = kundli.source === 'vedastro' ? 'VedAstro · Swiss Ephemeris'
+    : kundli.source === 'lahiri' ? 'Lahiri sidereal engine' : null;
+
+  const doRefresh = async () => {
+    setRefreshing(true);
+    try { await onRefresh(); } finally { setRefreshing(false); }
+  };
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
       <BackHeader onBack={onBack} />
@@ -408,15 +460,21 @@ function KundliView({ profile, kundli, onEdit, onBack }: {
         <Text style={styles.viewName}>{profile.name}</Text>
         <Text style={styles.viewMeta}>{dobLabel} · {tobLabel}</Text>
         <Text style={styles.viewMeta}>{profile.birth_place}</Text>
+        {provider && <Text style={styles.provider}>Computed by {provider}</Text>}
       </View>
 
-      {/* Key placements */}
+      {/* Chart overview */}
       <View style={styles.keyGrid}>
         <KeyCard label="Lagna (Ascendant)" value={kundli.lagna} />
         <KeyCard label="Moon Sign (Rashi)" value={kundli.moon_sign} />
         <KeyCard label="Sun Sign" value={kundli.sun_sign} />
-        <KeyCard label="Nakshatra" value={kundli.nakshatra} />
+        <KeyCard label="Nakshatra" value={`${kundli.nakshatra}${kundli.pada ? ` · Pada ${kundli.pada}` : ''}`} />
       </View>
+      {kundli.lagna_lord && (
+        <Text style={styles.overviewLine}>
+          Lagna lord {kundli.lagna_lord.graha} in {kundli.lagna_lord.sign} (house {kundli.lagna_lord.house})
+        </Text>
+      )}
 
       {/* Summary */}
       <View style={styles.summaryCard}>
@@ -424,28 +482,135 @@ function KundliView({ profile, kundli, onEdit, onBack }: {
         <Text style={styles.summaryText}>{kundli.summary}</Text>
       </View>
 
-      {/* Placements table */}
+      {/* Planetary positions (rich when chart_facts present) */}
       <Text style={styles.tableHeading}>Planetary Positions</Text>
       <View style={styles.table}>
         <View style={[styles.trow, styles.thead]}>
           <Text style={[styles.th, { flex: 2 }]}>Graha</Text>
-          <Text style={[styles.th, { flex: 2.5 }]}>Sign</Text>
-          <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>House</Text>
+          <Text style={[styles.th, { flex: 2.4 }]}>Sign</Text>
+          <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ho.</Text>
+          <Text style={[styles.th, { flex: 1.6, textAlign: 'right' }]}>State</Text>
         </View>
-        {kundli.placements.map((p) => (
-          <View key={p.graha} style={styles.trow}>
-            <Text style={[styles.td, { flex: 2 }]}>{p.graha}</Text>
-            <Text style={[styles.td, { flex: 2.5 }]}>{p.sign}</Text>
-            <Text style={[styles.td, { flex: 1, textAlign: 'right' }]}>{p.house}</Text>
-          </View>
-        ))}
+        {(grahas ?? kundli.placements).map((p: any) => {
+          const flags = [
+            p.dignity && p.dignity !== 'Neutral' ? p.dignity : null,
+            p.retrograde ? 'Retro' : null,
+            p.combust ? 'Combust' : null,
+            p.vargottama ? 'Vargottama' : null,
+          ].filter(Boolean).join(', ');
+          return (
+            <View key={p.graha} style={styles.trow}>
+              <Text style={[styles.td, { flex: 2 }]}>{p.graha}</Text>
+              <Text style={[styles.td, { flex: 2.4 }]}>{(p.sign || '').split(' (')[0]}{p.sign_degree ? ` ${p.sign_degree.split("'")[0]}'` : ''}</Text>
+              <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{p.house}</Text>
+              <Text style={[styles.tdDim, { flex: 1.6, textAlign: 'right' }]}>{flags || '—'}</Text>
+            </View>
+          );
+        })}
       </View>
+
+      {/* House lords */}
+      {houses.length > 0 && (
+        <>
+          <Text style={styles.tableHeading}>House Lords (Bhava)</Text>
+          <View style={styles.table}>
+            <View style={[styles.trow, styles.thead]}>
+              <Text style={[styles.th, { flex: 0.7 }]}>Ho.</Text>
+              <Text style={[styles.th, { flex: 2 }]}>Sign</Text>
+              <Text style={[styles.th, { flex: 2.6, textAlign: 'right' }]}>Lord (sits in)</Text>
+            </View>
+            {houses.map((h: any) => (
+              <View key={h.house} style={styles.trow}>
+                <Text style={[styles.td, { flex: 0.7 }]}>{h.house}</Text>
+                <Text style={[styles.td, { flex: 2 }]}>{(h.sign || '').split(' (')[0]}</Text>
+                <Text style={[styles.tdDim, { flex: 2.6, textAlign: 'right' }]}>{(h.lord || '').split(' (')[0]} · H{h.lord_house}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
+      {/* Dasha timeline (current + upcoming; computed from the stored timeline) */}
+      {maha && (
+        <>
+          <Text style={styles.tableHeading}>Vimshottari Dasha</Text>
+          <View style={styles.dashaNow}>
+            <Text style={styles.dashaNowLabel}>Running now</Text>
+            <Text style={styles.dashaNowValue}>
+              {maha.lord} Mahadasha{antar ? ` — ${antar.lord} Antardasha` : ''}
+            </Text>
+            <Text style={styles.dashaNowDates}>
+              Maha until {monthYear(maha.end)}{antar ? ` · Antar until ${monthYear(antar.end)}` : ''}
+            </Text>
+          </View>
+          {upcoming.map((p) => (
+            <View key={p.start} style={styles.dashaRow}>
+              <Text style={styles.dashaLord}>{p.lord}</Text>
+              <Text style={styles.dashaDates}>{monthYear(p.start)} – {monthYear(p.end)}</Text>
+            </View>
+          ))}
+        </>
+      )}
+
+      {/* Divisional charts D9 / D10 */}
+      {(d9 || d10) && (
+        <>
+          <Text style={styles.tableHeading}>Divisional Charts</Text>
+          <View style={styles.table}>
+            <View style={[styles.trow, styles.thead]}>
+              <Text style={[styles.th, { flex: 2 }]}>Graha</Text>
+              <Text style={[styles.th, { flex: 2, textAlign: 'center' }]}>D9 (Navamsa)</Text>
+              <Text style={[styles.th, { flex: 2, textAlign: 'right' }]}>D10 (Dashamsa)</Text>
+            </View>
+            {Object.keys(d9 ?? d10 ?? {}).map((g) => (
+              <View key={g} style={styles.trow}>
+                <Text style={[styles.td, { flex: 2 }]}>{g.split(' (')[0]}</Text>
+                <Text style={[styles.tdDim, { flex: 2, textAlign: 'center' }]}>{(d9?.[g] || '—').split(' (')[0]}</Text>
+                <Text style={[styles.tdDim, { flex: 2, textAlign: 'right' }]}>{(d10?.[g] || '—').split(' (')[0]}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
+      {/* Yogas & Doshas */}
+      {(yogas.length > 0 || doshas.length > 0) && (
+        <>
+          <Text style={styles.tableHeading}>Yogas & Doshas</Text>
+          <View style={styles.yogaWrap}>
+            {yogas.map((y: any, i: number) => (
+              <View key={`y${i}`} style={styles.yogaRow}>
+                <View style={[styles.yogaDot, { backgroundColor: y.nature === 'caution' ? th.textDim : th.gold }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.yogaName}>{y.name}</Text>
+                  <Text style={styles.yogaDetail}>{y.detail}</Text>
+                </View>
+              </View>
+            ))}
+            {doshas.map((d: any, i: number) => (
+              <View key={`d${i}`} style={styles.yogaRow}>
+                <View style={[styles.yogaDot, { backgroundColor: d.present ? th.textDim : th.borderStrong }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.yogaName}>{d.name} — {d.present ? 'present' : 'absent'}</Text>
+                  <Text style={styles.yogaDetail}>{d.detail}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
 
       {kundli.source === 'mock' && (
         <Text style={styles.note}>
           Note: this chart uses placeholder calculations for development. Real astronomical
           computation will be enabled before launch.
         </Text>
+      )}
+      {kundli.source === 'lahiri' && (
+        <Pressable style={styles.refreshBtn} onPress={doRefresh} disabled={refreshing} android_ripple={{ color: th.goldFaint }}>
+          {refreshing ? <ActivityIndicator color={th.goldLight} size="small" />
+            : <><Icon name="moon" size={15} color={th.goldLight} /><Text style={styles.refreshText}>Refresh with VedAstro</Text></>}
+        </Pressable>
       )}
 
       <Pressable style={styles.editBtn} onPress={onEdit} android_ripple={{ color: th.goldFaint }}>
@@ -541,12 +706,43 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   thead: { backgroundColor: th.surfaceSunken },
   th: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.textDim, letterSpacing: 0.5 },
   td: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.text },
+  tdDim: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textMuted },
   note: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, fontStyle: 'italic', marginTop: Spacing.md, lineHeight: 16 },
+
+  provider: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 0.4, marginTop: 6 },
+  overviewLine: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: Spacing.sm, textAlign: 'center' },
+
+  dashaNow: {
+    backgroundColor: th.goldFaint, borderWidth: 1, borderColor: th.border,
+    borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm,
+  },
+  dashaNowLabel: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 1.5, marginBottom: 4 },
+  dashaNowValue: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: th.text },
+  dashaNowDates: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textMuted, marginTop: 3 },
+  dashaRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+    borderWidth: 1, borderColor: th.border, borderRadius: Radius.sm, marginBottom: 6,
+  },
+  dashaLord: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: th.text },
+  dashaDates: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim },
+
+  yogaWrap: { borderWidth: 1, borderColor: th.border, borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.md },
+  yogaRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
+  yogaDot: { width: 7, height: 7, borderRadius: 4, marginTop: 6 },
+  yogaName: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.text },
+  yogaDetail: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textMuted, lineHeight: 17, marginTop: 2 },
+
+  refreshBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    borderWidth: 1, borderColor: th.border, borderRadius: Radius.sm, paddingVertical: 12, marginTop: Spacing.lg,
+  },
+  refreshText: { fontFamily: Fonts.bodyMedium, color: th.goldLight, fontSize: Fonts.size.sm },
 
   editBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.sm, paddingVertical: 14,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.md,
   },
   editText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.md },
 });
