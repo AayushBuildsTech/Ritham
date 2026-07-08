@@ -37,7 +37,18 @@ export interface Placement {
   graha: string; // planet (Sanskrit + English)
   sign: string; // Rashi it occupies
   house: number; // 1..12 relative to Lagna
+  dignity?: 'Exalted' | 'Debilitated' | 'Own sign' | 'Neutral';
 }
+
+export interface HouseLord {
+  house: number;
+  sign: string;
+  lord: string;
+  lord_house: number;
+  lord_sign: string;
+}
+export interface Yoga { name: string; nature: 'benefic' | 'caution'; detail: string }
+export interface DashaPeriod { lord: string; start: string; end: string }
 
 export interface Kundli {
   lagna: string; // Ascendant sign
@@ -48,6 +59,18 @@ export interface Kundli {
   summary: string;
   source: 'lahiri' | 'mock' | 'prokerala' | 'vedicastroapi';
   computed_at: string;
+  // Rich fields (engine v2 — §2 of the chat engine spec). Optional so legacy thin
+  // charts still type-check; getKundli() self-heals them on next load.
+  engine_version?: 2;
+  pada?: number;
+  lagna_lord?: { graha: string; sign: string; house: number };
+  house_lords?: HouseLord[];
+  yogas?: Yoga[];
+  dasha_timeline?: DashaPeriod[];
+  birth_iso?: string;
+  moon_longitude?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 // ── THE SINGLE ENTRY POINT for chart data ───────────────────────────────────────
@@ -86,12 +109,15 @@ export async function computeKundli(birth: BirthProfile): Promise<Kundli> {
 
 /**
  * Returns the Kundli for a profile row. Uses the cached chart if present — UNLESS
- * it's a legacy mock chart, which is transparently recomputed with the real engine
- * and re-cached (self-healing for profiles created before the real engine landed).
+ * it's a legacy mock chart, OR a "thin" chart from before the rich engine (no dasha
+ * timeline). Either is transparently recomputed with the current engine and re-cached
+ * (self-healing for profiles created before each engine upgrade).
  */
 export async function getKundli(profile: ProfileRow): Promise<Kundli> {
-  if (profile.kundli_chart && profile.kundli_source && profile.kundli_source !== 'mock') {
-    return profile.kundli_chart;
+  const k = profile.kundli_chart;
+  const rich = !!k && k.engine_version === 2 && Array.isArray(k.dasha_timeline);
+  if (k && profile.kundli_source && profile.kundli_source !== 'mock' && rich) {
+    return k;
   }
   return computeAndStoreKundli(profile);
 }

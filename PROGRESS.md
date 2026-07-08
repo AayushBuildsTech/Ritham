@@ -1369,3 +1369,59 @@ active tab when popped back to. Header stays hidden because every screen draws i
 **Deploy:** redeploy `bright-processor` (language + greeting); **run migration `015`** (chat-history
 delete); everything else is a Metro reload. PRD + BuildSpec updated (Hindi-leaning voice + Chat History
 incl. delete).
+
+## 34. Chat engine v2 — rich Kundli summary + full spec system prompt (2026-07-08, kundli + chat fns + JS)
+
+Rebuilt the chat engine to the **"AI Astrologer Chat Engine MASTER BUILD SPEC"** (handed in-conversation).
+The chat worked before but ran on a *thin* chart (lagna/rashi/nakshatra/9 placements only). This raises it
+to the spec's **§2 "#1 accuracy lever"** — a rich, deterministic chart — and wires the spec's full **§1**
+persona around it. **Backend only; §6 client features (starter chips, typing indicator, follow-up
+suggestions, session summary) are a deliberate 2nd pass, NOT done.**
+
+**1. Rich chart engine — `supabase/functions/_shared/kundliSummary.ts` (NEW, canonical source).**
+- `computeRichKundli(birth)` → **static natal chart**, cached once at profile creation: Lagna + **its
+  lord & placement**, Nakshatra + **pada**, Sun sign, all 9 placements **with dignity**, the **12 house
+  lords and where each sits**, natal **yogas/doshas** (Gaja Kesari, Budha-Aditya, Chandra-Mangala, 5×
+  Pancha-Mahapurusha, exalt/debil, **Manglik**), and the **full Vimshottari mahadasha timeline with dates**
+  — the balance computed from the **real Moon-longitude fraction** (not the report engine's hash approx).
+  Also stores sidereal longitudes + birth instant. Marker `engine_version: 2`.
+- `currentDynamics(chart, now)` → **time-dependent** reading derived FRESH each session (never cached, so
+  gochar never goes stale): running **Mahadasha + Antardasha**, next upcoming periods, current **gochar
+  transits** (Shani/Guru/Rahu-Ketu by house from Lagna & Moon), and **Sade Sati** status (+ Kantaka/Ashtama
+  Shani note). Degrades gracefully to "not available" on a thin chart — no crash.
+
+**2. `kundli` Edge Function** → now a thin wrapper over `computeRichKundli`, so **new profiles cache the
+full rich chart**. `kundli_chart` is JSONB → **no migration**. Back-compat: all legacy fields kept.
+
+**3. `chat` Edge Function** — the spec's full **§1 system prompt** (persona + injected rich chart +
+placeholders for dasha/transits/yogas/Sade Sati), the **QUESTION vs TIMED mode directive** by
+`session.kind` (max_tokens **1024 vs 512**), **prompt-caching** the stable system block (`cache_control:
+ephemeral` — ~90% input-cost saving across a session's turns), **server-side self-heal** of thin/mock
+charts via `computeRichKundli` (persisted back), and the **pre-send assertion** (blocks only if
+lagna/moon missing — the root-cause fix for the old "I don't have your info" bug). Mock reply enriched to
+reference dasha/Sade Sati until the live key is set.
+
+**4. `lib/kundliService.ts`** — `Kundli` type gains optional rich fields; **`getKundli` heals** any chart
+lacking `engine_version:2` + `dasha_timeline` (not just legacy `mock`), so profile view / reports get the
+rich chart on next load.
+
+**⚠️ DEPLOY GOTCHA (single-file dashboard) + FIX.** kundli/chat are deployed by **pasting one `index.ts`**
+into the Supabase dashboard, which does **not** upload a brand-new `_shared/*.ts` to the remote bundler →
+`Module not found "_shared/kundliSummary.ts"` on deploy (same wall as report's old `./chart.ts`; existing
+`_shared/astro.ts` only works because it was uploaded long ago). **Fix: `kundli/index.ts` + `chat/index.ts`
+are now SELF-CONTAINED single files** — the astro + kundliSummary engine is **inlined** (no `_shared`
+imports). `_shared/astro.ts` + `_shared/kundliSummary.ts` stay **canonical** (used by panchang/muhurat +
+Node tests). **`scripts/inline-functions.mjs` (NEW)** regenerates the two files from the `_shared`
+originals — **idempotent** (strips the old inlined block, re-appends; verified stable at kundli **733** /
+chat **1110** lines). Workflow: edit the `_shared` originals → `node scripts/inline-functions.mjs` → paste.
+
+**Verification.** Ran the engine via `node --experimental-strip-types` on a real DOB: astrologically
+coherent (Scorpio Lagna → Mars in 11th; own-sign Saturn → **Shasha Yoga**; Revati/Pisces Moon → Vimshottari
+Venus-ending-2026 → Sun now; **Sade Sati correctly active/peak** since Saturn really transits Pisces in
+2026). Thin-chart fallback confirmed no-crash. Inlined engine block re-run from the generated file — same
+output. `npx tsc --noEmit` passes (Deno fns excluded from app tsc, as before).
+
+**Deploy:** paste the current `supabase/functions/kundli/index.ts` and `supabase/functions/chat/index.ts`
+into their dashboard functions (chat slug = `bright-processor`). **No migration, no app rebuild, no new
+secrets.** Real Claude replies stay mock until `ANTHROPIC_API_KEY` (§28 runbook) — the spec's §7 test
+script runs live once the key is set.
