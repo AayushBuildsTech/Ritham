@@ -1,4 +1,4 @@
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -50,7 +50,12 @@ function AuthGate() {
   }, [session, loading, segments, router]);
 
   if (loading) return <LoadingScreen />;
-  return <Slot />;
+  // A real Stack (not <Slot />) gives every top-level route proper push/pop
+  // history, so `router.back()` returns to the ACTUAL previous screen and the
+  // (tabs) navigator keeps its active tab when popped back to — without this,
+  // back always fell through to Home. All screens draw their own headers
+  // (ScreenHeader / custom tab + auth chrome), so the native header stays hidden.
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 function RootLayoutInner() {

@@ -12,13 +12,40 @@ automatically **mirrors the user's language, script, and register** on every rep
 selector, or setting. Authentic Jyotisha terms (kundli, rashi, graha, dasha, Shani, Mangal…) stay in
 their original form. The **app UI stays in English.**
 
+**Voice — a real Indian jyotishi, Hindi-leaning (not English-heavy):**
+- When the user writes in Hindi or a Hindi-English mix (romanised / Latin script), the astrologer
+  replies in **natural, predominantly-Hindi romanised script** — Hindi-first sentence structure and
+  flow, the way a warm family jyotishi actually speaks. English words appear **only when genuinely
+  necessary** (words Hindi speakers naturally say in English — "job", "career", "problem", "time" — or
+  terms with no natural Hindi equivalent). Replies are **not** peppered with unnecessary English.
+- When the user writes in **pure English**, the reply is **fully clean English** (mirror them completely).
+- When the user writes in **Devanagari Hindi**, the reply is in Devanagari.
+- Rule of thumb: if a natural Hindi word exists and flows, use it; reach for English only when the Hindi
+  would sound forced. This behaviour lives entirely in the **server-side system prompt**; the chat
+  function passes user messages through unchanged so the model detects language naturally.
+
 Language freedom is made discoverable with three small, in-chat touches only — no banners, popups, or
 extra screens:
 - **Opening greeting** (astrologer's first message, server-side with the system prompt) leads in the
-  natural Hindi-English style and mentions "Hindi ya English — jaise comfortable ho" exactly once.
+  warm Hindi-leaning jyotishi style and mentions "Hindi ya English — jaise aapko theek lage" exactly once.
 - **Input placeholder**: "Apna sawaal poochein... (Hindi ya English)".
 - **Starter chips** on an empty chat (weighted Hindi with one plain-English example); they disappear
   once the user starts chatting.
+
+## Chat History
+
+Users can revisit their **past conversations**. A **history icon in the Chat tab header** (no new
+bottom-nav tab) opens a list of previous sessions, **newest first**, each showing the date/time, a short
+preview (the first question asked), and — when the account has multiple family profiles — **which person
+the chat was for**. Tapping a session opens the **full transcript, read-only**. A user only ever sees
+their **own** history (enforced by row-level security). Persistence reuses the existing `chat_sessions` +
+`chat_messages` tables — no new data model. From a past conversation the user can start a fresh chat, but
+editing/continuing an old one is intentionally not offered (history is immutable).
+
+**Delete:** users can remove conversations they no longer want. A **Select** action in the history
+header enters a multi-select mode (tap to check, "Select all", or long-press a card to start selecting);
+a **Delete (N)** bar then removes the chosen chats after a confirm dialog. Deletion is permanent, scoped
+to the user's own chats (RLS), and takes each conversation's messages with it.
 
 ## Free Home features: Panchang & Numerology
 

@@ -216,18 +216,28 @@ export default function ChatScreen() {
       {/* header / status pill */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <Text style={styles.headerTitle}>Ritham</Text>
-        {timed && remaining !== null && !ended && (
-          <View style={styles.pill}>
-            <Icon name="clock" size={14} color={th.goldLight} />
-            <Text style={styles.pillText}>{mmss(remaining)}</Text>
-          </View>
-        )}
-        {sessionKind === 'paid_questions' && !ended && balance && (
-          <View style={styles.pill}>
-            <Icon name="question" size={14} color={th.goldLight} />
-            <Text style={styles.pillText}>{balance.questions} left</Text>
-          </View>
-        )}
+        <View style={styles.headerRight}>
+          {timed && remaining !== null && !ended && (
+            <View style={styles.pill}>
+              <Icon name="clock" size={14} color={th.goldLight} />
+              <Text style={styles.pillText}>{mmss(remaining)}</Text>
+            </View>
+          )}
+          {sessionKind === 'paid_questions' && !ended && balance && (
+            <View style={styles.pill}>
+              <Icon name="question" size={14} color={th.goldLight} />
+              <Text style={styles.pillText}>{balance.questions} left</Text>
+            </View>
+          )}
+          <Pressable
+            onPress={() => router.push('/chat-history')}
+            hitSlop={10}
+            style={styles.headerBtn}
+            android_ripple={{ color: th.goldFaint, borderless: true, radius: 22 }}
+          >
+            <Icon name="history" size={22} color={th.goldLight} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -361,6 +371,8 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: th.border, backgroundColor: th.canvas,
   },
   headerTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.goldLight, letterSpacing: 0.5 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  headerBtn: { width: 40, height: 32, alignItems: 'flex-end', justifyContent: 'center' },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: th.surface, borderRadius: Radius.pill, paddingVertical: 5, paddingHorizontal: Spacing.md,

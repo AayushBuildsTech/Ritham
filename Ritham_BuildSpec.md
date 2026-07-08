@@ -8,15 +8,51 @@
 
 The chat function (`chat/index.ts`, deployed as `bright-processor`) drives all language behavior — the
 app UI stays English. The **system prompt** instructs the astrologer to mirror the user's language,
-script, and register on every reply (natural Hindi-English mix, pure English, or Devanagari Hindi) and to
-keep Jyotisha terms untranslated. User messages pass through unchanged so the model detects language
-naturally.
+script, and register on every reply and to keep Jyotisha terms untranslated. User messages pass through
+unchanged so the model detects language naturally.
+
+**Hindi-leaning voice (the language style, in the system prompt):**
+- Hindi or Hindi-English-mix input (romanised) → reply in **predominantly Hindi, romanised (Latin)
+  script — NOT Devanagari**, Hindi-first sentence flow. English used **only when genuinely necessary**
+  (loanwords Hindi speakers say in English — "job", "career", "problem", "time" — or terms with no Hindi
+  equivalent); never peppered with unnecessary English. The prompt carries an explicit **RIGHT vs WRONG
+  example pair** to pin the tone.
+- Pure-English input → **fully clean English** (complete mirror).
+- Devanagari input → **Devanagari** reply.
+- Warm, respectful, traditional jyotishi register throughout. The word "Hinglish" is never used
+  anywhere user-facing.
 
 - **Greeting**: a server-side `GREETING` constant (single source of truth, referenced in the system
-  prompt). The client fetches it via a lightweight `{ greetingOnly: true }` call (`fetchGreeting()` in
-  `lib/chatService.ts`) and renders it as the astrologer's first bubble; no session/entitlement/AI cost.
+  prompt), in the warm Hindi-leaning voice. The client fetches it via a lightweight `{ greetingOnly: true }`
+  call (`fetchGreeting()` in `lib/chatService.ts`) and renders it as the astrologer's first bubble; no
+  session/entitlement/AI cost.
 - **Placeholder** + **starter chips**: in `app/(tabs)/chat.tsx` (chips shown only on an empty chat).
 - No new screens, banners, toggles, or language selector. Redeploy `bright-processor` to activate.
+
+## Chat History (read-only)
+
+Lets users revisit past conversations. **No new bottom tab** — a **history icon in the Chat tab header**
+(`app/(tabs)/chat.tsx`) opens it.
+
+- **Data**: reuses the existing `chat_sessions` + `chat_messages` tables (migration `005`), which are
+  already RLS **select-own** so the client reads history directly. **Delete** needs one small migration
+  — `015_chat_history_delete.sql` adds a **delete-own** policy on `chat_sessions`; messages go with it via
+  the existing `chat_messages.session_id → chat_sessions(id) ON DELETE CASCADE` (FK cascades run at the
+  engine level, not gated by RLS). No Edge Function.
+- **Service** (`lib/chatService.ts`): `listChatHistory()` returns sessions newest-first, each with the
+  first user message as a preview and the profile name (two plain client queries — sessions, then the
+  first user message per session; empty sessions are hidden). `getSessionMessages(sessionId)` returns one
+  session's full transcript oldest-first. `deleteChatSessions(ids[])` deletes selected sessions (cascade
+  removes their messages).
+- **Screens**: `app/chat-history.tsx` (list: preview + date/time + profile name when there are multiple
+  family members; **Select** header action → multi-select mode with checkboxes, "Select all"/long-press,
+  and a **Delete (N)** action bar with an `Alert` confirm) → `app/chat-conversation.tsx` (read-only
+  transcript, bubble styling matching the live chat; a "Start a new chat" action, but no continue/edit —
+  history is immutable).
+- **Analytics** (`lib/analytics.ts`): `chat_history_opened`, `chat_history_session_opened`,
+  `chat_history_deleted`.
+- Client-only (JS) — reload Metro, no rebuild. The **only** backend step is running migration `015`
+  (delete won't persist until then — RLS silently blocks the delete otherwise).
 
 ## §9 Brand (reference)
 Deep indigo background (`#14122b`→`#1e1b45`), gold accents (`#d9a441`/`#e6c063`),

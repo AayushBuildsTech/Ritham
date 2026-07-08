@@ -26,6 +26,7 @@ const MAP = {
   check: ['feather', 'check'],
   send: ['feather', 'send'],
   clock: ['mci', 'clock-time-four-outline'],
+  history: ['mci', 'history'],
   question: ['feather', 'help-circle'],
   lock: ['feather', 'lock'],
   star: ['mci', 'star-four-points-outline'],

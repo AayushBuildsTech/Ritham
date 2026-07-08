@@ -1307,3 +1307,62 @@ and keeps Jyotisha terms authentic (kundli, rashi, graha, dasha, Shani, Mangal�
 through unchanged so the model detects language naturally. `tsc` + `esbuild` (chat) pass; "Hinglish"
 appears nowhere in the repo. **Activate: redeploy `bright-processor`** (greeting + language are
 server-side); placeholder/chips are JS-only. PRD + BuildSpec updated with a brief Chat-language section.
+
+---
+
+## 33. Chat — Hindi-leaning voice + Chat History (2026-07-08, chat fn + JS)
+
+Two updates to chat this session.
+
+**1. Language style — more authentically Hindi (system-prompt only).** The astrologer was mixing in too
+much English ("aapki life ke is phase ko affect kar rahi hai"). Rewrote the **Language section of
+`buildSystemPrompt`** in `supabase/functions/chat/index.ts` so:
+- Hindi / Hindi-English-mix (romanised) input → reply in **predominantly Hindi, romanised (Latin) script —
+  NOT Devanagari**, Hindi-first sentence flow; English only for genuine loanwords ("job", "career",
+  "problem", "time") or terms with no Hindi equivalent — never peppered with filler English. The prompt
+  now carries an explicit **RIGHT vs WRONG example pair** to pin the tone.
+- Pure-English input → **fully clean English**; Devanagari input → **Devanagari**. Warm traditional
+  jyotishi register throughout.
+- Also warmed the server-side **`GREETING`** (dropped the English "comfortable" → "jaise aapko theek
+  lage"; kept the single subtle language clause). Behaviour is entirely server-side; the function still
+  passes user messages through unchanged (model self-detects language). "Hinglish" is not used anywhere
+  user-facing. **Activate: redeploy `bright-processor`.**
+
+**2. Chat History (read-only).** Users can revisit past conversations. **No new bottom tab** — a
+**history icon in the Chat tab header** opens it.
+- **Data**: reuses `chat_sessions` + `chat_messages` (migration 005); their RLS is already **select-own**,
+  so the client reads history directly — **no Edge Function, no migration, no new secret**.
+- `lib/chatService.ts`: `listChatHistory()` (sessions newest-first + first-question preview + profile
+  name; two plain queries; empty sessions hidden) and `getSessionMessages(id)` (full transcript,
+  oldest-first).
+- Screens: `app/chat-history.tsx` (list — preview, date/time, profile name shown when >1 family member)
+  → `app/chat-conversation.tsx` (read-only transcript, live-chat bubble styling, "Start a new chat"
+  action; no continue/edit — history is immutable). `components/Icon.tsx` +`history`;
+  `lib/analytics.ts` +`chat_history_opened`/`chat_history_session_opened`.
+- **JS-only** (reload Metro, no rebuild). New route files need one full reload for expo-router to
+  register (Fast Refresh 404s until then). `npx tsc --noEmit` + `esbuild` (chat) pass.
+
+**2b. Chat History — delete (2026-07-08, JS + 1 migration).** Users can remove past conversations.
+- **Select** action in the history header → multi-select mode: checkboxes on each card, tap-to-toggle,
+  long-press a card to start selecting, "Select all"/"Clear all", and a **Delete (N)** action bar
+  (`th.error` on `Accents.ruby.faint`) with an `Alert` confirm. On success the rows are dropped from the
+  list and select mode exits.
+- `lib/chatService.ts` +`deleteChatSessions(ids[])` (deletes `chat_sessions`; messages cascade).
+  `lib/analytics.ts` +`chat_history_deleted`.
+- **Migration `015_chat_history_delete.sql`** adds a **delete-own** RLS policy on `chat_sessions` (005
+  only granted select-own). Messages are removed by the existing `chat_messages` FK `ON DELETE CASCADE`
+  (cascade runs at the engine level, not gated by RLS). ⚠️ **Delete won't persist until 015 is run** —
+  without the policy RLS silently deletes 0 rows (no error), so the UI would drop them but they'd return
+  on reload. `npx tsc --noEmit` passes.
+
+**2c. Back-navigation fix (2026-07-08, JS).** Root `app/_layout.tsx` rendered **`<Slot />`**, which has no
+push/pop history — so `router.back()` from ANY top-level detail screen (chat-history, family, panchang,
+settings, reports intake…) fell through to Home instead of the real previous screen (most visible as
+chat → history → back landing on Home). Replaced with **`<Stack screenOptions={{ headerShown: false }} />`**:
+real navigation history, so back returns to the actual previous screen AND the `(tabs)` navigator keeps its
+active tab when popped back to. Header stays hidden because every screen draws its own (ScreenHeader / tab
++ auth chrome), so it's visually identical — just correct history + swipe-back. `npx tsc --noEmit` passes.
+
+**Deploy:** redeploy `bright-processor` (language + greeting); **run migration `015`** (chat-history
+delete); everything else is a Metro reload. PRD + BuildSpec updated (Hindi-leaning voice + Chat History
+incl. delete).
