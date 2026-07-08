@@ -11,13 +11,14 @@ app UI stays English. The **system prompt** instructs the astrologer to mirror t
 script, and register on every reply and to keep Jyotisha terms untranslated. User messages pass through
 unchanged so the model detects language naturally.
 
-**Hindi-leaning voice (the language style, in the system prompt):**
-- Hindi or Hindi-English-mix input (romanised) → reply in **predominantly Hindi, romanised (Latin)
-  script — NOT Devanagari**, Hindi-first sentence flow. English used **only when genuinely necessary**
-  (loanwords Hindi speakers say in English — "job", "career", "problem", "time" — or terms with no Hindi
-  equivalent); never peppered with unnecessary English. The prompt carries an explicit **RIGHT vs WRONG
-  example pair** to pin the tone.
-- Pure-English input → **fully clean English** (complete mirror).
+**Language style (in the system prompt) — default Hindi, English only on demand:**
+- **Default = Hindi.** Any input that is NOT clearly English (Hindi, romanised Hindi, or a Hindi-English
+  mix) → reply in **predominantly Hindi, romanised (Latin) script — NOT Devanagari**, Hindi-first sentence
+  flow. English used **only when genuinely necessary** (loanwords Hindi speakers say in English — "job",
+  "career", "problem", "time" — or terms with no Hindi equivalent); never peppered with unnecessary
+  English. The prompt carries an explicit **RIGHT vs WRONG example pair** to pin the tone.
+- **English input → fully clean English**, and the astrologer keeps conversing in English while the user
+  stays in English (switches back to Hindi the moment the user does).
 - Devanagari input → **Devanagari** reply.
 - Warm, respectful, traditional jyotishi register throughout. The word "Hinglish" is never used
   anywhere user-facing.

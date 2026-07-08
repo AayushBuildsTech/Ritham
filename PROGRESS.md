@@ -1314,14 +1314,17 @@ server-side); placeholder/chips are JS-only. PRD + BuildSpec updated with a brie
 
 Two updates to chat this session.
 
-**1. Language style — more authentically Hindi (system-prompt only).** The astrologer was mixing in too
-much English ("aapki life ke is phase ko affect kar rahi hai"). Rewrote the **Language section of
-`buildSystemPrompt`** in `supabase/functions/chat/index.ts` so:
-- Hindi / Hindi-English-mix (romanised) input → reply in **predominantly Hindi, romanised (Latin) script —
-  NOT Devanagari**, Hindi-first sentence flow; English only for genuine loanwords ("job", "career",
-  "problem", "time") or terms with no Hindi equivalent — never peppered with filler English. The prompt
-  now carries an explicit **RIGHT vs WRONG example pair** to pin the tone.
-- Pure-English input → **fully clean English**; Devanagari input → **Devanagari**. Warm traditional
+**1. Language style — default Hindi; English only when the user writes English (system-prompt only).**
+The astrologer was mixing in too much English ("aapki life ke is phase ko affect kar rahi hai"). Rewrote
+the **Language section of `buildSystemPrompt`** in `supabase/functions/chat/index.ts` so:
+- **DEFAULT = Hindi.** Any input not clearly English (Hindi, romanised Hindi, OR a Hindi-English mix) →
+  reply in **predominantly Hindi, romanised (Latin) script — NOT Devanagari**, Hindi-first sentence flow;
+  English only for genuine loanwords ("job", "career", "problem", "time") or terms with no Hindi
+  equivalent — never peppered with filler English. Explicit **RIGHT vs WRONG example pair** pins the tone.
+  *(Refined 2026-07-08: default made explicitly Hindi rather than a per-message mirror — a Hindi-English
+  mix now defaults to Hindi, not English.)*
+- **English input → fully clean English**, and it keeps conversing in English while the user stays in
+  English (switches back to Hindi the moment they do); Devanagari input → **Devanagari**. Warm traditional
   jyotishi register throughout.
 - Also warmed the server-side **`GREETING`** (dropped the English "comfortable" → "jaise aapko theek
   lage"; kept the single subtle language clause). Behaviour is entirely server-side; the function still

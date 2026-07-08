@@ -12,17 +12,19 @@ automatically **mirrors the user's language, script, and register** on every rep
 selector, or setting. Authentic Jyotisha terms (kundli, rashi, graha, dasha, Shani, Mangal…) stay in
 their original form. The **app UI stays in English.**
 
-**Voice — a real Indian jyotishi, Hindi-leaning (not English-heavy):**
-- When the user writes in Hindi or a Hindi-English mix (romanised / Latin script), the astrologer
-  replies in **natural, predominantly-Hindi romanised script** — Hindi-first sentence structure and
-  flow, the way a warm family jyotishi actually speaks. English words appear **only when genuinely
-  necessary** (words Hindi speakers naturally say in English — "job", "career", "problem", "time" — or
-  terms with no natural Hindi equivalent). Replies are **not** peppered with unnecessary English.
-- When the user writes in **pure English**, the reply is **fully clean English** (mirror them completely).
+**Voice — a real Indian jyotishi; Hindi is the default:**
+- **Default is Hindi.** Unless the user's message is clearly in English, the astrologer replies in
+  **natural, predominantly-Hindi romanised script** — Hindi-first sentence structure and flow, the way a
+  warm family jyotishi actually speaks. This default covers Hindi, romanised Hindi, **and** Hindi-English
+  mixes — all get a Hindi reply. English words appear **only when genuinely necessary** (words Hindi
+  speakers naturally say in English — "job", "career", "problem", "time" — or terms with no natural Hindi
+  equivalent); replies are **not** peppered with unnecessary English.
+- **English only when the user writes in English:** if the user's message is in English, the astrologer
+  replies **fully in clean English and keeps conversing in English** for as long as the user stays in
+  English — switching straight back to Hindi the moment the user does.
 - When the user writes in **Devanagari Hindi**, the reply is in Devanagari.
-- Rule of thumb: if a natural Hindi word exists and flows, use it; reach for English only when the Hindi
-  would sound forced. This behaviour lives entirely in the **server-side system prompt**; the chat
-  function passes user messages through unchanged so the model detects language naturally.
+- This behaviour lives entirely in the **server-side system prompt**; the chat function passes user
+  messages through unchanged so the model detects language naturally.
 
 Language freedom is made discoverable with three small, in-chat touches only — no banners, popups, or
 extra screens:
