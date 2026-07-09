@@ -231,3 +231,18 @@ existing `report_generated`). Free-text `events.name`; no analytics migration.
 - AI narrates only; every score, house, yoga and dasha date is computed in code (rule #2).
 - All chart data flows through `kundliService` (rule #1).
 - Generation only after server-side payment verification (rule #3); each grant is one ledger row (rule #7).
+
+## Free Home Tools: Retrograde (Vakri) Tracker & Sade Sati Tracker
+Both FREE, cached/stored data + static pre-written copy, **no AI/LLM, no VedAstro call**.
+
+- **Retrograde (Vakri) Tracker:** which planets are retrograde right now (with start–end
+  dates), a calm "none right now" state, a static plain-language meaning per planet, next
+  2–3 upcoming retrogrades, and (personalized) which house it transits for the user. Soft
+  Chat hook.
+- **Sade Sati Tracker (personalized):** calm state if not active (with next expected start);
+  if active, a 3-phase visual timeline (Phase X of 3), current-phase + full-cycle dates, a
+  gold progress marker, and a static, **non-alarmist** phase explanation. Soft Chat hook.
+  Tone rule: constructive "change and growth," never fear/suffering; no products/gemstones.
+- Placement: secondary cards under "MORE FOR YOU" on Home (below the horoscope hero).
+- Analytics: `retrograde_tracker_viewed`, `sadesati_tracker_viewed`,
+  `retrograde_chat_hook_clicked`, `sadesati_chat_hook_clicked`.

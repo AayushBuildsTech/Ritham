@@ -278,3 +278,13 @@ entitlements_ledger.
 ### Deploy (see PROGRESS.md §23)
 Run migration `012`; redeploy `report` (single file — engine inlined) and redeploy `create-order`
 (new prices). No app rebuild (chart reports add no native modules), no new secrets.
+
+## Retrograde (Vakri) + Sade Sati Trackers (free Home tools)
+- Data: `lib/ephemeris.ts` (client port of `_shared/astro.ts`) → `lib/transitsService.ts`
+  (`getRetrograde`, `getSadeSati`), day-cached in AsyncStorage, exposed via `kundliService`.
+  **Zero AI, zero provider calls.** Static copy: `config/retrogradeMeanings.ts`,
+  `config/sadeSatiPhases.ts`.
+- UI: `app/retrograde.tsx`, `app/sadesati.tsx`, `components/SadeSatiTimeline.tsx`; two
+  `FeatureRow`s on Home (`app/(tabs)/index.tsx`) with live sub-status.
+- Sade Sati styling: gold current-position marker, calm non-red tones only (anxiety-sensitive).
+- See DECISIONS.md (2026-07-09) for the client-vs-server compute rationale + v2 path.

@@ -184,6 +184,10 @@ export async function computeAndStoreKundli(profile: ProfileRow): Promise<Kundli
 export { getPanchang as getDailyPanchang } from './panchangService';
 export { getMuhurats as getMuhuratWindows } from './muhuratService';
 export { getNumerology } from './numerologyService';
+// Transit trackers (Retrograde / Sade Sati) — deterministic client-side astronomy,
+// day-cached, NO provider call and NO AI. See lib/transitsService.ts.
+export { getRetrograde, getSadeSati } from './transitsService';
+export type { RetrogradeStatus, RetroPeriod, SadeSatiStatus } from './transitsService';
 
 /**
  * Compute a partner's chart for matchmaking (Guna Milan). The self chart comes from the

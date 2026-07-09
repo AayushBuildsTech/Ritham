@@ -271,3 +271,24 @@ permission. Embedding is not built yet — the field just reserves the seam.
 No Ritham ads around/over the darshan links; the disclaimer explicitly states the streams are the
 temples' official channels, that Ritham does not own/host the content, and that Ritham is not
 affiliated with or endorsed by any temple. Events: `darshan_opened`, `darshan_temple_clicked {temple}`.
+
+## Retrograde (Vakri) + Sade Sati Trackers — client-side deterministic compute (2026-07-09)
+Two new FREE Home tools. Both are ZERO runtime cost and use NO AI/LLM and NO VedAstro call.
+
+- **Compute location:** transit data (which planets are vakri today; Saturn's sign timeline)
+  is global + deterministic, so it is computed **client-side** from a ported copy of the
+  server astronomy engine (`lib/ephemeris.ts`, same Schlyter+Lahiri math as
+  `_shared/astro.ts`) in `lib/transitsService.ts`, and **day-cached in AsyncStorage**
+  (`transits_v1_<date>`). Routed through `kundliService` (`getRetrograde`, `getSadeSati`).
+- **Why not the spec's `retrograde_cache` table + cron:** client compute is even cheaper
+  (no table, no cron, no edge fn, no deploy) and equally correct/global. **v2 option:** if we
+  ever want it server-side (e.g. to precompute for web), lift `transitsService` into a
+  `transits` edge function beside `panchang` and cache one global row/day — the compute code
+  is provider-free and moves as-is.
+- **Retrograde personalization (shipped, not deferred):** the detail screen cross-references
+  the retro planet's current sign against the user's **stored** Lagna to show the house
+  ("Mercury is retrograde in your 7th house") — no extra call, reads cached chart.
+- **Sade Sati:** derived per-user from stored natal Moon sign vs the shared Saturn run
+  timeline (3 phases: rising/peak/setting). Nodes (Rahu/Ketu) are excluded from the retro
+  tracker (always vakri). Copy is static (`config/retrogradeMeanings.ts`,
+  `config/sadeSatiPhases.ts`) — deliberately calm/non-alarmist for Sade Sati; no products.

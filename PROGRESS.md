@@ -4,7 +4,27 @@
 
 ---
 
-## 0. Latest Session (2026-07-07) — GO-LIVE: real Kundli, live AI, everything deployed
+## 0. Latest Session (2026-07-09) — Chat fixes, two free trackers, UI polish
+
+**1. Chat now truly reads the dasha (deploy bug fixed).** Users saw the astrologer say "consult a trusted jyotishi" for their dasha. Root cause was NOT missing data — the VedAstro rich chart (incl. full dasha) was stored fine (verified live: `engine_version 3`, 12 dasha periods, current Mahadasha Rahu). The real issues: (a) a **prompt loophole** — Rule #1 forbade *asking for data* but not *deflecting to a human astrologer*; (b) the earlier manual deploy went to the **orphaned `bright-processor`** function, not `chat` (the app calls slug `chat`). Fixes in `supabase/functions/chat/index.ts`, redeployed via CLI to `chat`:
+- Hardened Rule #1: explicitly bans "consult/see another jyotishi/pandit/astrologer" deflections; reasserts "YOU ARE THIS PERSON'S JYOTISHI, the dasha is in front of you."
+- Injected the **full Vimshottari mahadasha life-sequence** (every period + dates), not just current + next two.
+- Added a temporary owner-only `debugPrompt` branch (returns the exact built system prompt; **remove before public release**).
+- **Simple-language rule (tier-2/3 friendly):** in Hindi/mixed-Hindi replies, never use hard English/jargon (combust, retrograde, debilitated, exalted, conjunction, transit…); convert to plain Hindi (e.g. combust → "Surya ke kareeb hone se kamzor", retrograde → "vakri"). Those English terms are allowed only when the user writes in English.
+- Deleted the orphaned `bright-processor` function.
+
+**2. Two FREE Home trackers — Retrograde (Vakri) + Sade Sati.** Zero AI, zero VedAstro/provider calls. Computed **client-side** from a ported ephemeris (`lib/ephemeris.ts`, same Schlyter+Lahiri math as `_shared/astro.ts`) via `lib/transitsService.ts`, **day-cached in AsyncStorage**, routed through `kundliService` (`getRetrograde`, `getSadeSati`). Static copy in `config/retrogradeMeanings.ts` + `config/sadeSatiPhases.ts`. Retrograde shows current/upcoming + personalized house (from stored Lagna). Sade Sati shows a calm 3-phase visual timeline (`components/SadeSatiTimeline.tsx`, gold marker, non-alarmist tone). Screens `app/retrograde.tsx`, `app/sadesati.tsx`; two `FeatureRow`s on Home. Analytics: `retrograde_tracker_viewed`, `sadesati_tracker_viewed`, `retrograde_chat_hook_clicked`, `sadesati_chat_hook_clicked`. **Chose client compute over the spec's `retrograde_cache` table + cron** — cheaper, no infra/deploy; server-side path noted in DECISIONS.md as v2.
+
+**3. UI polish (client-only, no deploy).**
+- Hid all provider/engine details ("Computed by VedAstro · Swiss Ephemeris", "Refresh with VedAstro", and the "(VedAstro / Lahiri, Swiss Ephemeris)" parenthetical in the Chart Summary — stripped at render so cached charts are covered).
+- Home header: replaced the moon icon beside Settings with a labeled **"My Kundli"** button; fixed the name truncating ("Aa…") by dropping it 40→32px with `adjustsFontSizeToFit`.
+- Kundli view: renamed the refresh button to **"Generate detailed Kundli"**.
+
+`npx tsc --noEmit` passes (0 errors). Only `chat` was redeployed; everything else is JS-only client change.
+
+---
+
+## 0.1 Session (2026-07-07) — GO-LIVE: real Kundli, live AI, everything deployed
 
 This session took the app from "mock charts + mock AI, deploy-pending" to a fully live backend. **All 9 Edge Functions are deployed via the Supabase CLI, all migrations are applied + tracked, and every secret is set — the app now runs on real astronomy and real Claude.**
 

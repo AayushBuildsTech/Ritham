@@ -7,6 +7,8 @@ import { supabase } from '../../lib/supabase';
 import { getHoroscope, HoroscopePeriod } from '../../lib/horoscopeService';
 import { getPanchang, Panchang } from '../../lib/panchangService';
 import { getNumerology } from '../../lib/numerologyService';
+import { getRetrograde, getSadeSati, RetrogradeStatus, SadeSatiStatus } from '../../lib/kundliService';
+import { PLANET_LABEL } from '../../config/retrogradeMeanings';
 import { Numerology } from '../../lib/numerology';
 import { track } from '../../lib/analytics';
 import { Colors, Fonts, Spacing, Radius, Type, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
@@ -50,6 +52,8 @@ export default function HomeScreen() {
   // secondary free features (computed + cached — never AI)
   const [panchang, setPanchang] = useState<Panchang | null>(null);
   const [numerology, setNumerology] = useState<Numerology | null>(null);
+  const [retro, setRetro] = useState<RetrogradeStatus | null>(null);
+  const [sade, setSade] = useState<SadeSatiStatus | null>(null);
 
   // ── load the ACTIVE person (birth details + Moon sign) ───────────────────────
   // Everything on Home follows the active family member: horoscope, panchang,
@@ -64,7 +68,7 @@ export default function HomeScreen() {
       setEntry('loading');
       // switching person: drop the previous person's cached content
       setTexts({}); setErrors({}); setLoadingPeriod(null);
-      setPanchang(null); setNumerology(null);
+      setPanchang(null); setNumerology(null); setRetro(null); setSade(null);
 
       // NOTE: do NOT select `numerology` here — that column only exists after
       // migration 010; selecting a missing column rejects the whole query.
@@ -129,6 +133,13 @@ export default function HomeScreen() {
       if (!cancelled) setNumerology(num);
       const p = await getPanchang(profile.id);
       if (!cancelled && !p.error) setPanchang(p);
+      // transit trackers (deterministic, day-cached, no AI/provider call)
+      const r = await getRetrograde();
+      if (!cancelled) setRetro(r);
+      if (profile.moonSign) {
+        const ss = await getSadeSati(profile.moonSign);
+        if (!cancelled) setSade(ss);
+      }
     })();
     return () => { cancelled = true; };
   }, [profile]);
@@ -166,7 +177,7 @@ export default function HomeScreen() {
           >
             <Text style={styles.eyebrow}>NAMASTE</Text>
             <View style={styles.nameRow}>
-              <Text style={styles.name} numberOfLines={1}>{firstName || 'Seeker'}</Text>
+              <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{firstName || 'Seeker'}</Text>
               {members.length > 0 && (
                 <Icon name="chevronDown" size={22} color={th.gold} style={{ marginTop: 8 }} />
               )}
@@ -182,10 +193,14 @@ export default function HomeScreen() {
           </Pressable>
           <View style={styles.headerBtns}>
             {activeId && (
-              <IconButton
-                icon="moon"
+              <Pressable
+                style={styles.kundliBtn}
                 onPress={() => router.push({ pathname: '/profile', params: { id: activeId } })}
-              />
+                android_ripple={{ color: th.goldFaint }}
+              >
+                <Icon name="moon" size={15} color={th.gold} />
+                <Text style={styles.kundliBtnText}>My Kundli</Text>
+              </Pressable>
             )}
             <IconButton icon="settings" onPress={() => router.push('/settings')} />
           </View>
@@ -279,11 +294,27 @@ export default function HomeScreen() {
             sub="Live aarti from major temples"
             onPress={() => router.push('/darshan')}
           />
+          <FeatureRow
+            index={7} icon="activity" accent="sapphire" title="Retrograde (Vakri) Tracker"
+            sub={retro
+              ? (retro.current.length
+                  ? `${retro.current.map((c) => PLANET_LABEL[c.planet].split(' ')[0]).join(', ')} retrograde now`
+                  : 'No planets retrograde right now')
+              : 'Which planets are vakri now'}
+            onPress={() => router.push({ pathname: '/retrograde', params: { profileId: profile.id } })}
+          />
+          <FeatureRow
+            index={8} icon="clock" accent="amethyst" title="Sade Sati Tracker"
+            sub={sade
+              ? (sade.active ? `Phase ${sade.phase} of 3 · in progress` : 'You are not in Sade Sati')
+              : 'Where you stand in Shani’s cycle'}
+            onPress={() => router.push({ pathname: '/sadesati', params: { profileId: profile.id } })}
+          />
         </>
       ) : null}
 
       {/* Astrology disclaimer */}
-      <Reveal index={7}>
+      <Reveal index={9}>
         <Text style={styles.disclaimer}>
           Horoscopes and readings are for guidance and reflection, not a substitute for
           professional advice.
@@ -352,7 +383,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.xl },
   eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginBottom: 6 },
-  name: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, lineHeight: Fonts.size.hero + 4, flexShrink: 1 },
+  name: { fontFamily: Fonts.displayBold, fontSize: 32, color: th.text, lineHeight: 38, flexShrink: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   moonChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
@@ -368,6 +399,12 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     backgroundColor: th.surface, borderWidth: 1, borderColor: th.border,
     alignItems: 'center', justifyContent: 'center',
   },
+  kundliBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, height: 42,
+    paddingHorizontal: Spacing.md, borderRadius: Radius.pill,
+    backgroundColor: th.surface, borderWidth: 1, borderColor: th.border,
+  },
+  kundliBtnText: { fontFamily: Fonts.bodySemibold, color: th.gold, fontSize: Fonts.size.sm },
 
   sectionEyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginTop: Spacing.xl, marginBottom: Spacing.md },
 

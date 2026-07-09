@@ -443,8 +443,6 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
   const upcoming = timeline.filter((p) => Date.parse(p.start) > Date.now()).slice(0, 3);
   const d9 = cf?.divisional?.d9 ?? null;
   const d10 = cf?.divisional?.d10 ?? null;
-  const provider = kundli.source === 'vedastro' ? 'VedAstro · Swiss Ephemeris'
-    : kundli.source === 'lahiri' ? 'Lahiri sidereal engine' : null;
 
   const doRefresh = async () => {
     setRefreshing(true);
@@ -460,7 +458,6 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
         <Text style={styles.viewName}>{profile.name}</Text>
         <Text style={styles.viewMeta}>{dobLabel} · {tobLabel}</Text>
         <Text style={styles.viewMeta}>{profile.birth_place}</Text>
-        {provider && <Text style={styles.provider}>Computed by {provider}</Text>}
       </View>
 
       {/* Chart overview */}
@@ -479,7 +476,9 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       {/* Summary */}
       <View style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>Chart Summary</Text>
-        <Text style={styles.summaryText}>{kundli.summary}</Text>
+        <Text style={styles.summaryText}>
+          {(kundli.summary ?? '').replace(/\s*\([^()]*(?:VedAstro|Swiss Ephemeris|Lahiri)[^()]*\)/g, '')}
+        </Text>
       </View>
 
       {/* Planetary positions (rich when chart_facts present) */}
@@ -609,7 +608,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       {kundli.source === 'lahiri' && (
         <Pressable style={styles.refreshBtn} onPress={doRefresh} disabled={refreshing} android_ripple={{ color: th.goldFaint }}>
           {refreshing ? <ActivityIndicator color={th.goldLight} size="small" />
-            : <><Icon name="moon" size={15} color={th.goldLight} /><Text style={styles.refreshText}>Refresh with VedAstro</Text></>}
+            : <><Icon name="moon" size={15} color={th.goldLight} /><Text style={styles.refreshText}>Generate detailed Kundli</Text></>}
         </Pressable>
       )}
 
