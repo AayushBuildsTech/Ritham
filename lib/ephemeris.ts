@@ -104,3 +104,52 @@ export const SIGNS = [
   'Sagittarius (Dhanu)', 'Capricorn (Makara)', 'Aquarius (Kumbha)', 'Pisces (Meena)',
 ];
 export const signIndex = (lonSidereal: number): number => Math.floor(rev(lonSidereal) / 30);
+
+// ── Ascendant + divisional (varga) signs — for the visual Kundli charts ───────────
+const tand = (x: number) => Math.tan(x * DEG);
+const obliquity = (T: number) => 23.439291 - 0.0130042 * T - 1.64e-7 * T * T + 5.04e-7 * T * T * T;
+const gmst = (jdUT: number) => { const D = jdUT - 2451545.0, T = D / 36525; return rev(280.46061837 + 360.98564736629 * D + 0.000387933 * T * T - (T * T * T) / 38710000); };
+
+// Local wall-clock birth → true UTC. Uses Intl for the zone offset; falls back to IST
+// (+05:30) if the runtime lacks timezone data (safe for our India-first users).
+function offsetMinutes(dob: string, tob: string, tz: string): number {
+  try {
+    const [Y, Mo, D] = dob.split('-').map(Number);
+    const [h, mi] = tob.split(':').map((n) => Number(n) || 0);
+    const asUTC = Date.UTC(Y, Mo - 1, D, h, mi);
+    const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const m: Record<string, string> = {};
+    for (const p of dtf.formatToParts(new Date(asUTC))) m[p.type] = p.value;
+    let hr = Number(m.hour); if (hr === 24) hr = 0;
+    const asIf = Date.UTC(+m.year, +m.month - 1, +m.day, hr, +m.minute);
+    return Math.round((asIf - asUTC) / 60000);
+  } catch { return 330; }
+}
+export function birthUTC(dob: string, tob: string, tz: string): Date {
+  const [Y, Mo, D] = dob.split('-').map(Number);
+  const [h, mi, s] = tob.split(':').map((n) => Number(n) || 0);
+  const asUTC = Date.UTC(Y, Mo - 1, D, h, mi, s || 0);
+  return new Date(asUTC - offsetMinutes(dob, tob, tz || 'Asia/Kolkata') * 60000);
+}
+/** Sidereal ascendant (Lagna) longitude in degrees from birth details. */
+export function ascendantSidereal(dob: string, tob: string, tz: string, latDeg: number, lonEast: number): number {
+  const jdUT = birthUTC(dob, tob, tz).getTime() / 86400000 + 2440587.5;
+  const T = (jdUT - 2451545.0) / 36525;
+  const ecl = obliquity(T);
+  const ramc = rev(gmst(jdUT) + lonEast);
+  let asc = rev(atan2d(cosd(ramc), -(sind(ramc) * cosd(ecl) + tand(latDeg) * sind(ecl))));
+  if (rev(asc - ramc) > 180) asc = rev(asc + 180);
+  return rev(asc - lahiriAyanamsa(jdUT));
+}
+/** Sign index (0..11) of a longitude in the D1 / D9 (navamsa) / D10 (dashamsa) chart. */
+export function vargaSignIndex(lonSidereal: number, division: 1 | 9 | 10): number {
+  const lon = rev(lonSidereal);
+  const si = Math.floor(lon / 30);
+  if (division === 9) return Math.floor(lon / (30 / 9)) % 12;        // navamsa (classical = equal 9ths)
+  if (division === 10) {                                            // dashamsa (odd rasi from self, even from 9th)
+    const part = Math.floor((lon - si * 30) / 3);
+    const start = si % 2 === 0 ? si : (si + 8) % 12;
+    return (start + part) % 12;
+  }
+  return si;
+}

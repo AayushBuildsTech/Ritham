@@ -10,6 +10,8 @@ import { useActiveProfile, FAMILY_RELATIONS, RELATION_LABEL } from '../context/P
 import { supabase } from '../lib/supabase';
 import { computeAndStoreKundli, ProfileRow, Kundli } from '../lib/kundliService';
 import { buildLifeAreas } from '../config/kundliLifeAreas';
+import { KundliChart, ChartVariant } from '../components/KundliChart';
+import { SIGNS, ascendantSidereal, vargaSignIndex } from '../lib/ephemeris';
 import { track } from '../lib/analytics';
 import { CITIES } from '../constants/cities';
 import { searchPlaces, GeoPlace } from '../lib/geocoding';
@@ -421,6 +423,8 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
   const th = useColors();
   const styles = makeStyles(th);
   const [refreshing, setRefreshing] = useState(false);
+  const [chartStyle, setChartStyle] = useState<ChartVariant>('north');
+  const [chartKey, setChartKey] = useState('D1');
   const dobLabel = (() => {
     const [y, m, d] = profile.dob.split('-');
     return `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}`;
@@ -447,6 +451,49 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
   const manglik = doshas.some((d: any) => /Manglik/i.test(d.name) && d.present)
     || yogas.some((y: any) => /Manglik/i.test(y.name));
   const lifeAreas = buildLifeAreas({ houses: houses as any, manglik, mahaLord: maha?.lord ?? null });
+
+  // ── visual birth-chart data (D1 always; D9/D10 when the rich chart_facts exist) ──
+  const charts = useMemo(() => {
+    const ABBR: Record<string, string> = {
+      Sun: 'Su', Moon: 'Mo', Mars: 'Ma', Mercury: 'Me', Jupiter: 'Ju',
+      Venus: 'Ve', Saturn: 'Sa', Rahu: 'Ra', Ketu: 'Ke',
+    };
+    const abbr = (graha: string) => ABBR[(graha || '').split(' ')[0]] ?? (graha || '').slice(0, 2);
+    const bySign = (items: { graha: string; sign?: string }[], signOf: (it: any) => string) => {
+      const out: string[][] = Array.from({ length: 12 }, () => []);
+      for (const it of items) { const i = SIGNS.indexOf(signOf(it)); if (i >= 0) out[i].push(abbr(it.graha)); }
+      return out;
+    };
+    const list: { key: string; label: string; lagnaIndex: number; planets: string[][] }[] = [];
+
+    // D1 — Rashi / Lagna chart (works for every chart)
+    list.push({
+      key: 'D1', label: 'Lagna (D1)',
+      lagnaIndex: Math.max(0, SIGNS.indexOf(kundli.lagna)),
+      planets: bySign(kundli.placements ?? [], (p) => p.sign),
+    });
+
+    // D9 / D10 — need the rich per-planet varga signs + the divisional Lagna
+    if (grahas && profile.latitude != null && profile.longitude != null) {
+      let ascLon = -1;
+      try { ascLon = ascendantSidereal(profile.dob, profile.tob, (profile as any).timezone, profile.latitude, profile.longitude); } catch { /* skip vargas */ }
+      if (ascLon >= 0) {
+        list.push({
+          key: 'D9', label: 'Navamsa (D9)',
+          lagnaIndex: vargaSignIndex(ascLon, 9),
+          planets: bySign(grahas, (g: any) => g.navamsa_sign),
+        });
+        list.push({
+          key: 'D10', label: 'Dashamsa (D10)',
+          lagnaIndex: vargaSignIndex(ascLon, 10),
+          planets: bySign(grahas, (g: any) => g.dashamsa_sign),
+        });
+      }
+    }
+    return list;
+  }, [kundli, grahas, profile]);
+  const activeChart = charts.find((c) => c.key === chartKey) ?? charts[0];
+  const chartClr = { line: th.gold, text: th.text, accent: th.goldLight };
 
   const doRefresh = async () => {
     setRefreshing(true);
@@ -475,6 +522,42 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
         <Text style={styles.overviewLine}>
           Lagna lord {kundli.lagna_lord.graha} in {kundli.lagna_lord.sign} (house {kundli.lagna_lord.house})
         </Text>
+      )}
+
+      {/* Visual birth charts (North / South Indian) */}
+      {activeChart && (
+        <>
+          <Text style={styles.areaHeading}>Kundli Charts</Text>
+          <View style={styles.chartControls}>
+            <View style={styles.styleToggle}>
+              {(['north', 'south'] as ChartVariant[]).map((v) => (
+                <Pressable key={v} onPress={() => setChartStyle(v)}
+                  style={[styles.togglePill, chartStyle === v && styles.togglePillOn]}>
+                  <Text style={[styles.toggleText, chartStyle === v && styles.toggleTextOn]}>
+                    {v === 'north' ? 'North Indian' : 'South Indian'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          {charts.length > 1 && (
+            <View style={styles.vargaRow}>
+              {charts.map((c) => (
+                <Pressable key={c.key} onPress={() => setChartKey(c.key)} style={styles.vargaBtn}>
+                  <Text style={[styles.vargaText, activeChart.key === c.key && styles.vargaTextOn]}>{c.label}</Text>
+                  <View style={[styles.vargaRule, activeChart.key === c.key && styles.vargaRuleOn]} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+          <View style={styles.chartCard}>
+            <KundliChart variant={chartStyle} lagnaIndex={activeChart.lagnaIndex}
+              planets={activeChart.planets} colors={chartClr} />
+          </View>
+          <Text style={styles.chartLegend}>
+            Su Surya · Mo Chandra · Ma Mangal · Me Budh · Ju Guru · Ve Shukra · Sa Shani · Ra Rahu · Ke Ketu
+          </Text>
+        </>
       )}
 
       {/* Your chart, grouped by life area (easy to read — not a data dump) */}
@@ -704,6 +787,29 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   areaHeading: {
     fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold,
     letterSpacing: 2, textTransform: 'uppercase' as const, marginTop: Spacing.xl, marginBottom: Spacing.xs,
+  },
+  chartControls: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.sm, marginBottom: Spacing.sm },
+  styleToggle: {
+    flexDirection: 'row', backgroundColor: th.surfaceSunken, borderRadius: Radius.pill,
+    borderWidth: 1, borderColor: th.border, padding: 3,
+  },
+  togglePill: { paddingVertical: 7, paddingHorizontal: Spacing.md, borderRadius: Radius.pill },
+  togglePillOn: { backgroundColor: th.goldSurface },
+  toggleText: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.textMuted },
+  toggleTextOn: { color: th.goldContrast },
+  vargaRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.xl, marginBottom: Spacing.sm },
+  vargaBtn: { alignItems: 'center' },
+  vargaText: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: th.textDim, paddingBottom: 5 },
+  vargaTextOn: { color: th.text },
+  vargaRule: { height: 1.5, width: 18, borderRadius: 2, backgroundColor: 'transparent' },
+  vargaRuleOn: { backgroundColor: th.gold },
+  chartCard: {
+    backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.border,
+    padding: Spacing.md, alignSelf: 'center', width: '86%',
+  },
+  chartLegend: {
+    fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, lineHeight: 16,
+    textAlign: 'center', marginTop: Spacing.sm, paddingHorizontal: Spacing.md,
   },
   summaryCard: {
     backgroundColor: th.surface, borderRadius: Radius.md, padding: Spacing.lg,
