@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useActiveProfile, FAMILY_RELATIONS, RELATION_LABEL } from '../context/ProfileContext';
 import { supabase } from '../lib/supabase';
 import { computeAndStoreKundli, ProfileRow, Kundli } from '../lib/kundliService';
+import { buildLifeAreas } from '../config/kundliLifeAreas';
 import { track } from '../lib/analytics';
 import { CITIES } from '../constants/cities';
 import { searchPlaces, GeoPlace } from '../lib/geocoding';
@@ -443,6 +444,9 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
   const upcoming = timeline.filter((p) => Date.parse(p.start) > Date.now()).slice(0, 3);
   const d9 = cf?.divisional?.d9 ?? null;
   const d10 = cf?.divisional?.d10 ?? null;
+  const manglik = doshas.some((d: any) => /Manglik/i.test(d.name) && d.present)
+    || yogas.some((y: any) => /Manglik/i.test(y.name));
+  const lifeAreas = buildLifeAreas({ houses: houses as any, manglik, mahaLord: maha?.lord ?? null });
 
   const doRefresh = async () => {
     setRefreshing(true);
@@ -473,13 +477,18 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
         </Text>
       )}
 
-      {/* Summary */}
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Chart Summary</Text>
-        <Text style={styles.summaryText}>
-          {(kundli.summary ?? '').replace(/\s*\([^()]*(?:VedAstro|Swiss Ephemeris|Lahiri)[^()]*\)/g, '')}
-        </Text>
-      </View>
+      {/* Your chart, grouped by life area (easy to read — not a data dump) */}
+      {lifeAreas.length > 0 && (
+        <>
+          <Text style={styles.areaHeading}>Your Chart at a Glance</Text>
+          {lifeAreas.map((a) => (
+            <View key={a.key} style={styles.summaryCard}>
+              <Text style={styles.summaryTitle}>{a.title}</Text>
+              <Text style={styles.summaryText}>{a.text}</Text>
+            </View>
+          ))}
+        </>
+      )}
 
       {/* Planetary positions (rich when chart_facts present) */}
       <Text style={styles.tableHeading}>Planetary Positions</Text>
@@ -692,6 +701,10 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   keyLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, letterSpacing: 0.5 },
   keyValue: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.goldLight, marginTop: 4 },
 
+  areaHeading: {
+    fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold,
+    letterSpacing: 2, textTransform: 'uppercase' as const, marginTop: Spacing.xl, marginBottom: Spacing.xs,
+  },
   summaryCard: {
     backgroundColor: th.surface, borderRadius: Radius.md, padding: Spacing.lg,
     borderWidth: 1, borderColor: th.border, marginTop: Spacing.md,
