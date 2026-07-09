@@ -1,0 +1,384 @@
+<!doctype html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  @page { margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #f0ece8;
+         background: #14122b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { min-height: 100vh; padding: 46px 40px; page-break-after: always;
+          background: linear-gradient(160deg, #14122b 0%, #1e1b45 100%); }
+  .page:last-child { page-break-after: auto; }
+  h1, h2, h3 { font-weight: normal; letter-spacing: 0.3px; margin: 0; }
+  .brand { color: #d9a441; font-size: 14px; letter-spacing: 3px; }
+  .divider { height: 1px; background: linear-gradient(90deg, transparent, #d9a441, transparent); margin: 16px 0; }
+  .cover { display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  .cover .logo { font-size: 42px; color: #d9a441; margin-bottom: 6px; }
+  .cover h1 { font-size: 38px; color: #f0ece8; margin: 8px 0; }
+  .cover .sub { color: #9b96b0; font-size: 15px; }
+  .cover .who { margin-top: 30px; color: #e6c063; font-size: 24px; }
+  .cover .bd { color: #9b96b0; font-size: 13px; margin-top: 6px; }
+  .cover .rid { color: #6b6585; font-size: 12px; letter-spacing: 1px; margin-top: 18px; }
+  .cover .date { color: #6b6585; font-size: 13px; margin-top: 4px; }
+  h2.section { color: #e6c063; font-size: 23px; margin: 0 0 4px; }
+  .lead { color: #9b96b0; font-size: 13px; margin-bottom: 8px; }
+  p.body { font-size: 14.5px; line-height: 1.75; color: #ded9e6; margin: 0 0 12px; }
+  table.details { width: 100%; border-collapse: collapse; }
+  table.details td { padding: 9px 4px; border-bottom: 1px solid #2d2960; font-size: 14.5px; vertical-align: top; }
+  td.k { color: #9b96b0; width: 40%; } td.v { color: #f0ece8; }
+  /* score box */
+  .score-box { text-align: center; border: 1px solid #2d2960; border-radius: 14px; padding: 22px;
+               background: rgba(30,27,69,0.6); margin: 12px 0 16px; }
+  .score-num { font-size: 58px; color: #e6c063; }
+  .score-cap { color: #9b96b0; font-size: 12px; letter-spacing: 1px; }
+  /* generic table */
+  table.grid { width: 100%; border-collapse: collapse; }
+  table.grid th { text-align: left; color: #9b96b0; font-size: 11px; letter-spacing: 1px;
+                  padding: 7px 6px; border-bottom: 1px solid #d9a441; }
+  table.grid td { padding: 8px 6px; border-bottom: 1px solid #2d2960; font-size: 13px; color: #ded9e6; vertical-align: top; }
+  td.pn, td.hh, td.dl { color: #f0ece8; }
+  .mut { color: #8f8aa8; } .dig { color: #e6c063; font-size: 12px; }
+  td.hs, td.kp { text-align: center; }
+  tr.now td { background: rgba(217,164,65,0.12); color: #f0ece8; }
+  .tag { color: #14122b; background: #d9a441; font-size: 9px; padding: 1px 5px; border-radius: 6px; letter-spacing: 0.5px; }
+  /* yogas */
+  .yoga { border-left: 2px solid #d9a441; padding: 4px 0 4px 14px; margin-bottom: 14px; }
+  .yoga.yc { border-left-color: #e0a05a; }
+  .yoga-name { color: #f0ece8; font-size: 15.5px; }
+  .yoga-detail { color: #cfc9dd; font-size: 13.5px; line-height: 1.6; margin: 4px 0 0; }
+  /* chart diagram */
+  .chartwrap { text-align: center; margin: 6px 0; }
+  svg.chart { width: 100%; max-width: 260px; }
+  svg.chart .cl { fill: none; stroke: #d9a441; stroke-width: 1; }
+  svg.chart .cs { fill: #8f8aa8; font-size: 9px; text-anchor: middle; }
+  svg.chart .cg { fill: #f0ece8; font-size: 11px; text-anchor: middle; }
+  .chartnote { color: #6b6585; font-size: 11px; text-align: center; margin-top: 8px; }
+  ul.list { padding-left: 20px; margin: 8px 0 0; }
+  ul.list li { font-size: 14px; line-height: 1.7; color: #ded9e6; margin-bottom: 7px; }
+  .verdict { color: #ded9e6; font-size: 15px; line-height: 1.6; text-align: center; font-style: italic; margin-top: 8px; }
+  .foot { color: #6b6585; font-size: 11px; text-align: center; margin-top: 28px; line-height: 1.5; }
+</style></head><body>
+
+  <section class="page cover">
+    <div class="logo">✦</div>
+    <div class="brand">RITHAM</div>
+    <h1>Complete Kundli Analysis</h1>
+    <div class="sub">A comprehensive Vedic life reading</div>
+    <div class="who">Ananya Sharma</div>
+    <div class="bd">18/8/1995 · 14:30 · Bengaluru, India</div>
+    <div class="rid">REPORT ID · RTH-LIF-19376</div>
+    <div class="date">5 July 2026</div>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · LIFE REPORT</div>
+    <h2 class="section">Birth Details & Chart</h2>
+    <div class="divider"></div>
+    <table class="details"><tbody><tr><td class="k">Prepared for</td><td class="v">Ananya Sharma</td></tr><tr><td class="k">Birth details</td><td class="v">18/8/1995 · 14:30 · Bengaluru, India</td></tr><tr><td class="k">Ascendant (Lagna)</td><td class="v">Leo (Simha)</td></tr><tr><td class="k">Moon sign (Rashi)</td><td class="v">Libra (Tula)</td></tr><tr><td class="k">Sun sign</td><td class="v">Leo (Simha)</td></tr><tr><td class="k">Nakshatra</td><td class="v">Chitra</td></tr><tr><td class="k">Report ID</td><td class="v">RTH-LIF-19376</td></tr></tbody></table>
+    <div class="chartwrap"><svg viewBox="0 0 260 260" class="chart">
+    <rect x="10" y="10" width="240" height="240" class="cl"/>
+    <line x1="10" y1="10" x2="250" y2="250" class="cl"/>
+    <line x1="250" y1="10" x2="10" y2="250" class="cl"/>
+    <polygon points="130,10 250,130 130,250 10,130" class="cl"/>
+    <text x="130" y="52" class="cs">5</text><text x="130" y="64" class="cg">Su Me</text><text x="70" y="28" class="cs">6</text><text x="28" y="70" class="cs">7</text><text x="28" y="82" class="cg">Mo</text><text x="58" y="130" class="cs">8</text><text x="58" y="142" class="cg">Ke</text><text x="28" y="190" class="cs">9</text><text x="70" y="232" class="cs">10</text><text x="130" y="208" class="cs">11</text><text x="130" y="220" class="cg">Sa</text><text x="190" y="232" class="cs">12</text><text x="232" y="190" class="cs">1</text><text x="232" y="202" class="cg">Ma</text><text x="202" y="130" class="cs">2</text><text x="202" y="142" class="cg">Ra</text><text x="232" y="70" class="cs">3</text><text x="232" y="82" class="cg">Ve</text><text x="190" y="28" class="cs">4</text><text x="190" y="40" class="cg">Ju</text>
+  </svg></div>
+    <p class="chartnote">North-Indian chart · house numbers shown · Su Sun · Mo Moon · Ma Mars · Me Mercury · Ju Jupiter · Ve Venus · Sa Saturn · Ra Rahu · Ke Ketu</p>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · LIFE REPORT</div>
+    <h2 class="section">Planetary Positions</h2>
+    <p class="lead">Where each graha sits at birth, and its dignity.</p>
+    <div class="divider"></div>
+    <table class="grid">
+      <thead><tr><th>PLANET</th><th>SIGN</th><th>HOUSE</th><th>DIGNITY</th></tr></thead>
+      <tbody><tr><td class="pn">Sun</td><td>Leo</td><td>1st</td><td><span class="dig">Own sign</span></td></tr><tr><td class="pn">Moon</td><td>Libra</td><td>3rd</td><td></td></tr><tr><td class="pn">Mars</td><td>Aries</td><td>9th</td><td><span class="dig">Own sign</span></td></tr><tr><td class="pn">Mercury</td><td>Leo</td><td>1st</td><td></td></tr><tr><td class="pn">Jupiter</td><td>Cancer</td><td>12th</td><td><span class="dig">Exalted</span></td></tr><tr><td class="pn">Venus</td><td>Gemini</td><td>11th</td><td></td></tr><tr><td class="pn">Saturn</td><td>Aquarius</td><td>7th</td><td><span class="dig">Own sign</span></td></tr><tr><td class="pn">Rahu</td><td>Taurus</td><td>10th</td><td></td></tr><tr><td class="pn">Ketu</td><td>Scorpio</td><td>4th</td><td></td></tr></tbody>
+    </table>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · LIFE REPORT</div>
+    <h2 class="section">Overview</h2>
+    <div class="score-box">
+      <div class="score-num">60<span style="font-size:24px;color:#9b96b0">/100</span></div>
+      <div class="score-cap">OVERALL CHART STRENGTH</div>
+    </div>
+    <p class="body">(Preview report — the full AI narration activates once the Claude API key is set. The chart facts, houses, yogas, strength scores and Mahadasha timeline shown throughout are already fully computed and final.)</p><p class="body">Ananya&#39;s chart rises in Leo (Simha), with the Moon in Libra (Tula) and the Sun in Leo (Simha), born under the Chitra nakshatra. The Ascendant sets the lens through which Ananya meets the world, while the Moon describes the inner emotional landscape and the Sun the core sense of self and purpose.</p><p class="body">The strongest supports in this chart gather around the houses of 11th (gains, income and aspirations), 1st (self, vitality and outlook), 12th (expenses, retreat and liberation), while 10th and 5th ask for more conscious attention. Auspicious combinations such as Gajakesari Yoga and Budha-Aditya Yoga add genuine strength. The chart is presently in the Jupiter Mahadasha (through Aug 2032), a defining chapter whose themes colour this reading throughout.</p>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · LIFE REPORT</div>
+    <h2 class="section">The Twelve Houses</h2>
+    <p class="lead">Sign, ruling lord (and where it sits), occupants, and computed strength.</p>
+    <div class="divider"></div>
+    <table class="grid">
+      <thead><tr><th>HOUSE</th><th>SIGN</th><th>LORD</th><th>OCCUPANTS</th><th>STR</th></tr></thead>
+      <tbody>
+    <tr>
+      <td class="hh">1st</td>
+      <td>Leo</td>
+      <td>Sun <span class="mut">(1st)</span></td>
+      <td>Sun, Mercury</td>
+      <td class="hs"><span style="color:#52a87c">70</span></td>
+    </tr>
+    <tr>
+      <td class="hh">2nd</td>
+      <td>Virgo</td>
+      <td>Mercury <span class="mut">(1st)</span></td>
+      <td><span class="mut">—</span></td>
+      <td class="hs"><span style="color:#e6c063">62</span></td>
+    </tr>
+    <tr>
+      <td class="hh">3rd</td>
+      <td>Libra</td>
+      <td>Venus <span class="mut">(11th)</span></td>
+      <td>Moon</td>
+      <td class="hs"><span style="color:#e6c063">61</span></td>
+    </tr>
+    <tr>
+      <td class="hh">4th</td>
+      <td>Scorpio</td>
+      <td>Mars <span class="mut">(9th)</span></td>
+      <td>Ketu</td>
+      <td class="hs"><span style="color:#e6c063">56</span></td>
+    </tr>
+    <tr>
+      <td class="hh">5th</td>
+      <td>Sagittarius</td>
+      <td>Jupiter <span class="mut">(12th)</span></td>
+      <td><span class="mut">—</span></td>
+      <td class="hs"><span style="color:#e6c063">49</span></td>
+    </tr>
+    <tr>
+      <td class="hh">6th</td>
+      <td>Capricorn</td>
+      <td>Saturn <span class="mut">(7th)</span></td>
+      <td><span class="mut">—</span></td>
+      <td class="hs"><span style="color:#e6c063">62</span></td>
+    </tr>
+    <tr>
+      <td class="hh">7th</td>
+      <td>Aquarius</td>
+      <td>Saturn <span class="mut">(7th)</span></td>
+      <td>Saturn</td>
+      <td class="hs"><span style="color:#e6c063">61</span></td>
+    </tr>
+    <tr>
+      <td class="hh">8th</td>
+      <td>Pisces</td>
+      <td>Jupiter <span class="mut">(12th)</span></td>
+      <td><span class="mut">—</span></td>
+      <td class="hs"><span style="color:#e6c063">49</span></td>
+    </tr>
+    <tr>
+      <td class="hh">9th</td>
+      <td>Aries</td>
+      <td>Mars <span class="mut">(9th)</span></td>
+      <td>Mars</td>
+      <td class="hs"><span style="color:#e6c063">61</span></td>
+    </tr>
+    <tr>
+      <td class="hh">10th</td>
+      <td>Taurus</td>
+      <td>Venus <span class="mut">(11th)</span></td>
+      <td>Rahu</td>
+      <td class="hs"><span style="color:#e6c063">46</span></td>
+    </tr>
+    <tr>
+      <td class="hh">11th</td>
+      <td>Gemini</td>
+      <td>Mercury <span class="mut">(1st)</span></td>
+      <td>Venus</td>
+      <td class="hs"><span style="color:#52a87c">71</span></td>
+    </tr>
+    <tr>
+      <td class="hh">12th</td>
+      <td>Cancer</td>
+      <td>Moon <span class="mut">(3rd)</span></td>
+      <td>Jupiter</td>
+      <td class="hs"><span style="color:#52a87c">69</span></td>
+    </tr></tbody>
+    </table>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · LIFE REPORT</div>
+    <h2 class="section">Yogas & Combinations</h2>
+    <p class="lead">Notable planetary combinations found in this chart.</p>
+    <div class="divider"></div>
+    
+    <div class="yoga ">
+      <div class="yoga-name">✦ Gajakesari Yoga</div>
+      <p class="yoga-detail">Jupiter sits in a kendra from the Moon — a classic yoga for wisdom, good reputation, and rising fortune.</p>
+    </div>
+    <div class="yoga ">
+      <div class="yoga-name">✦ Budha-Aditya Yoga</div>
+      <p class="yoga-detail">The Sun and Mercury unite — sharp intellect, articulate communication, and recognition through the mind.</p>
+    </div>
+    <div class="yoga ">
+      <div class="yoga-name">✦ Shasha Yoga</div>
+      <p class="yoga-detail">Saturn is powerful in a kendra — a Pancha-Mahapurusha yoga granting discipline, endurance and authority.</p>
+    </div>
+    <div class="yoga ">
+      <div class="yoga-name">✦ Exalted Jupiter</div>
+      <p class="yoga-detail">Jupiter is exalted in Cancer, lending its significations unusual strength and clarity.</p>
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · LIFE REPORT</div>
+    <h2 class="section">Dasha Timeline & Timing</h2>
+    <p class="lead">Your Vimshottari Mahadasha sequence — the running period is highlighted.</p>
+    <div class="divider"></div>
+    <table class="grid">
+      <thead><tr><th>MAHADASHA</th><th>PERIOD</th><th>LENGTH</th></tr></thead>
+      <tbody><tr class="">
+      <td class="dl">Mars</td>
+      <td>Aug 1995 – Aug 1998</td>
+      <td>3.0 yrs</td>
+    </tr><tr class="">
+      <td class="dl">Rahu</td>
+      <td>Aug 1998 – Aug 2016</td>
+      <td>18.0 yrs</td>
+    </tr><tr class="now">
+      <td class="dl">Jupiter <span class="tag">now</span></td>
+      <td>Aug 2016 – Aug 2032</td>
+      <td>16.0 yrs</td>
+    </tr><tr class="">
+      <td class="dl">Saturn</td>
+      <td>Aug 2032 – Aug 2051</td>
+      <td>19.0 yrs</td>
+    </tr><tr class="">
+      <td class="dl">Mercury</td>
+      <td>Aug 2051 – Aug 2068</td>
+      <td>17.0 yrs</td>
+    </tr><tr class="">
+      <td class="dl">Ketu</td>
+      <td>Aug 2068 – Aug 2075</td>
+      <td>7.0 yrs</td>
+    </tr><tr class="">
+      <td class="dl">Venus</td>
+      <td>Aug 2075 – Aug 2095</td>
+      <td>20.0 yrs</td>
+    </tr><tr class="">
+      <td class="dl">Sun</td>
+      <td>Aug 2095 – Aug 2101</td>
+      <td>6.0 yrs</td>
+    </tr><tr class="">
+      <td class="dl">Moon</td>
+      <td>Aug 2101 – Sept 2111</td>
+      <td>10.0 yrs</td>
+    </tr></tbody>
+    </table>
+    <h3 style="color:#e6c063;font-size:16px;margin:18px 0 6px;">Sub-periods (Antardasha) within Jupiter</h3>
+    <table class="grid">
+      <thead><tr><th>SUB-PERIOD</th><th>WINDOW</th></tr></thead>
+      <tbody><tr class="">
+      <td class="dl">Jupiter–Jupiter</td>
+      <td>Aug 2016 – Oct 2018</td>
+    </tr><tr class="">
+      <td class="dl">Jupiter–Saturn</td>
+      <td>Oct 2018 – May 2021</td>
+    </tr><tr class="">
+      <td class="dl">Jupiter–Mercury</td>
+      <td>May 2021 – Aug 2023</td>
+    </tr><tr class="">
+      <td class="dl">Jupiter–Ketu</td>
+      <td>Aug 2023 – Jul 2024</td>
+    </tr><tr class="now">
+      <td class="dl">Jupiter–Venus <span class="tag">now</span></td>
+      <td>Jul 2024 – Mar 2027</td>
+    </tr><tr class="">
+      <td class="dl">Jupiter–Sun</td>
+      <td>Mar 2027 – Dec 2027</td>
+    </tr><tr class="">
+      <td class="dl">Jupiter–Moon</td>
+      <td>Dec 2027 – May 2029</td>
+    </tr><tr class="">
+      <td class="dl">Jupiter–Mars</td>
+      <td>May 2029 – Apr 2030</td>
+    </tr><tr class="">
+      <td class="dl">Jupiter–Rahu</td>
+      <td>Apr 2030 – Aug 2032</td>
+    </tr></tbody>
+    </table>
+    <div class="divider"></div><p class="body">Ananya is currently in the major period (Mahadasha) of Jupiter, running until Aug 2032, with Venus as the present sub-period (Antardasha). This blend sets the tone of the coming months. Looking ahead, the Saturn Mahadasha (from Aug 2032) opens a new phase, followed by Mercury from Aug 2051. Aligning important decisions and launches with supportive sub-periods within these dashas will meaningfully improve results.</p>
+  </section>
+
+  
+    <section class="page">
+      <div class="brand">RITHAM · LIFE REPORT</div>
+      
+        <h2 class="section">Personality &amp; Temperament</h2>
+        <div class="divider"></div>
+        <p class="body">With Leo (Simha) rising, Ananya presents a distinctive outward nature shaped by its ruling planet Sun, placed in the 1st house. The first house — the seat of vitality and self — carries a strength of 70/100 in this chart. The Moon in Libra (Tula) governs the emotional mind, giving Ananya a characteristic inner rhythm, while the Chitra nakshatra adds its own signature to temperament and instinct.</p>
+        <ul class="list"><li>Ascendant: Leo (Simha) (lord Sun)</li><li>Moon (mind): Libra (Tula)</li><li>Sun (self): Leo (Simha)</li><li>Birth star: Chitra</li></ul>
+      
+    </section>
+    <section class="page">
+      <div class="brand">RITHAM · LIFE REPORT</div>
+      
+        <h2 class="section">Career &amp; Vocation</h2>
+        <div class="divider"></div>
+        <p class="body">The tenth house of career holds Rahu and is ruled by the 10th lord Venus in the 11th house, scoring 46/100. Together with the second and eleventh houses of wealth and gains, this describes Ananya&#39;s professional direction and the fields in which effort is most rewarded.</p>
+        <ul class="list"><li>10th house: Rahu · lord Venus</li><li>Gains (11th): Venus</li><li>Strength: 46/100</li></ul>
+      
+    </section>
+    <section class="page">
+      <div class="brand">RITHAM · LIFE REPORT</div>
+      
+        <h2 class="section">Wealth &amp; Finances</h2>
+        <div class="divider"></div>
+        <p class="body">The second house (accumulated wealth) and eleventh (income and gains) are anchored by the 2nd lord Mercury in the 1st house and the 11th lord Mercury in the 1st house. A wealth-supportive combination is present, aiding earnings. Financial stability grows as Ananya aligns saving and investment with the supportive dasha periods noted later.</p>
+        <ul class="list"><li>2nd (wealth) strength: 62/100</li><li>11th (gains) strength: 71/100</li></ul>
+      
+    </section>
+    <section class="page">
+      <div class="brand">RITHAM · LIFE REPORT</div>
+      
+        <h2 class="section">Marriage &amp; Relationships</h2>
+        <div class="divider"></div>
+        <p class="body">The seventh house of partnership contains Saturn and is governed by the 7th lord Saturn in the 7th house at 61/100, with the fifth house of romance ruled by the 5th lord Jupiter in the 12th house. These describe the nature of Ananya&#39;s significant bonds and the qualities sought in a partner.</p>
+        <ul class="list"><li>7th (partner): Saturn · lord Saturn</li><li>5th (romance): no planets</li></ul>
+      
+    </section>
+    <section class="page">
+      <div class="brand">RITHAM · LIFE REPORT</div>
+      
+        <h2 class="section">Health &amp; Vitality</h2>
+        <div class="divider"></div>
+        <p class="body">Vitality flows from a first house at 70/100 and its lord Sun. The sixth and eighth houses — no planets and no planets — indicate where to keep balance. None of this is medical advice; it simply highlights where mindful lifestyle habits pay the greatest dividends.</p>
+        <ul class="list"><li>1st (vitality): 70/100</li><li>6th (immunity/service): no planets</li></ul>
+      
+    </section>
+    <section class="page">
+      <div class="brand">RITHAM · LIFE REPORT</div>
+      
+        <h2 class="section">Strengths, Yogas &amp; Challenges</h2>
+        <div class="divider"></div>
+        <p class="body">This chart carries 4 supportive combination(s): Gajakesari Yoga, Budha-Aditya Yoga, Shasha Yoga, Exalted Jupiter. No significant afflictions stand out — a well-balanced foundation. </p>
+        <ul class="list"><li>Gajakesari Yoga: Jupiter sits in a kendra from the Moon — a classic yoga for wisdom, good reputation, and rising fortune.</li><li>Budha-Aditya Yoga: The Sun and Mercury unite — sharp intellect, articulate communication, and recognition through the mind.</li><li>Shasha Yoga: Saturn is powerful in a kendra — a Pancha-Mahapurusha yoga granting discipline, endurance and authority.</li><li>Exalted Jupiter: Jupiter is exalted in Cancer, lending its significations unusual strength and clarity.</li></ul>
+      
+    </section>
+    <section class="page">
+      <div class="brand">RITHAM · LIFE REPORT</div>
+      
+        <h2 class="section">Life-Path Summary</h2>
+        <div class="divider"></div>
+        <p class="body">Taken as a whole, Ananya&#39;s chart tells the story of a life that builds meaningfully through its Jupiter and Saturn periods. The strongest houses — 11th, 1st, 12th — are where destiny cooperates most readily, and channelling energy there brings the surest progress and fulfilment.</p>
+        
+      
+    </section>
+
+  <section class="page">
+    <div class="brand">RITHAM · LIFE REPORT</div>
+    <h2 class="section">Guidance</h2>
+    <div class="divider"></div>
+    <ul class="list"><li>Lean into the themes of your strongest houses (11th, 1st, 12th) — these are where your natural momentum lies.</li><li>Give patient, conscious attention to the 10th and 5th houses rather than forcing them.</li><li>Time major beginnings with the supportive dasha sub-periods described in the timing section.</li><li>Cultivate the significations of Jupiter (your current major period) through study, service or devotion.</li><li>Keep a steady daily spiritual practice — it strengthens the whole chart, not one house.</li><li>Revisit this reading at each change of Mahadasha to re-align your plans.</li></ul>
+    <h2 class="section" style="margin-top:22px;">Remedies &amp; Recommendations</h2>
+    <div class="divider"></div>
+    <ul class="list"><li>Keep a simple daily practice of prayer, gratitude or meditation to strengthen the whole chart.</li><li>Offer water to the rising Sun and greet each day with intention.</li><li>Chant the Maha Mrityunjaya mantra for health and protection.</li><li>Consult a qualified astrologer before adopting any gemstone, so the stone truly suits your chart.</li><li>Practise regular charity (daan) aligned with your current dasha lord.</li></ul>
+    <div class="divider"></div><p class="verdict">“A rich and capable chart — lived with awareness and the noted remedies, Ananya&#39;s path holds real promise and purpose.”</p>
+    <div class="foot">Generated by Ritham · This reading is offered for guidance and reflection in the spirit of Vedic tradition.<br/>It is for personal guidance and entertainment, and is not a substitute for professional advice.</div>
+  </section>
+
+</body></html>
