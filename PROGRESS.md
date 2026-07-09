@@ -1606,3 +1606,24 @@ splash all regenerated; app renders). **Recurring dev-run gotcha:** `npx expo ru
 after install and can leave Metro WEDGED (accepts connections, `/status` hangs, never serves a full
 bundle) → app stuck on a black screen. Fix: kill the PID on 8081, `npx expo start` fresh, relaunch
 the dev client at `localhost:8081`.
+
+## 38. Brand assets v2 — new LIGHT logo (DONE, rebuilt on device 2026-07-09) — supersedes §37
+
+Replaced the §37 dark emblem with the new brand mark: a gold Devanagari monogram inside a gold
+orbital ring of 8 planets, on a **light cream background**. Source `Detailings/Ritham logo.png`
+(1254², cream `#FCF5E7`, emblem centered (622,612) ⌀900, central monogram (624,653) ~487px). Because
+the mark is designed light and the app's default theme is LIGHT, icons now render on cream, not dark.
+
+- **Regenerated all icon assets** (scratchpad `gen-icons2.mjs`; gold detected as `R-B > 45`). Full
+  emblem composited on `#FCF5E7` (seamless): `icon.png` (1024, 88%), `android-icon-foreground.png`
+  (1024, **61%** — pulled inside the adaptive safe circle so the ring/planets don't clip),
+  `android-icon-background.png` (solid cream), `splash-icon.png` (1024, 84%), `favicon.png` (48).
+- **Notification icon** — the full orbital emblem is illegible at 24dp, so `notification-icon.png` is
+  the bold central **monogram** silhouette (tight crop inside the ring so no planet slivers leak; alpha
+  from goldness `R-B`), white-on-transparent, tinted via `notification_icon_color = #C5A059`.
+- **`app.json`** — `adaptiveIcon.backgroundColor` and `expo-splash-screen.backgroundColor` moved
+  `#080809` → `#FCF5E7` to match the light assets. `expo-notifications` icon config unchanged.
+- Auth-screen "Ritham" wordmark + `AnimatedSplash` are text/vector — unchanged.
+
+Rebuild = `prebuild --clean` + `run:android` (native, icons are prebuild-generated). Same wedged-Metro
+gotcha as §37 applies on dev launch.

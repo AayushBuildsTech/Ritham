@@ -23,7 +23,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#080809",
+        "backgroundColor": "#FCF5E7",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "package": "com.ritham.app"
@@ -39,7 +39,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#080809",
+          "backgroundColor": "#FCF5E7",
           "resizeMode": "contain",
           "image": "./assets/splash-icon.png",
           "imageWidth": 200
