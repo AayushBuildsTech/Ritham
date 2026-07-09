@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, Text, View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardState } from 'react-native-keyboard-controller';
@@ -6,6 +7,8 @@ import { BlurView } from 'expo-blur';
 import { Icon, IconName } from '../../components/Icon';
 import { Fonts, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useActiveProfile } from '../../context/ProfileContext';
+import { syncDailyReminders } from '../../lib/notificationsService';
 
 // Height of the bar content ABOVE the safe-area inset. Tab screens add
 // `TAB_BAR_HEIGHT + insets.bottom` of bottom padding so nothing hides behind the
@@ -68,6 +71,15 @@ function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
 }
 
 export default function TabsLayout() {
+  // Refresh the rolling window of daily reminders whenever the active person (or
+  // their Moon sign) changes. Only once a profile with a name exists, so we never
+  // ask for notification permission before onboarding is complete.
+  const { active } = useActiveProfile();
+  useEffect(() => {
+    if (!active?.name) return;
+    syncDailyReminders({ name: active.name, moonSign: active.moonSign });
+  }, [active?.name, active?.moonSign]);
+
   return (
     <Tabs
       screenOptions={{ headerShown: false }}

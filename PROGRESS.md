@@ -1533,3 +1533,46 @@ Existing profiles self-heal to the VedAstro chart on next Kundli/chat view (or v
   `kundliService` is VedAstro-backed.
 - MatchChecker / extra divisional endpoints (D2/D3/D7/…) are available on VedAstro but not wired (D9/D10
   cover v1); add later if a report needs them.
+
+## 36. Daily reminder notifications — local, free (DONE, rebuilt on device 2026-07-09)
+
+Brought push back for v1 (was "dropped — add after revenue") as **Option A: 100% local notifications** —
+no server, no Expo/APNs push token, **zero cost**. Two daily nudges (7 AM + 6 PM) that pull the user back
+into the app. Native rebuild required (new native module + config plugin), **verified running on device**.
+
+**Design — "personalised, not vague":** each reminder is anchored to the day's actual Vedic ruling planet
+(*vaar*) and its life-domain — Mon/Moon (emotion), Tue/Mars (drive), Wed/Mercury (intellect), Thu/Jupiter
+(fortune), Fri/Venus (love), Sat/Saturn (discipline), Sun/Sun (vitality) — then filled with the active
+profile's **first name + Moon sign (Rashi)**. Reads as computed, not generic mysticism; stays honest since
+vaar rulership is real tradition (no faked live-transit claim). First rev used a flat pool of interchangeable
+poetic lines (user flagged as "vague/random") → replaced with the planet-themed engine.
+
+**Implementation:**
+- **NEW `lib/notificationsService.ts`** — the whole feature. `WEEKDAY[0..6]` themes, 3 morning + 3 evening
+  variants each (= **42 morning + 42 evening**); variant rotates by ISO week so the same weekday reads
+  differently week to week. `needs:'sign'` lines auto-skip for users without a Kundli (sign === null).
+  Moon sign "Cancer (Karka)" is shortened to "Cancer" mid-sentence. **Rolling 14-day window** of
+  individually DATE-triggered notifications (not one static DAILY trigger — that would repeat the same text
+  forever); `syncDailyReminders()` cancels + rebuilds the window on every app open, so copy never goes stale
+  as long as the user opens the app within 2 weeks. Android channel `daily-guidance` (HIGH), gold light.
+  Permission requested lazily on first schedule.
+- **`app/(tabs)/_layout.tsx`** — `syncDailyReminders({name, moonSign})` in an effect keyed on the active
+  profile; guarded on `active?.name` so permission is never requested before onboarding completes.
+- **`app/settings.tsx`** — NOTIFICATIONS section with a "Daily guidance" On/Off row (default On, persisted
+  to AsyncStorage `ritham.remindersEnabled` via `setRemindersEnabled`). (The `__DEV__` "preview a reminder
+  now" button used during bring-up was removed before commit.)
+- **`app.json`** — added `["expo-notifications", { "color": "#C5A059" }]`; also added the previously-missing
+  `image`/`imageWidth` to the `expo-splash-screen` plugin (a clean `prebuild --clean` failed resource
+  linking on `drawable/splashscreen_logo` without it — `android/` is gitignored/CNG so nothing committed
+  was lost).
+
+**Rebuild notes (2026-07-09):** `npx expo install expo-notifications` (SDK 57 → `expo-notifications@57.0.3`,
+needs `npm_config_legacy_peer_deps=true`), then `prebuild --clean` + `run:android`. Dev launch same as §25 —
+`adb reverse tcp:8081 tcp:8081` then relaunch the dev client at `localhost:8081`. `npx tsc --noEmit` passes.
+
+### Not yet done (follow-ups)
+- **Option B (deferred, still free):** freshly personalised / chart-accurate daily hook per user via Supabase
+  `pg_cron` + Edge Function + Expo Push API + Claude. Post-revenue upgrade; the local engine covers launch.
+- Onboarding opt-in for reminders (currently opt-out via Settings; permission is requested on first tab
+  mount after a profile exists).
+- Times are fixed at 7 AM / 6 PM local; no user-configurable schedule yet.

@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { useActiveProfile } from '../context/ProfileContext';
 import { deleteAccount } from '../lib/accountService';
+import { remindersEnabled, setRemindersEnabled } from '../lib/notificationsService';
 import { CONTACT_EMAIL } from '../constants/legal';
 import { Colors, Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
 import { useColors, useTheme } from '../context/ThemeContext';
@@ -23,6 +24,15 @@ export default function SettingsScreen() {
   const { active, activeId } = useActiveProfile();
   const version = Constants.expoConfig?.version ?? '1.0.0';
   const [deleting, setDeleting] = useState(false);
+
+  // Daily reminders (7 AM / 6 PM) — local notifications, default on.
+  const [remOn, setRemOn] = useState(true);
+  useEffect(() => { remindersEnabled().then(setRemOn); }, []);
+  async function toggleReminders() {
+    const next = !remOn;
+    setRemOn(next); // optimistic; the OS permission prompt (if any) resolves inside
+    await setRemindersEnabled(next, { name: active?.name ?? null, moonSign: active?.moonSign ?? null });
+  }
 
   function confirmSignOut() {
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
@@ -78,6 +88,13 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <Row icon={isDark ? 'moon' : 'sun'} label="Theme" value={isDark ? 'Dark' : 'Light'} onPress={toggle} last />
         </View>
+
+        {/* Notifications */}
+        <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
+        <View style={styles.group}>
+          <Row icon="clock" label="Daily guidance" value={remOn ? 'On' : 'Off'} onPress={toggleReminders} last />
+        </View>
+        <Text style={styles.deleteHint}>A gentle reading at 7 AM and 6 PM each day.</Text>
 
         {/* Account */}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>

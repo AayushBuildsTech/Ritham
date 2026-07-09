@@ -40,13 +40,21 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0B0B0D",
-          "resizeMode": "contain"
+          "resizeMode": "contain",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
         }
       ],
       [
         "expo-image-picker",
         {
           "photosPermission": "Ritham needs access to your photos so you can upload your floor plan for the Vaastu report."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#C5A059"
         }
       ]
     ],
