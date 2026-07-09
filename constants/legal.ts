@@ -7,8 +7,7 @@
 
 export const CONTACT_EMAIL = 'rithamastro@gmail.com';
 // India IT Rules 2021 + DPDP Act 2023: publish a Grievance Officer contact.
-// ⚠️ Replace [Grievance Officer name] with a real named person before public launch.
-export const GRIEVANCE_OFFICER = '[Grievance Officer name]';
+export const GRIEVANCE_OFFICER = 'The Ritham Team';
 export const GRIEVANCE_EMAIL = CONTACT_EMAIL;
 export const LEGAL_UPDATED = 'July 2026';
 
@@ -88,8 +87,8 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
       {
         heading: '7. Grievance redressal',
         body:
-          `If you have a concern or complaint about how your data is handled, you can reach our ` +
-          `Grievance Officer, ${GRIEVANCE_OFFICER}, at ${GRIEVANCE_EMAIL}. We will acknowledge ` +
+          `If you have a concern or complaint about how your data is handled, you can contact ` +
+          `${GRIEVANCE_OFFICER} (our grievance contact) at ${GRIEVANCE_EMAIL}. We will acknowledge ` +
           `your complaint within 24 hours and aim to resolve it within 15 days, in line with ` +
           `applicable Indian law (the Digital Personal Data Protection Act, 2023 and the IT ` +
           `Rules, 2021).`,
