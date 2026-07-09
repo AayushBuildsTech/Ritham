@@ -6,6 +6,10 @@
 // ⚠️ Replace CONTACT_EMAIL and any [bracketed] fields with your real details.
 
 export const CONTACT_EMAIL = 'rithamastro@gmail.com';
+// India IT Rules 2021 + DPDP Act 2023: publish a Grievance Officer contact.
+// ⚠️ Replace [Grievance Officer name] with a real named person before public launch.
+export const GRIEVANCE_OFFICER = '[Grievance Officer name]';
+export const GRIEVANCE_EMAIL = CONTACT_EMAIL;
 export const LEGAL_UPDATED = 'July 2026';
 
 export type LegalDoc = 'privacy' | 'terms' | 'disclaimer';
@@ -50,7 +54,10 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
           `database and secure storage), Razorpay (payments), and Anthropic (the AI that ` +
           `narrates readings). These providers process data only to deliver their part of ` +
           `the service, under their own terms and security practices. Your payment card ` +
-          `details are handled by Razorpay and are never stored by us.`,
+          `details are handled by Razorpay and are never stored by us.\n\n` +
+          `Some of these providers (for example, the AI that narrates your readings) may ` +
+          `process your data on servers located outside India. By using Ritham you consent ` +
+          `to this transfer, which we make only to deliver the service to you.`,
       },
       {
         heading: '4. Data storage & security',
@@ -70,12 +77,30 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
           `${CONTACT_EMAIL}.`,
       },
       {
-        heading: '6. Children',
+        heading: '6. Your rights',
+        body:
+          `You have the right to access the personal data we hold about you, to correct or ` +
+          `update it, and to erase it. You can review and edit your birth details in the app, ` +
+          `and permanently delete your account and all associated data from Settings → Delete ` +
+          `Account. You may also withdraw your consent at any time by deleting your account. To ` +
+          `exercise any of these rights, use the in-app options or contact us at ${CONTACT_EMAIL}.`,
+      },
+      {
+        heading: '7. Grievance redressal',
+        body:
+          `If you have a concern or complaint about how your data is handled, you can reach our ` +
+          `Grievance Officer, ${GRIEVANCE_OFFICER}, at ${GRIEVANCE_EMAIL}. We will acknowledge ` +
+          `your complaint within 24 hours and aim to resolve it within 15 days, in line with ` +
+          `applicable Indian law (the Digital Personal Data Protection Act, 2023 and the IT ` +
+          `Rules, 2021).`,
+      },
+      {
+        heading: '8. Children',
         body:
           `Ritham is intended for users aged 18 and above and is not directed at children.`,
       },
       {
-        heading: '7. Changes & contact',
+        heading: '9. Changes & contact',
         body:
           `We may update this policy from time to time; material changes will be reflected ` +
           `here with a new date. Questions or requests: ${CONTACT_EMAIL}.`,

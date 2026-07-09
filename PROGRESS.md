@@ -4,7 +4,7 @@
 
 ---
 
-## 0. Latest Session (2026-07-09) — Chat fixes, two free trackers, UI polish, report resilience, pre-launch audit
+## 0. Latest Session (2026-07-09) — Chat fixes, trackers, UI polish, report resilience, pre-launch + security/legal audit
 
 **1. Chat now truly reads the dasha (deploy bug fixed).** Users saw the astrologer say "consult a trusted jyotishi" for their dasha. Root cause was NOT missing data — the VedAstro rich chart (incl. full dasha) was stored fine (verified live: `engine_version 3`, 12 dasha periods, current Mahadasha Rahu). The real issues: (a) a **prompt loophole** — Rule #1 forbade *asking for data* but not *deflecting to a human astrologer*; (b) the earlier manual deploy went to the **orphaned `bright-processor`** function, not `chat` (the app calls slug `chat`). Fixes in `supabase/functions/chat/index.ts`, redeployed via CLI to `chat`:
 - Hardened Rule #1: explicitly bans "consult/see another jyotishi/pandit/astrologer" deflections; reasserts "YOU ARE THIS PERSON'S JYOTISHI, the dasha is in front of you."
@@ -34,6 +34,14 @@
 - **Security cleanup:** removed the temporary `debugPrompt` branch from `chat/index.ts` (it returned the EXACT internal system prompt to any authenticated caller — prompt-IP leak + injection aid; flagged "remove before public release"). No client caller existed. `chat` redeployed.
 
 `npx tsc --noEmit` passes (0 errors). `chat` (twice — dasha fix + debugPrompt removal) and `report` were redeployed via CLI this session; everything else is JS-only client change. **Verdict: all features connected and working; no broken wiring found.**
+
+**6. Security + legal/compliance audit — one real data leak fixed, plus hardening & DPDP updates.** Full sweep for launch:
+- **Data isolation (verified good):** client bundle carries ONLY the anon key (no service_role/secrets — grep-confirmed). All 12 tables have RLS enabled; `profiles`/`users`/`chat_*`/`payment_orders`/`entitlements_ledger`/`reports` are owner-scoped (users can only see their own rows). All 9 Edge Functions are JWT-gated at the gateway (`verify_jwt:true`) and use the authenticated `user.id` — **none trust a client-supplied `user_id`**; service-role key is server-only. Payments recompute the amount server-side + HMAC-verify + idempotent grant. Floor-plan uploads are user-scoped in Storage (path check + RLS). `delete-account` deletes only the caller (cascades all app data, anonymises analytics) — satisfies in-app right-to-erasure.
+- **🔴 Real fix — cross-user horoscope leak:** migration 007 shipped `horoscopes` as a SHARED cache with `for select to authenticated using (true)`; migration 016 then made horoscopes **per-profile & transit-aware** (body can reference that person's dasha) but left the open read policy. Any logged-in user could `select` the whole table and read others' personalised readings + their `profile_id`s. The `horoscope` fn uses the service role (bypasses RLS) and the app never reads the table directly, so **migration `017` replaces the open policy with an owner-scoped one** (`profile_id in (select id from profiles where user_id = auth.uid())`) — closes the leak, breaks nothing.
+- **Hardening:** `017` also drops the unused client `insert`/`update` policies on `reports` (server writes via service role; a client could otherwise fabricate its own report rows — self-only, but unnecessary surface). `panchang_cache`/`muhurat_cache` intentionally stay open-read (genuinely shared, no PII).
+- **Legal / DPDP Act 2023 + IT Rules 2021 (`constants/legal.ts`):** added a **"Your rights"** section (access / correction / erasure / withdraw consent), a **"Grievance redressal"** section (Grievance Officer contact + 24h ack / 15-day resolution) — ⚠️ replace `GRIEVANCE_OFFICER` placeholder with a real name before public launch — and a **cross-border processing** consent note (AI processes data outside India). Consent is already captured at sign-in ("By continuing you agree to Terms/Privacy" links); disclaimers already surfaced on Home, Chat, and in report PDFs. Legal docs render data-driven from `LEGAL`, so new sections appear automatically.
+
+**To apply:** run migration **`017_security_hardening.sql`** in the SQL Editor (no app rebuild, no fn redeploy). The `legal.ts` change ships in the JS bundle. `npx tsc --noEmit` passes (0 errors). **Verdict: no data breach/leak vector remains after 017; data is owner-isolated, encrypted at rest (Supabase) + TLS in transit; legal is India-appropriate pending the Grievance Officer name + a professional review.**
 
 ---
 
