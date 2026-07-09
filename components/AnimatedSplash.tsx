@@ -7,7 +7,8 @@ import { useColors } from '../context/ThemeContext';
 // A bespoke animated start screen shown after the (static) native splash and
 // before the app reveals. Pure RN Animated — no reanimated, no native deps.
 //
-// Sequence (settle easing throughout):
+// Sequence (settle easing throughout, ~1.3s total — kept short so it doesn't
+// stack a long second splash on top of the native logo splash):
 //   1. wordmark "Ritham" fades up + eases from 1.04→1.0
 //   2. a thin gold hairline draws outward from center (scaleX 0→1)
 //   3. the tracked-out tagline fades in
@@ -28,24 +29,27 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
     Animated.sequence([
       Animated.parallel([
         Animated.timing(wordOpacity, {
-          toValue: 1, duration: 700, easing: ease, useNativeDriver: true,
+          toValue: 1, duration: 420, easing: ease, useNativeDriver: true,
         }),
         Animated.timing(wordScale, {
-          toValue: 1, duration: 900, easing: ease, useNativeDriver: true,
+          toValue: 1, duration: 500, easing: ease, useNativeDriver: true,
         }),
         Animated.timing(wordShift, {
-          toValue: 0, duration: 900, easing: ease, useNativeDriver: true,
+          toValue: 0, duration: 500, easing: ease, useNativeDriver: true,
         }),
       ]),
-      Animated.timing(lineScale, {
-        toValue: 1, duration: 560, easing: ease, useNativeDriver: true,
-      }),
-      Animated.timing(tagOpacity, {
-        toValue: 1, duration: 500, easing: ease, useNativeDriver: true,
-      }),
-      Animated.delay(650),
+      // line + tagline reveal together (previously sequential) to save time
+      Animated.parallel([
+        Animated.timing(lineScale, {
+          toValue: 1, duration: 340, easing: ease, useNativeDriver: true,
+        }),
+        Animated.timing(tagOpacity, {
+          toValue: 1, duration: 340, easing: ease, useNativeDriver: true,
+        }),
+      ]),
+      Animated.delay(160),
       Animated.timing(overlay, {
-        toValue: 0, duration: 460, easing: ease, useNativeDriver: true,
+        toValue: 0, duration: 300, easing: ease, useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
       if (finished) onFinish();

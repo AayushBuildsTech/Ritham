@@ -1627,3 +1627,17 @@ the mark is designed light and the app's default theme is LIGHT, icons now rende
 
 Rebuild = `prebuild --clean` + `run:android` (native, icons are prebuild-generated). Same wedged-Metro
 gotcha as §37 applies on dev launch.
+
+## 39. Splash startup — trimmed animation (DONE, JS-only, 2026-07-09)
+
+User reported the startup splash felt long. Cold start is three stacked phases: (1) native splash
+(logo on cream) — held until fonts+theme load, AND in DEV also held while Metro bundles ~2000 modules
+(`Android Bundled 10–44s` — a **dev-only** artifact, gone in a release build since Hermes bytecode
+loads from disk; `hermesEnabled=true` already), (2) `AnimatedSplash` wordmark animation, (3) `AuthGate`
+loading until `supabase.auth.getSession()` (cached/fast, 5s timeout fallback).
+
+Only phase 2 is tunable and real in production, so **`components/AnimatedSplash.tsx` was trimmed
+~3.07s → ~1.3s**: wordmark reveal 0.9→0.5s; the gold line + tagline now animate together (0.34s) instead
+of sequentially (was 0.56+0.5s); hold 0.65→0.16s; fade 0.46→0.3s. All visual beats kept. No rebuild
+(JS-only; fast-refresh + app relaunch). **Takeaway for judging startup: build a RELEASE APK — the long
+"logo" wait in dev is Metro bundling, not the app.** Untouched: native splash + AuthGate (fine for v1).
