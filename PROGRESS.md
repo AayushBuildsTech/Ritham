@@ -4,7 +4,7 @@
 
 ---
 
-## 0. Latest Session (2026-07-09) — Chat fixes, two free trackers, UI polish
+## 0. Latest Session (2026-07-09) — Chat fixes, two free trackers, UI polish, report resilience
 
 **1. Chat now truly reads the dasha (deploy bug fixed).** Users saw the astrologer say "consult a trusted jyotishi" for their dasha. Root cause was NOT missing data — the VedAstro rich chart (incl. full dasha) was stored fine (verified live: `engine_version 3`, 12 dasha periods, current Mahadasha Rahu). The real issues: (a) a **prompt loophole** — Rule #1 forbade *asking for data* but not *deflecting to a human astrologer*; (b) the earlier manual deploy went to the **orphaned `bright-processor`** function, not `chat` (the app calls slug `chat`). Fixes in `supabase/functions/chat/index.ts`, redeployed via CLI to `chat`:
 - Hardened Rule #1: explicitly bans "consult/see another jyotishi/pandit/astrologer" deflections; reasserts "YOU ARE THIS PERSON'S JYOTISHI, the dasha is in front of you."
@@ -20,7 +20,13 @@
 - Home header: replaced the moon icon beside Settings with a labeled **"My Kundli"** button; fixed the name truncating ("Aa…") by dropping it 40→32px with `adjustsFontSizeToFit`.
 - Kundli view: renamed the refresh button to **"Generate detailed Kundli"**.
 
-`npx tsc --noEmit` passes (0 errors). Only `chat` was redeployed; everything else is JS-only client change.
+**4. Reports fixed — "We couldn't finish this report" (report fn hardened, redeployed).** After the go-live, `ANTHROPIC_API_KEY` **is set** (since 2026-07-07 — confirmed via `supabase secrets list`), so `report` now makes **real Claude calls**, not mock. Chat (same call shape) works; reports failed because `report` parses Claude's reply as **strict JSON**, and a reply that is truncated at `max_tokens` (the `life` report asks for a huge JSON on only 8000 tokens), refused, or any non-200 made `parseJsonReply` throw → the whole report was marked `failed` (the report-view "We couldn't finish this report" screen). Root fix in `supabase/functions/report/index.ts` (self-contained single file; CLI-redeployed to `report`):
+- **Reports never hard-fail.** All three generators (`narrateChart`, `generateVastu`, `generateMatch`) now wrap the live Claude call in try/catch and **fall back to the deterministic, type-specific mock narration** on ANY failure — non-200, `stop_reason:"refusal"`, truncated/invalid JSON, empty reply, or timeout. The computed chart facts (houses, dashas, yogas, Guna Milan) are the substance; the narration is a wrapper, so a report always completes. Verified all 4 failure modes × 5 chart types produce a full report with no throws.
+- **Raised token budgets** to stop legit truncation: `life` 8000→16000, focused reports 5000→8000, so the real narration usually succeeds outright.
+- Each fallback logs its cause (`... using mock ... Claude API <status>`) to the function logs, so if reports come back as "Preview report…" mock text the real reason (e.g. a 401 from a bad key) is visible in **Supabase → Edge Functions → `report` → Logs**.
+- Also fixed 3 latent TypeScript errors in the same file (definite-assignment on `insertRow`; two `number|null` `ordinal()` args) so a type-checked dashboard deploy can't be blocked.
+
+`npx tsc --noEmit` passes (0 errors). `chat` and `report` were redeployed via CLI this session; everything else is JS-only client change.
 
 ---
 

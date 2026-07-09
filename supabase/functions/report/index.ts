@@ -67,7 +67,9 @@ Deno.serve(async (req) => {
     if (!ent) return json({ error: 'needs_purchase' });
 
     // ── validate + assemble the row per report type ───────────────────────────
-    let insertRow: Record<string, unknown>;
+    // `type` is already validated to be one of the three families at the top of the
+    // handler, so exactly one branch below always assigns insertRow (definite-assignment).
+    let insertRow!: Record<string, unknown>;
     let style: 'north' | 'south' = 'north';
     if (type === 'vastu') {
       const { answers, floorplanPath } = body;
@@ -170,7 +172,16 @@ Deno.serve(async (req) => {
 // ── Vaastu analysis (Claude vision → structured JSON; mock until key set) ───────
 async function generateVastu(admin: any, floorplanPath: string, answers: any): Promise<VastuAnalysis> {
   if (!ANTHROPIC_API_KEY) return mockVastu(answers);
+  try {
+    return await generateVastuLive(admin, floorplanPath, answers);
+  } catch (err) {
+    // Never hard-fail a paid report: fall back to the structured mock analysis.
+    console.error('vastu narration failed, using mock', String((err as Error)?.message ?? err));
+    return mockVastu(answers);
+  }
+}
 
+async function generateVastuLive(admin: any, floorplanPath: string, answers: any): Promise<VastuAnalysis> {
   const { data: file, error: dErr } = await admin.storage.from('reports').download(floorplanPath);
   if (dErr || !file) throw new Error(`floorplan_download_failed: ${dErr?.message ?? 'no file'}`);
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -726,7 +737,17 @@ function computeMilan(a: Person, b: Person): Milan {
 // ── narration (Claude narrates the computed milan; mock until key set) ──────────
 async function generateMatch(a: Person, b: Person, m: Milan): Promise<MatchAnalysis> {
   if (!ANTHROPIC_API_KEY) return mockMatch(a, b, m);
+  try {
+    return await generateMatchLive(a, b, m);
+  } catch (err) {
+    // Never hard-fail a paid report: the Guna Milan scores are already computed; fall
+    // back to the mock narration around them.
+    console.error('match narration failed, using mock', String((err as Error)?.message ?? err));
+    return mockMatch(a, b, m);
+  }
+}
 
+async function generateMatchLive(a: Person, b: Person, m: Milan): Promise<MatchAnalysis> {
   const table = m.kootas.map((k) => `${k.name}: ${k.got}/${k.max}`).join(', ');
   const system =
     `You are a warm, experienced Vedic astrologer writing a premium marriage-compatibility ` +
@@ -1369,35 +1390,49 @@ export async function narrateChart(
 ): Promise<ChartAnalysis> {
   if (!opts.apiKey) return mockChart(type, p, facts);
 
-  const model = opts.model ?? 'claude-sonnet-5';
-  const factSheet = buildFactSheet(type, p, facts);
-  const system = buildSystem(type);
+  // The live narration is best-effort: if Claude errors, refuses, times out, or returns
+  // truncated/invalid JSON, we fall back to the deterministic mock narration so the report
+  // ALWAYS completes (rule: a paid report must never hard-fail — the chart facts are the
+  // substance; the narration is a wrapper). `life` gets a large token budget because its
+  // JSON is big and truncation there produces unparseable JSON.
+  try {
+    const model = opts.model ?? 'claude-sonnet-5';
+    const factSheet = buildFactSheet(type, p, facts);
+    const system = buildSystem(type);
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'x-api-key': opts.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model, max_tokens: type === 'life' ? 8000 : 5000, thinking: { type: 'disabled' }, system,
-      messages: [{ role: 'user', content: factSheet }],
-    }),
-  });
-  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  const text = (data.content ?? []).find((b: any) => b.type === 'text')?.text ?? '';
-  const obj = parseJsonReply(text);
-  const arr = (v: any) => (Array.isArray(v) ? v.map(String) : []);
-  const secs = Array.isArray(obj.sections) ? obj.sections : [];
-  return {
-    overview: String(obj.overview ?? ''),
-    sections: secs.slice(0, type === 'life' ? 9 : 6).map((x: any) => ({
-      heading: String(x?.heading ?? ''), body: String(x?.body ?? ''),
-      points: Array.isArray(x?.points) ? x.points.map(String).slice(0, 8) : [],
-    })),
-    timing: String(obj.timing ?? ''),
-    guidance: arr(obj.guidance).slice(0, 10),
-    remedies: arr(obj.remedies).slice(0, 10),
-    verdict: String(obj.verdict ?? ''),
-  };
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': opts.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model, max_tokens: type === 'life' ? 16000 : 8000, thinking: { type: 'disabled' }, system,
+        messages: [{ role: 'user', content: factSheet }],
+      }),
+    });
+    if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    if (data.stop_reason === 'refusal') throw new Error('narration_refused');
+    const text = (data.content ?? []).find((b: any) => b.type === 'text')?.text ?? '';
+    const obj = parseJsonReply(text);
+    const arr = (v: any) => (Array.isArray(v) ? v.map(String) : []);
+    const secs = Array.isArray(obj.sections) ? obj.sections : [];
+    const analysis: ChartAnalysis = {
+      overview: String(obj.overview ?? ''),
+      sections: secs.slice(0, type === 'life' ? 9 : 6).map((x: any) => ({
+        heading: String(x?.heading ?? ''), body: String(x?.body ?? ''),
+        points: Array.isArray(x?.points) ? x.points.map(String).slice(0, 8) : [],
+      })),
+      timing: String(obj.timing ?? ''),
+      guidance: arr(obj.guidance).slice(0, 10),
+      remedies: arr(obj.remedies).slice(0, 10),
+      verdict: String(obj.verdict ?? ''),
+    };
+    // Guard against a well-formed but empty reply — treat as a failed narration.
+    if (!analysis.overview.trim() || analysis.sections.length === 0) throw new Error('narration_empty');
+    return analysis;
+  } catch (err) {
+    console.error('chart narration failed, using mock', type, String((err as Error)?.message ?? err));
+    return mockChart(type, p, facts);
+  }
 }
 
 function buildSystem(type: ChartReportType): string {
@@ -1517,7 +1552,7 @@ function mockChart(type: ChartReportType, p: ChartPerson, f: ChartFacts): ChartA
   if (type === 'life') {
     base.sections = [
       sect('Personality & Temperament',
-        `With ${p.lagna} rising, ${nm} presents a distinctive outward nature shaped by its ruling planet ${H(1).lord}${H(1).lordHouse ? `, placed in the ${ordinal(H(1).lordHouse)} house` : ''}. ` +
+        `With ${p.lagna} rising, ${nm} presents a distinctive outward nature shaped by its ruling planet ${H(1).lord}${H(1).lordHouse ? `, placed in the ${ordinal(H(1).lordHouse!)} house` : ''}. ` +
         `The first house — the seat of vitality and self — carries a strength of ${H(1).strength}/100 in this chart. ` +
         `The Moon in ${p.moon_sign} governs the emotional mind, giving ${nm} a characteristic inner rhythm, while the ${p.nakshatra} nakshatra adds its own signature to temperament and instinct.`,
         [`Ascendant: ${p.lagna} (lord ${H(1).lord})`, `Moon (mind): ${p.moon_sign}`, `Sun (self): ${p.sun_sign}`, `Birth star: ${p.nakshatra}`]),
@@ -1565,7 +1600,7 @@ function mockChart(type: ChartReportType, p: ChartPerson, f: ChartFacts): ChartA
         `${nm}'s vocation is read primarily from the tenth house, here holding ${occ(10)} and ruled by ${lordOf(10)} (strength ${H(10).strength}/100). ` +
         `The nature of ${H(10).lord} and the sign ${H(10).sign} point toward fields aligned with its character — ` +
         `${fieldsFor(H(10).lord)}. The ninth house of fortune (${occ(9)}) supports growth through mentors and higher learning.`,
-        [`10th house: ${occ(10)} · lord ${H(10).lord} in ${H(10).lordHouse ? ordinal(H(10).lordHouse) : '—'}`, `Suggested fields: ${fieldsFor(H(10).lord)}`]),
+        [`10th house: ${occ(10)} · lord ${H(10).lord} in ${H(10).lordHouse ? ordinal(H(10).lordHouse!) : '—'}`, `Suggested fields: ${fieldsFor(H(10).lord)}`]),
       sect('Job vs Business',
         `The balance between employment and enterprise is weighed from the strength of the tenth (service and authority) against the seventh and third (self-driven venture). ` +
         `Here the ${H(10).strength >= H(7).strength ? 'tenth house is the stronger, favouring a distinguished career within organisations, leadership tracks or institutions' : 'seventh and self-effort houses hold their own, so independent ventures and partnerships can flourish alongside employment'}.`,
