@@ -65,6 +65,7 @@ export const Accents = {
   emerald: { color: '#46B587', faint: 'rgba(70,181,135,0.16)', soft: 'rgba(70,181,135,0.34)' },
   ruby: { color: '#E05561', faint: 'rgba(224,85,97,0.15)', soft: 'rgba(224,85,97,0.34)' },
   sapphire: { color: '#5A8BE6', faint: 'rgba(90,139,230,0.16)', soft: 'rgba(90,139,230,0.36)' },
+  turquoise: { color: '#22C3C9', faint: 'rgba(34,195,201,0.16)', soft: 'rgba(34,195,201,0.36)' },
 } as const;
 export type AccentName = keyof typeof Accents;
 

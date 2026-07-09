@@ -304,7 +304,7 @@ export default function HomeScreen() {
             onPress={() => router.push({ pathname: '/retrograde', params: { profileId: profile.id } })}
           />
           <FeatureRow
-            index={8} icon="clock" accent="amethyst" title="Sade Sati Tracker"
+            index={8} icon="clock" accent="turquoise" title="Sade Sati Tracker"
             sub={sade
               ? (sade.active ? `Phase ${sade.phase} of 3 · in progress` : 'You are not in Sade Sati')
               : 'Where you stand in Shani’s cycle'}
