@@ -108,22 +108,6 @@ Deno.serve(async (req) => {
       return json({ error: 'kundli_incomplete' }, 400);
     }
 
-    // DEBUG (temporary): return the EXACT system prompt that would be sent to Claude for
-    // THIS user's own profile — no Claude call, no session, no billing. Lets us verify the
-    // rich kundli (incl. dasha) actually reaches the model. Remove before public release.
-    if (body?.debugPrompt) {
-      const dyn = currentDynamics(kc as RichKundli);
-      return json({
-        source: profile.kundli_source,
-        engine_version: kc.engine_version,
-        has_chart_facts: !!(kc as any).chart_facts,
-        dasha_periods: Array.isArray(kc.dasha_timeline) ? kc.dasha_timeline.length : 0,
-        current_mahadasha: dyn.mahadasha?.lord ?? null,
-        current_antardasha: dyn.antardasha?.lord ?? null,
-        system: `${modeDirective('free_minute')}\n\n${buildSystemPrompt(profile, dyn)}`,
-      });
-    }
-
     // ── resolve or create the session ──────────────────────────────────────
     // Session kinds:
     //   free_minute / paid_time  → time-based (60s / pack duration); no per-msg cost

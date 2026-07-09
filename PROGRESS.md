@@ -4,7 +4,7 @@
 
 ---
 
-## 0. Latest Session (2026-07-09) — Chat fixes, two free trackers, UI polish, report resilience
+## 0. Latest Session (2026-07-09) — Chat fixes, two free trackers, UI polish, report resilience, pre-launch audit
 
 **1. Chat now truly reads the dasha (deploy bug fixed).** Users saw the astrologer say "consult a trusted jyotishi" for their dasha. Root cause was NOT missing data — the VedAstro rich chart (incl. full dasha) was stored fine (verified live: `engine_version 3`, 12 dasha periods, current Mahadasha Rahu). The real issues: (a) a **prompt loophole** — Rule #1 forbade *asking for data* but not *deflecting to a human astrologer*; (b) the earlier manual deploy went to the **orphaned `bright-processor`** function, not `chat` (the app calls slug `chat`). Fixes in `supabase/functions/chat/index.ts`, redeployed via CLI to `chat`:
 - Hardened Rule #1: explicitly bans "consult/see another jyotishi/pandit/astrologer" deflections; reasserts "YOU ARE THIS PERSON'S JYOTISHI, the dasha is in front of you."
@@ -26,7 +26,14 @@
 - Each fallback logs its cause (`... using mock ... Claude API <status>`) to the function logs, so if reports come back as "Preview report…" mock text the real reason (e.g. a 401 from a bad key) is visible in **Supabase → Edge Functions → `report` → Logs**.
 - Also fixed 3 latent TypeScript errors in the same file (definite-assignment on `insertRow`; two `number|null` `ordinal()` args) so a type-checked dashboard deploy can't be blocked.
 
-`npx tsc --noEmit` passes (0 errors). `chat` and `report` were redeployed via CLI this session; everything else is JS-only client change.
+**5. Pre-launch connectivity audit — everything is wired, plus one security cleanup.** Full sweep as we head to final stage:
+- **Edge functions:** all 9 slugs the client calls (`chat`, `horoscope`, `kundli`, `muhurat`, `panchang`, `report`, `create-order`, `verify-payment`, `delete-account`) are DEPLOYED and match the client's slug constants — **no orphans** (the old `bright-processor` is gone). `report` is live at v14 (the resilience fix), `chat` at v7 (this session).
+- **Type safety:** client `npx tsc --noEmit` = **0 errors** (so every screen↔service import is type-valid); all 9 edge functions type-check clean (only the expected `Deno`/esm.sh globals). `muhurat` is the one function still importing `_shared/astro.ts` — fine, it's CLI-deployed (bundler resolves it; not a dashboard paste).
+- **Navigation:** every `router.push/replace` pathname, `Link href`, and `REPORT_META.route` resolves to a real screen under `app/` — no dead links.
+- **Flows reviewed & sound:** Home (8 free features route with `profileId` + load via services), Chat (free-minute → paywall on `needs_purchase`/`out_of_questions`/`expired`, all returned as 200 so they survive Supabase's `invoke` wrapper; countdown; balance pills), Store (intentional "Coming Soon" placeholder), Reports (fill→pay→generate→poll), Payments (create-order prices mirror `config/pricing.ts`; verify-payment HMAC + idempotent grant; report/chat consume correctly).
+- **Security cleanup:** removed the temporary `debugPrompt` branch from `chat/index.ts` (it returned the EXACT internal system prompt to any authenticated caller — prompt-IP leak + injection aid; flagged "remove before public release"). No client caller existed. `chat` redeployed.
+
+`npx tsc --noEmit` passes (0 errors). `chat` (twice — dasha fix + debugPrompt removal) and `report` were redeployed via CLI this session; everything else is JS-only client change. **Verdict: all features connected and working; no broken wiring found.**
 
 ---
 
