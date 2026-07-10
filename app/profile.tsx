@@ -451,7 +451,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
   const d10 = cf?.divisional?.d10 ?? null;
   const manglik = doshas.some((d: any) => /Manglik/i.test(d.name) && d.present)
     || yogas.some((y: any) => /Manglik/i.test(y.name));
-  const lifeAreas = buildLifeAreas({ houses: houses as any, manglik, mahaLord: maha?.lord ?? null });
+  const lifeAreas = buildLifeAreas({ houses: houses as any, grahas: grahas as any, manglik, mahaLord: maha?.lord ?? null });
 
   // ── visual birth-chart data (D1 always; D9/D10 when the rich chart_facts exist) ──
   const charts = useMemo(() => {

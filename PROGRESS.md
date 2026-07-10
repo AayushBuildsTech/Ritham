@@ -1691,6 +1691,37 @@ admin. **To land the new native splash: build via EAS cloud, OR enable Windows l
 Note android/ is gitignored (CNG/prebuild-generated), so these res edits aren't committed — a
 `prebuild` from `app.json` regenerates the dark splash + new `splashscreen_logo` from assets anyway.
 
+## 41. Home polish — feature-card fix, blended astrologer promo, data-driven "Glance" (2026-07-10)
+
+Follow-ups on §40 from user review (all JS-only, live via fast-refresh):
+
+- **Feature cards no longer truncate.** Titles were single-line and clipped ("Today's Panc…").
+  `app/(tabs)/index.tsx`: shortened names (Panchang, Numerology, **Vakri** [renamed from Retrograde],
+  Shubh Muhurat, Live Darshan, Sade Sati), titles now wrap to 2 lines with a reserved `minHeight`
+  (40) so every card aligns, and each card gained a top row (gradient icon chip + a small magenta
+  tap-arrow chip) for a clearer, less-squashed layout.
+- **Astrologer blended into the chat promo.** Source `Detailings/photo-removebg-preview.png` (pre-cut
+  transparent portrait — purple saree + Ritham jewelry). Cropped to her bbox via PowerShell/.NET
+  (scratchpad `cutout.ps1` did an edge flood-fill cutout of the earlier `photo.png`; the removebg
+  version was then just bbox-cropped) → `assets/promo-astrologer.png` (378×454). In the promo she's
+  absolutely positioned bottom-right, full-bleed, with a left→right `LinearGradient` scrim
+  (`promoAstroFade`, deep-magenta→transparent) so her left edge melts into the card's violet — reads as
+  part of the artwork, not a pasted cutout. Text column got `paddingRight` so copy never runs under her.
+  Replaced the old white logo tile. **Metro gotcha:** swapping a `require()`d image needs a Metro
+  restart with `-c` (stale asset hash otherwise renders nothing).
+- **"Your Chart at a Glance" is now genuinely data-driven.** User: the Personality/Wealth/Career cards
+  "looked random." Root cause in `config/kundliLifeAreas.ts`: every card used one template ("guided by
+  X, sitting in the Nth bhaav — bringing focus to [theme of the *destination* house]"), so a card's
+  text often described an unrelated area and never used the rich graha data. Rewrote `buildLifeAreas`
+  to take `grahas` (GrahaFact[]) too and, per area, emit: (1) a **ruler** sentence naming the area's
+  house lord + its real **dignity** (exalted / own sign / debilitated) + where it sits + what that
+  *links this area* to, anchored on the area's OWN theme; (2) a **karaka** sentence — the area's natural
+  significator (self→Sun, wealth→Jupiter, career→Saturn, love→Venus, health→Mars) with its true sign,
+  house and condition (dignity/retrograde), skipped when the karaka is also the ruler. Same short,
+  friendly voice, still 100% deterministic from stored `chart_facts` (no AI/runtime cost). `profile.tsx`
+  passes `grahas` into the call. Verified on device against a live chart (Sagittarius lagna: Jupiter own
+  sign in 10th, Sun own sign in Leo, etc.).
+
 ---
 
 ## FUTURE FEATURE (planned, not built): Live AI Voice Astrologer — costs & pricing

@@ -149,39 +149,39 @@ export default function HomeScreen() {
 
   const features: { icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }[] = profile ? [
     {
-      icon: 'panchang', accent: 'saffron', title: 'Today’s Panchang',
-      sub: panchang ? `${panchang.tithi} · ${panchang.nakshatra?.split(' (')[0]}` : 'Daily almanac & timings',
+      icon: 'panchang', accent: 'saffron', title: 'Panchang',
+      sub: panchang ? `${panchang.tithi} · ${panchang.nakshatra?.split(' (')[0]}` : 'Today’s almanac & timings',
       onPress: () => router.push({ pathname: '/panchang', params: { profileId: profile.id } }),
     },
     {
-      icon: 'numerology', accent: 'amethyst', title: 'Your Numerology',
-      sub: numerology ? `Life Path ${numerology.life_path.number} · Expr ${numerology.expression.number}` : 'Core numbers from name & birth',
+      icon: 'numerology', accent: 'amethyst', title: 'Numerology',
+      sub: numerology ? `Life Path ${numerology.life_path.number} · Expr ${numerology.expression.number}` : 'Your core birth numbers',
       onPress: () => router.push({ pathname: '/numerology', params: { profileId: profile.id } }),
     },
     {
       icon: 'muhurat', accent: 'emerald', title: 'Shubh Muhurat',
-      sub: 'Auspicious dates for your plans',
+      sub: 'Auspicious dates for plans',
       onPress: () => router.push({ pathname: '/muhurat', params: { profileId: profile.id } }),
     },
     {
       icon: 'temple', accent: 'ruby', title: 'Live Darshan',
-      sub: 'Live aarti from major temples',
+      sub: 'Live aarti from temples',
       onPress: () => router.push('/darshan'),
     },
     {
-      icon: 'activity', accent: 'sapphire', title: 'Retrograde Tracker',
+      icon: 'activity', accent: 'sapphire', title: 'Vakri',
       sub: retro
         ? (retro.current.length
             ? `${retro.current.map((c) => PLANET_LABEL[c.planet].split(' ')[0]).join(', ')} vakri now`
-            : 'No planets retrograde now')
-        : 'Which planets are vakri now',
+            : 'No planets vakri now')
+        : 'Vakri planet tracker',
       onPress: () => router.push({ pathname: '/retrograde', params: { profileId: profile.id } }),
     },
     {
       icon: 'clock', accent: 'turquoise', title: 'Sade Sati',
       sub: sade
         ? (sade.active ? `Phase ${sade.phase} of 3 · active` : 'Not in Sade Sati')
-        : 'Where you stand in Shani’s cycle',
+        : 'Your Shani cycle status',
       onPress: () => router.push({ pathname: '/sadesati', params: { profileId: profile.id } }),
     },
   ] : [];
@@ -307,6 +307,15 @@ export default function HomeScreen() {
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={styles.promo}
               >
+                {/* astrologer — bottom-right, blended into the gradient */}
+                <Image source={require('../../assets/promo-astrologer.png')} style={styles.promoAstro} />
+                <LinearGradient
+                  colors={['#C51E86', 'rgba(150,40,180,0.35)', 'transparent']}
+                  locations={[0, 0.5, 1]}
+                  start={{ x: 0, y: 0.2 }} end={{ x: 1, y: 0 }}
+                  style={styles.promoAstroFade}
+                  pointerEvents="none"
+                />
                 <View style={styles.promoTextCol}>
                   <View style={styles.promoBadge}><Text style={styles.promoBadgeText}>LIVE AI</Text></View>
                   <Text style={styles.promoH}>Got a question?</Text>
@@ -315,9 +324,6 @@ export default function HomeScreen() {
                     <Text style={styles.promoBtnText}>Chat Now</Text>
                     <Icon name="arrowRight" size={15} color="#7B2CBF" />
                   </View>
-                </View>
-                <View style={styles.promoTile}>
-                  <Image source={require('../../assets/logo-transparent.png')} style={styles.promoImg} />
                 </View>
               </LinearGradient>
             </Pressable>
@@ -382,14 +388,19 @@ function FeatureCard({
   return (
     <Reveal index={index} style={styles.gridItem}>
       <Pressable style={styles.featCard} android_ripple={{ color: th.goldFaint }} onPress={onPress}>
-        <LinearGradient
-          colors={Accents[accent].grad}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={styles.featChip}
-        >
-          <Icon name={icon} size={22} color="#FFFFFF" />
-        </LinearGradient>
-        <Text style={styles.featTitle} numberOfLines={1}>{title}</Text>
+        <View style={styles.featTop}>
+          <LinearGradient
+            colors={Accents[accent].grad}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.featChip}
+          >
+            <Icon name={icon} size={22} color="#FFFFFF" />
+          </LinearGradient>
+          <View style={styles.featArrow}>
+            <Icon name="arrowRight" size={14} color={th.gold} />
+          </View>
+        </View>
+        <Text style={styles.featTitle} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.9}>{title}</Text>
         <Text style={styles.featSub} numberOfLines={2}>{sub}</Text>
       </Pressable>
     </Reveal>
@@ -478,8 +489,10 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   // promo
   promoWrap: { marginTop: Spacing.lg, borderRadius: Radius.xl, overflow: 'hidden', ...Depth.card },
-  promo: { flexDirection: 'row', alignItems: 'center', minHeight: 132, paddingLeft: Spacing.lg },
-  promoTextCol: { flex: 1, paddingVertical: Spacing.md },
+  promo: { flexDirection: 'row', alignItems: 'center', minHeight: 178, paddingLeft: Spacing.lg, position: 'relative' },
+  promoTextCol: { flex: 1, paddingVertical: Spacing.md, paddingRight: 92, zIndex: 2 },
+  promoAstro: { position: 'absolute', right: 0, bottom: 0, height: 182, width: 156, resizeMode: 'contain' },
+  promoAstroFade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 },
   promoBadge: {
     alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)',
     borderRadius: Radius.pill, paddingVertical: 3, paddingHorizontal: 10, marginBottom: 8,
@@ -492,11 +505,6 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     backgroundColor: '#FFFFFF', borderRadius: Radius.pill, paddingVertical: 9, paddingHorizontal: 16, marginTop: Spacing.md,
   },
   promoBtnText: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.sm, color: '#7B2CBF' },
-  promoTile: {
-    width: 116, height: 116, borderRadius: Radius.lg, backgroundColor: 'rgba(255,255,255,0.95)',
-    alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md,
-  },
-  promoImg: { width: 104, height: 104, resizeMode: 'contain' },
 
   // grid
   sectionTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginTop: Spacing.xl, marginBottom: Spacing.md },
@@ -504,14 +512,19 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   gridItem: { width: CARD_W, marginBottom: GRID_GAP },
   featCard: {
     backgroundColor: th.surface, borderRadius: Radius.lg, padding: Spacing.md,
-    borderWidth: 1, borderColor: th.border, minHeight: 132, ...Depth.card,
+    borderWidth: 1, borderColor: th.border, minHeight: 150, ...Depth.card,
   },
+  featTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: Spacing.sm },
   featChip: {
     width: 48, height: 48, borderRadius: Radius.md,
-    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm,
+    alignItems: 'center', justifyContent: 'center',
   },
-  featTitle: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.md, color: th.text },
-  featSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textMuted, marginTop: 3, lineHeight: 16 },
+  featArrow: {
+    width: 28, height: 28, borderRadius: Radius.pill,
+    backgroundColor: th.goldFaint, alignItems: 'center', justifyContent: 'center',
+  },
+  featTitle: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.md, color: th.text, lineHeight: 20, minHeight: 40 },
+  featSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textMuted, marginTop: 2, lineHeight: 16 },
 
   disclaimer: {
     fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
