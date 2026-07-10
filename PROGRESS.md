@@ -1724,6 +1724,33 @@ Follow-ups on §40 from user review (all JS-only, live via fast-refresh):
 
 ---
 
+## 42. Home — auto-playing feature carousel replacing the single promo (2026-07-10)
+
+Turned the single "Got a question?" chat promo into an **auto-playing carousel** cycling through every
+feature, keeping the exact same card look. New `components/FeatureCarousel.tsx` (`FeatureCarousel` +
+`CarouselSlide`), wired into `app/(tabs)/index.tsx` (slides built with the router handlers; the block sits
+in a `carouselWrap` with `marginHorizontal: -Spacing.lg` to break out of the body padding to full width).
+
+- **Slides (9):** Chat (unchanged — first) → Panchang → Numerology → Shubh Muhurat → Live Darshan → Vakri
+  → Sade Sati → Store → Reports. Each keeps the violet→magenta gradient, badge + title + sub + white CTA
+  pill, and a blended hero photo on the right with the same left→right scrim as the astrologer promo.
+- **Behaviour/animation:** horizontal `Animated.FlatList`, `snapToInterval` with a small PEEK so the next
+  card shows; auto-advances every 4.2s and loops; pauses on drag, resumes after; neighbours **scale+fade**
+  via a `scrollX` interpolation; **animated pagination dots** (active dot widens); each hero image does a
+  gentle **floating bob** (`Animated.loop` translateY, native driver). Per-slide `still` flag disables the
+  float — set on the **chat astrologer** (user wanted her static). `imageBottom` anchors the person to the
+  bottom; objects are centered. Hero art uses `resizeMode: contain` in a fixed right box so any aspect fits.
+- **Gotcha:** `scrollX` also drives the dot **width** (a layout prop), so the `onScroll` `Animated.event`
+  must use `useNativeDriver: false` — otherwise RN warns "Style property 'width' is not supported by the
+  native animated module". The float loop uses its own value with the native driver (no conflict).
+- **Images:** user generated 8 feature photos in Gemini (magenta/violet neon, transparent bg) →
+  `Detailings/<name>.png.png`. Cropped each to its alpha bounding box via PowerShell/.NET (scratchpad
+  `crop_carousel.ps1`) → `assets/carousel/{panchang,numerology,muhurat,darshan,vakri,sadesati,store,reports}.png`.
+  Chat reuses `assets/promo-astrologer.png`. **Swapping `require()`d images needs a Metro restart with `-c`**
+  (stale asset hash renders nothing otherwise).
+
+---
+
 ## FUTURE FEATURE (planned, not built): Live AI Voice Astrologer — costs & pricing
 
 Reference notes from planning (2026-07-10) for a **voice-only, real-time AI astrologer call in Indian

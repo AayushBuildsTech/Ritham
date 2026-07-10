@@ -18,6 +18,7 @@ import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { SelectModal, Option } from '../../components/SelectModal';
+import { FeatureCarousel, CarouselSlide } from '../../components/FeatureCarousel';
 import { TAB_BAR_HEIGHT } from './_layout';
 
 type Entry = 'loading' | 'need_kundli' | 'ready';
@@ -186,6 +187,63 @@ export default function HomeScreen() {
     },
   ] : [];
 
+  // ── auto-carousel: chat (unchanged) + every feature ─────────────────────────
+  const carouselSlides: CarouselSlide[] = profile ? [
+    {
+      key: 'chat', icon: 'chat', badge: 'LIVE AI', title: 'Got a question?',
+      sub: 'Chat with your AI Astrologer', cta: 'Chat Now',
+      image: require('../../assets/promo-astrologer.png'), imageBottom: true, still: true, onPress: goChat,
+    },
+    {
+      key: 'panchang', icon: 'panchang', badge: 'FREE', title: 'Today’s Panchang',
+      sub: 'Tithi, nakshatra & daily timings', cta: 'View',
+      image: require('../../assets/carousel/panchang.png'),
+      onPress: () => router.push({ pathname: '/panchang', params: { profileId: profile.id } }),
+    },
+    {
+      key: 'numerology', icon: 'numerology', badge: 'FREE', title: 'Your Numerology',
+      sub: 'Core numbers from your birth', cta: 'View',
+      image: require('../../assets/carousel/numerology.png'),
+      onPress: () => router.push({ pathname: '/numerology', params: { profileId: profile.id } }),
+    },
+    {
+      key: 'muhurat', icon: 'muhurat', badge: 'FREE', title: 'Shubh Muhurat',
+      sub: 'Auspicious dates for your plans', cta: 'Find',
+      image: require('../../assets/carousel/muhurat.png'),
+      onPress: () => router.push({ pathname: '/muhurat', params: { profileId: profile.id } }),
+    },
+    {
+      key: 'darshan', icon: 'temple', badge: 'LIVE', title: 'Live Darshan',
+      sub: 'Aarti from major temples', cta: 'Watch',
+      image: require('../../assets/carousel/darshan.png'),
+      onPress: () => router.push('/darshan'),
+    },
+    {
+      key: 'vakri', icon: 'activity', badge: 'FREE', title: 'Vakri Tracker',
+      sub: 'Which planets are retrograde now', cta: 'View',
+      image: require('../../assets/carousel/vakri.png'),
+      onPress: () => router.push({ pathname: '/retrograde', params: { profileId: profile.id } }),
+    },
+    {
+      key: 'sadesati', icon: 'clock', badge: 'FREE', title: 'Sade Sati',
+      sub: 'Where you stand in Shani’s cycle', cta: 'View',
+      image: require('../../assets/carousel/sadesati.png'),
+      onPress: () => router.push({ pathname: '/sadesati', params: { profileId: profile.id } }),
+    },
+    {
+      key: 'store', icon: 'store', badge: 'SHOP', title: 'Ritham Store',
+      sub: 'Gemstones, malas & remedies', cta: 'Open',
+      image: require('../../assets/carousel/store.png'),
+      onPress: () => router.push('/(tabs)/store'),
+    },
+    {
+      key: 'reports', icon: 'reports', badge: 'PREMIUM', title: 'Detailed Reports',
+      sub: 'Kundli, matchmaking & Vastu', cta: 'Explore',
+      image: require('../../assets/carousel/reports.png'),
+      onPress: () => router.push('/(tabs)/reports'),
+    },
+  ] : [];
+
   return (
     <>
     <ScrollView
@@ -298,35 +356,10 @@ export default function HomeScreen() {
           </Reveal>
         )}
 
-        {/* ── Ask-the-astrologer gradient promo ──────────────────────────────────── */}
+        {/* ── Feature carousel (chat unchanged + every feature, auto-playing) ─────── */}
         {profile && (
-          <Reveal index={1}>
-            <Pressable onPress={goChat} android_ripple={{ color: 'rgba(255,255,255,0.12)' }} style={styles.promoWrap}>
-              <LinearGradient
-                colors={['#FF3D9A', '#7B2CBF']}
-                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={styles.promo}
-              >
-                {/* astrologer — bottom-right, blended into the gradient */}
-                <Image source={require('../../assets/promo-astrologer.png')} style={styles.promoAstro} />
-                <LinearGradient
-                  colors={['#C51E86', 'rgba(150,40,180,0.35)', 'transparent']}
-                  locations={[0, 0.5, 1]}
-                  start={{ x: 0, y: 0.2 }} end={{ x: 1, y: 0 }}
-                  style={styles.promoAstroFade}
-                  pointerEvents="none"
-                />
-                <View style={styles.promoTextCol}>
-                  <View style={styles.promoBadge}><Text style={styles.promoBadgeText}>LIVE AI</Text></View>
-                  <Text style={styles.promoH}>Got a question?</Text>
-                  <Text style={styles.promoSub}>Chat with your AI Astrologer</Text>
-                  <View style={styles.promoBtn}>
-                    <Text style={styles.promoBtnText}>Chat Now</Text>
-                    <Icon name="arrowRight" size={15} color="#7B2CBF" />
-                  </View>
-                </View>
-              </LinearGradient>
-            </Pressable>
+          <Reveal index={1} style={styles.carouselWrap}>
+            <FeatureCarousel slides={carouselSlides} />
           </Reveal>
         )}
 
@@ -487,24 +520,8 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   },
   ctaBtnText: { fontFamily: Fonts.bodySemibold, color: '#FFFFFF', fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
-  // promo
-  promoWrap: { marginTop: Spacing.lg, borderRadius: Radius.xl, overflow: 'hidden', ...Depth.card },
-  promo: { flexDirection: 'row', alignItems: 'center', minHeight: 178, paddingLeft: Spacing.lg, position: 'relative' },
-  promoTextCol: { flex: 1, paddingVertical: Spacing.md, paddingRight: 92, zIndex: 2 },
-  promoAstro: { position: 'absolute', right: 0, bottom: 0, height: 182, width: 156, resizeMode: 'contain' },
-  promoAstroFade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 },
-  promoBadge: {
-    alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: Radius.pill, paddingVertical: 3, paddingHorizontal: 10, marginBottom: 8,
-  },
-  promoBadgeText: { fontFamily: Fonts.bodyBold, fontSize: 10, color: '#FFFFFF', letterSpacing: 1.2 },
-  promoH: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: '#FFFFFF' },
-  promoSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: 'rgba(255,255,255,0.9)', marginTop: 2 },
-  promoBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF', borderRadius: Radius.pill, paddingVertical: 9, paddingHorizontal: 16, marginTop: Spacing.md,
-  },
-  promoBtnText: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.sm, color: '#7B2CBF' },
+  // carousel — break out of the body's horizontal padding to sit full-width
+  carouselWrap: { marginTop: Spacing.lg, marginHorizontal: -Spacing.lg },
 
   // grid
   sectionTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginTop: Spacing.xl, marginBottom: Spacing.md },
