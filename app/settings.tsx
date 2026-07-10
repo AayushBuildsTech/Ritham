@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
 import { useActiveProfile } from '../context/ProfileContext';
 import { deleteAccount } from '../lib/accountService';
+import { googleRevoke } from '../lib/googleAuth';
 import { remindersEnabled, setRemindersEnabled } from '../lib/notificationsService';
 import { CONTACT_EMAIL } from '../constants/legal';
 import { Colors, Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
@@ -45,6 +46,9 @@ export default function SettingsScreen() {
     setDeleting(true);
     const res = await deleteAccount();
     if (res.ok) {
+      // Fully revoke Ritham's Google grant so no connection lingers and a future
+      // sign-up asks the user to pick their account again (not auto-selected).
+      await googleRevoke();
       await signOut();
       return; // component unmounts on redirect; leave the spinner up
     }
@@ -99,7 +103,7 @@ export default function SettingsScreen() {
         {/* Account */}
         <Text style={styles.sectionLabel}>ACCOUNT</Text>
         <View style={styles.group}>
-          <Row icon="phone" label="Mobile number" value={user?.phone ?? '—'} />
+          <Row icon="mail" label="Email" value={user?.email ?? '—'} />
           <Row
             icon="moon"
             label={active && active.relation !== 'self' ? `${active.name}’s Kundli` : 'Your Kundli'}

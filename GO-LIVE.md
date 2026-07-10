@@ -133,9 +133,17 @@ free-tier headroom. Chat/horoscope/muhurat never call VedAstro.
   chats, profiles, orders, entitlements, and Storage floor-plans to `auth.uid()`.
 
 ### You must set these in the dashboard before real customers (NOT code)
-1. **Remove the test OTP `123456`.** Supabase → Authentication → Providers → Phone → **delete the test
-   number(s)**. Until then, anyone can log in as any phone number — this is the single biggest hole. (Fine
-   for your own testing; must be gone before launch.)
+1. **Publish the Google OAuth consent screen (login is Google Sign-In).** The app signs in with
+   **Google** (`supabase.auth.signInWithIdToken`) — no phone OTP, no SMS, no DLT, ₹0 per login.
+   - **Make it public:** Google Cloud Console → **APIs & Services → OAuth consent screen → Publish App**.
+     While it's in "Testing", only added test users can sign in; publishing (basic email/profile scopes)
+     needs no Google review and lets anyone sign up.
+   - **Supabase:** Authentication → Providers → **Google** must be enabled with the **Web** client ID +
+     secret (already configured).
+   - **Play Store release:** add the release / Play-App-Signing **SHA-1** as a second **Android** OAuth
+     client (the current one uses the debug SHA-1). Package: `com.ritham.app`.
+   - Free-tier abuse guard: the free 1-minute chat is gated per-account **and** per-device
+     (`device_free_trials`), so it can't be farmed with fresh Google accounts.
 2. **Lock down the `reports` Storage bucket.** Storage → `reports` bucket → set a **file-size limit
    (~6 MB)** and restrict **allowed MIME types to images** (`image/png`, `image/jpeg`). RLS already scopes
    it per-user; this bounds what can be uploaded.

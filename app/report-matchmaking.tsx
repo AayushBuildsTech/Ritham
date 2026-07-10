@@ -142,7 +142,7 @@ export default function MatchmakingIntake() {
     try {
       const credits = await reportCredits('matchmaking');
       if (credits < 1) {
-        const pay = await purchasePack('report', 'matchmaking', { contact: user?.phone ?? '' });
+        const pay = await purchasePack('report', 'matchmaking', { email: user?.email ?? '' });
         if (!pay.ok) {
           setBusy(false);
           if (pay.error !== 'cancelled') {

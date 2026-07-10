@@ -1,22 +1,20 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { getHoroscope, HoroscopePeriod } from '../../lib/horoscopeService';
 import { getPanchang, Panchang } from '../../lib/panchangService';
 import { getNumerology } from '../../lib/numerologyService';
 import { getRetrograde, getSadeSati, RetrogradeStatus, SadeSatiStatus } from '../../lib/kundliService';
 import { PLANET_LABEL } from '../../config/retrogradeMeanings';
 import { Numerology } from '../../lib/numerology';
 import { track } from '../../lib/analytics';
-import { Colors, Fonts, Spacing, Radius, Type, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
+import { Colors, Fonts, Spacing, Radius, Type, Depth, AccentName, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
 import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
-import { GradientCard } from '../../components/GradientCard';
 import { SelectModal, Option } from '../../components/SelectModal';
 import { TAB_BAR_HEIGHT } from './_layout';
 
@@ -25,11 +23,6 @@ type Profile = {
   id: string; name: string; dob: string; birthPlace: string;
   lat: number; lng: number; moonSign?: string;
 };
-const PERIODS: { id: HoroscopePeriod; label: string }[] = [
-  { id: 'daily', label: 'Daily' },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'monthly', label: 'Monthly' },
-];
 
 export default function HomeScreen() {
   const th = useColors();
@@ -42,12 +35,6 @@ export default function HomeScreen() {
   const [entry, setEntry] = useState<Entry>('loading');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [switcher, setSwitcher] = useState(false);
-
-  const [period, setPeriod] = useState<HoroscopePeriod>('daily');
-  // per-period cache so switching tabs doesn't refetch
-  const [texts, setTexts] = useState<Partial<Record<HoroscopePeriod, string>>>({});
-  const [errors, setErrors] = useState<Partial<Record<HoroscopePeriod, string>>>({});
-  const [loadingPeriod, setLoadingPeriod] = useState<HoroscopePeriod | null>(null);
 
   // secondary free features (computed + cached — never AI)
   const [panchang, setPanchang] = useState<Panchang | null>(null);
@@ -67,7 +54,6 @@ export default function HomeScreen() {
     (async () => {
       setEntry('loading');
       // switching person: drop the previous person's cached content
-      setTexts({}); setErrors({}); setLoadingPeriod(null);
       setPanchang(null); setNumerology(null); setRetro(null); setSade(null);
 
       // NOTE: do NOT select `numerology` here — that column only exists after
@@ -104,26 +90,6 @@ export default function HomeScreen() {
     if (value !== activeId) { setActive(value); track('active_profile_switched'); }
   }
 
-  // ── fetch the horoscope for the selected period (once) ───────────────────────
-  useEffect(() => {
-    if (entry !== 'ready' || !profile) return;
-    if (texts[period] !== undefined || loadingPeriod === period) return;
-
-    let cancelled = false;
-    (async () => {
-      setLoadingPeriod(period);
-      const res = await getHoroscope(profile.id, period);
-      if (cancelled) return;
-      if (res.body) {
-        setTexts((t) => ({ ...t, [period]: res.body! }));
-      } else {
-        setErrors((e) => ({ ...e, [period]: res.error ?? 'request_failed' }));
-      }
-      setLoadingPeriod((lp) => (lp === period ? null : lp));
-    })();
-    return () => { cancelled = true; };
-  }, [entry, profile, period]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── load Panchang (cached per city/day) + Numerology (computed once) ─────────
   useEffect(() => {
     if (!profile) return;
@@ -144,9 +110,9 @@ export default function HomeScreen() {
     return () => { cancelled = true; };
   }, [profile]);
 
-  function retry(p: HoroscopePeriod) {
-    setErrors((e) => ({ ...e, [p]: undefined }));
-    setTexts((t) => { const c = { ...t }; delete c[p]; return c; }); // triggers refetch
+  function goChat() {
+    track('home_hook_clicked', { source: 'promo_card' });
+    router.push('/(tabs)/chat');
   }
 
   // ── renders ──────────────────────────────────────────────────────────────────
@@ -188,7 +154,7 @@ export default function HomeScreen() {
                 <Text style={styles.rashi} numberOfLines={1}>{profile.moonSign}</Text>
               </View>
             ) : (
-              <Text style={styles.phone}>{user?.phone ?? ''}</Text>
+              <Text style={styles.accountLine}>{user?.email ?? ''}</Text>
             )}
           </Pressable>
           <View style={styles.headerBtns}>
@@ -223,48 +189,21 @@ export default function HomeScreen() {
           </View>
         </Reveal>
       ) : (
-        <>
-          <Reveal index={1}>
-            <Text style={styles.sectionEyebrow}>YOUR HOROSCOPE</Text>
-
-            {/* underline segmented control (no fat pills) */}
-            <View style={styles.segment}>
-              {PERIODS.map((p) => {
-                const active = period === p.id;
-                return (
-                  <Pressable key={p.id} style={styles.segmentBtn} onPress={() => setPeriod(p.id)}>
-                    <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                      {p.label}
-                    </Text>
-                    <View style={[styles.segmentRule, active && styles.segmentRuleActive]} />
-                  </Pressable>
-                );
-              })}
+        /* Ask-the-astrologer promo → chat (top of Home) */
+        <Reveal index={1}>
+          <Pressable style={styles.promoCard} onPress={goChat} android_ripple={{ color: 'rgba(255,255,255,0.08)' }}>
+            <View style={styles.promoRibbon}><Text style={styles.promoRibbonText}>NEW</Text></View>
+            <Image source={require('../../assets/android-icon-foreground.png')} style={styles.promoImg} />
+            <View style={styles.promoContent}>
+              <Text style={styles.promoH}>Got any questions?</Text>
+              <Text style={styles.promoSubW}>Chat with Astrologer</Text>
+              <View style={styles.promoPriceRow}>
+                <Text style={styles.promoPrice}>@INR 5/min</Text>
+                <View style={styles.promoBtn}><Text style={styles.promoBtnText}>Chat Now</Text></View>
+              </View>
             </View>
-
-            {/* horoscope card */}
-            <GradientCard colors={th.gHero} style={styles.heroCardPad}>
-              {loadingPeriod === period ? (
-                <View style={styles.horoLoading}>
-                  <ActivityIndicator color={th.gold} />
-                  <Text style={styles.bodyMuted}>Reading the stars…</Text>
-                </View>
-              ) : errors[period] ? (
-                <View style={styles.horoLoading}>
-                  <Text style={styles.bodyMuted}>Couldn’t load your horoscope right now.</Text>
-                  <Pressable style={styles.retryBtn} onPress={() => retry(period)}>
-                    <Text style={styles.retryText}>Try again</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.quoteMark}>“</Text>
-                  <Text style={styles.horoBody}>{texts[period]}</Text>
-                </>
-              )}
-            </GradientCard>
-          </Reveal>
-        </>
+          </Pressable>
+        </Reveal>
       )}
 
       {/* ── Secondary free features ─────────────────────────────────────────────── */}
@@ -274,6 +213,11 @@ export default function HomeScreen() {
             <Text style={styles.sectionEyebrow}>MORE FOR YOU</Text>
           </Reveal>
 
+          <FeatureRow
+            index={3} icon="star" accent="gold" title="Your Horoscope"
+            sub="Daily, weekly & monthly readings"
+            onPress={() => router.push({ pathname: '/horoscope', params: { profileId: profile.id, moonSign: profile.moonSign ?? '' } })}
+          />
           <FeatureRow
             index={3} icon="panchang" accent="saffron" title="Today’s Panchang"
             sub={panchang ? `${panchang.tithi} · ${panchang.nakshatra?.split(' (')[0]}` : 'Daily almanac & timings'}
@@ -351,26 +295,24 @@ function IconButton({ icon, onPress }: { icon: IconName; onPress: () => void }) 
 }
 
 function FeatureRow({
-  index, icon, accent, title, sub, onPress,
+  index, icon, title, sub, onPress,
 }: { index: number; icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }) {
-  const th = useColors();
-  const styles = makeStyles(th);
-  const a = Accents[accent];
+  const styles = makeStyles(useColors());
   return (
     <Reveal index={index}>
       <Pressable
-        style={styles.featureRow}
-        android_ripple={{ color: a.faint }}
+        style={styles.featCard}
+        android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
         onPress={onPress}
       >
-        <View style={[styles.featureIcon, { backgroundColor: a.faint, borderWidth: 1, borderColor: a.soft }]}>
-          <Icon name={icon} size={20} color={a.color} />
+        <View style={styles.featIconCircle}>
+          <Icon name={icon} size={22} color="#111111" />
         </View>
-        <View style={styles.featureBody}>
-          <Text style={styles.featureTitle}>{title}</Text>
-          <Text style={styles.featureSub} numberOfLines={1}>{sub}</Text>
+        <View style={styles.featBody}>
+          <Text style={styles.featTitle}>{title}</Text>
+          <Text style={styles.featSub} numberOfLines={2}>{sub}</Text>
         </View>
-        <Icon name="chevron" size={20} color={th.textDim} />
+        <View style={styles.featBtn}><Text style={styles.featBtnText}>View</Text></View>
       </Pressable>
     </Reveal>
   );
@@ -392,7 +334,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     borderWidth: 1, borderColor: th.border, maxWidth: '100%',
   },
   rashi: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.goldLight, letterSpacing: 0.3, flexShrink: 1 },
-  phone: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 4 },
+  accountLine: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 4 },
   headerBtns: { flexDirection: 'row', gap: Spacing.sm, marginLeft: Spacing.md, marginTop: 4 },
   iconBtn: {
     width: 42, height: 42, borderRadius: Radius.pill,
@@ -427,6 +369,39 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     height: 34, marginBottom: -4, opacity: 0.9,
   },
   horoBody: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.text, lineHeight: 25 },
+  shareRow: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 6,
+    marginTop: Spacing.md, paddingVertical: 6, paddingHorizontal: 12,
+    borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.pill,
+  },
+  shareText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
+
+  // Ask-the-astrologer promo card — black banner w/ green NEW ribbon + yellow CTA
+  promoCard: {
+    backgroundColor: '#0A0A0A',
+    borderRadius: Radius.lg,
+    marginTop: Spacing.lg,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 118,
+    ...Depth.card,
+  },
+  promoRibbon: {
+    position: 'absolute', top: 14, left: -30, width: 116, zIndex: 2,
+    backgroundColor: '#33A63A',
+    alignItems: 'center', paddingVertical: 3,
+    transform: [{ rotate: '-45deg' }],
+  },
+  promoRibbonText: { fontFamily: Fonts.bodyBold, fontSize: 11, color: '#FFFFFF', letterSpacing: 1 },
+  promoImg: { width: 116, height: 116, resizeMode: 'contain' },
+  promoContent: { flex: 1, paddingVertical: Spacing.md, paddingRight: Spacing.md, paddingLeft: Spacing.xs },
+  promoH: { fontFamily: Fonts.bodyBold, fontSize: 20, color: '#FFFFFF' },
+  promoSubW: { fontFamily: Fonts.body, fontSize: 14, color: '#FFFFFF', marginTop: 3 },
+  promoPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },
+  promoPrice: { fontFamily: Fonts.bodyBold, fontSize: 18, color: '#FFFFFF' },
+  promoBtn: { backgroundColor: '#F5C518', borderRadius: Radius.pill, paddingVertical: 9, paddingHorizontal: 16 },
+  promoBtnText: { fontFamily: Fonts.bodyBold, fontSize: 14, color: '#111111' },
   bodyMuted: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21 },
   horoLoading: { alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.sm },
 
@@ -443,19 +418,22 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   },
   ctaBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
-  // feature rows
-  featureRow: {
+  // feature cards — black banner w/ yellow icon + CTA (matches the promo card)
+  featCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: th.surface, borderRadius: Radius.md, padding: Spacing.md,
-    borderWidth: 1, borderColor: th.border, marginBottom: Spacing.sm,
+    backgroundColor: '#0A0A0A', borderRadius: Radius.lg, padding: Spacing.md,
+    marginTop: Spacing.md,
+    ...Depth.card,
   },
-  featureIcon: {
-    width: 44, height: 44, borderRadius: Radius.sm,
-    backgroundColor: th.goldFaint, alignItems: 'center', justifyContent: 'center',
+  featIconCircle: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: '#F5C518', alignItems: 'center', justifyContent: 'center',
   },
-  featureBody: { flex: 1 },
-  featureTitle: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: th.text },
-  featureSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 2 },
+  featBody: { flex: 1 },
+  featTitle: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.md, color: '#FFFFFF' },
+  featSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: 'rgba(255,255,255,0.65)', marginTop: 2, lineHeight: 16 },
+  featBtn: { backgroundColor: '#F5C518', borderRadius: Radius.pill, paddingVertical: 8, paddingHorizontal: 14 },
+  featBtnText: { fontFamily: Fonts.bodyBold, fontSize: 13, color: '#111111' },
 
   disclaimer: {
     fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17,

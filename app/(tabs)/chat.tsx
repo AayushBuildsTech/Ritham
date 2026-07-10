@@ -323,7 +323,7 @@ export default function ChatScreen() {
                 ? 'Pick a pack to keep chatting with your astrologer.'
                 : 'Unlock more with a question or time pack.'
             }
-            prefill={{ contact: user?.phone ?? '', name: profile?.name }}
+            prefill={{ email: user?.email ?? '', name: profile?.name }}
             onPurchased={handlePurchased}
           />
         )}

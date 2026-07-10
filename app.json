@@ -57,7 +57,8 @@
           "icon": "./assets/notification-icon.png",
           "color": "#C5A059"
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true

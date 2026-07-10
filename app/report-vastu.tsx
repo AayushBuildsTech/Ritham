@@ -65,7 +65,7 @@ export default function VastuIntake() {
     setBusy(true);
     const credits = await reportCredits('vastu');
     if (credits < 1) {
-      const pay = await purchasePack('report', 'vastu', { contact: user.phone ?? '' });
+      const pay = await purchasePack('report', 'vastu', { email: user.email ?? '' });
       if (!pay.ok) {
         setBusy(false);
         if (pay.error !== 'cancelled') {

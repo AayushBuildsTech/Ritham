@@ -44,7 +44,7 @@ const MAP = {
   external: ['feather', 'external-link'],
   play: ['mci', 'play-circle-outline'],
   info: ['feather', 'info'],
-  phone: ['feather', 'phone'],
+  mail: ['feather', 'mail'],
   arrowRight: ['feather', 'arrow-right'],
   chevronDown: ['feather', 'chevron-down'],
   chevronUp: ['feather', 'chevron-up'],

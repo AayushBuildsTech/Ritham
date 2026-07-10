@@ -7,10 +7,13 @@ Chosen over `@react-navigation/bottom-tabs` standalone because expo-router provi
 typed routes, deep-link support out of the box, and cleaner auth-gating via layouts.
 The `(auth)` and `(tabs)` groups handle the guard logic in `app/_layout.tsx`.
 
-### Auth: Supabase Phone OTP
-Supabase sends SMS OTP via its configured SMS provider (Twilio/AWS SNS — set in Supabase dashboard).
-The client calls `signInWithOtp({ phone })` then `verifyOtp({ phone, token, type:'sms' })`.
-Session is stored in expo-secure-store (encrypted), never plain AsyncStorage.
+### Auth: Google Sign-In (SUPERSEDED phone OTP, 2026-07-10)
+Login is **Google Sign-In**: native `@react-native-google-signin/google-signin` → `supabase.auth.signInWithIdToken({ provider:'google' })`. No phone/SMS/DLT, ₹0 per login.
+Free 1-min chat is gated per-account **and** per-device (`device_free_trials`) for abuse resistance.
+Session persists in AsyncStorage (auto-refresh) — see `lib/supabase.ts`.
+
+~~Original decision (dead): Supabase Phone OTP via Twilio/AWS SNS; `signInWithOtp`/`verifyOtp`.~~
+Dropped because Indian SMS OTP requires DLT / provider website-KYC (Fast2SMS returned status_code 996) — too slow and costly for a free-signup flow.
 
 ### Navigation guard
 `RootGuard` inside `app/_layout.tsx` watches `session` from AuthContext and redirects

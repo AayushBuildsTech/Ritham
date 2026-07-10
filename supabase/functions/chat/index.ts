@@ -4,7 +4,7 @@
 //   1. Authenticate the user from the JWT.
 //   2. Load their profile + cached Kundli (must belong to them).
 //   3. Start or continue a chat session, enforcing the free-1-minute entitlement
-//      (one per verified phone number) and the 60s countdown.
+//      (one per account AND per device — anti-abuse) and the 60s countdown.
 //   4. Build a system prompt anchoring the astrologer to the chart facts.
 //   5. Call Claude Sonnet 5 (AI narrates facts, never computes them — rule #2).
 //   6. Persist both messages and return the reply + session timing.
@@ -44,6 +44,12 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, 'Content-Type': 'application/json' },
   });
 
+// Hash the device id before storing it (never persist a raw device identifier).
+async function sha256(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
@@ -67,7 +73,7 @@ Deno.serve(async (req) => {
     // Lightweight: the client fetches the astrologer's opening greeting to show as
     // the first message on a new chat (no session, entitlement, or Claude call).
     if (body?.greetingOnly) return json({ greeting: GREETING });
-    const { profileId, message, sessionId, useKind } = body;
+    const { profileId, message, sessionId, useKind, deviceId } = body;
     if (!message || typeof message !== 'string' || !message.trim()) {
       return json({ error: 'empty_message' }, 400);
     }
@@ -125,14 +131,34 @@ Deno.serve(async (req) => {
       }
       session = s;
     } else {
-      // Atomically CLAIM the free minute (rule #5: one per verified phone). The
-      // conditional update (free_minute_used_at IS NULL) means two concurrent
-      // first-requests can't both be granted a free session.
-      const { data: claimedFree } = await admin
-        .from('users')
-        .update({ free_minute_used_at: new Date().toISOString() })
-        .eq('id', user.id).is('free_minute_used_at', null)
-        .select('id').maybeSingle();
+      // Atomically CLAIM the free minute. It is scarce on TWO axes so it can't be
+      // farmed by spinning up fresh (free) Google accounts:
+      //   • one per account  → users.free_minute_used_at
+      //   • one per device   → device_free_trials (keyed by a hashed device id)
+      // A brand-new account on a device that already used its free minute gets nothing.
+      // If the client sends no deviceId (older build), we degrade to per-account only.
+      const deviceHash = deviceId ? await sha256(String(deviceId)) : null;
+
+      // Reserve the device first (unique insert). No error → this device is fresh;
+      // a unique violation → it already consumed a free minute under some account.
+      let deviceReserved = false;
+      if (deviceHash) {
+        const { error: devErr } = await admin
+          .from('device_free_trials')
+          .insert({ device_hash: deviceHash, user_id: user.id });
+        deviceReserved = !devErr;
+      }
+      const deviceOk = deviceHash ? deviceReserved : true;
+
+      // Per-account claim (conditional update = concurrency-safe: two first-requests
+      // can't both win).
+      const { data: claimedFree } = deviceOk
+        ? await admin
+            .from('users')
+            .update({ free_minute_used_at: new Date().toISOString() })
+            .eq('id', user.id).is('free_minute_used_at', null)
+            .select('id').maybeSingle()
+        : { data: null };
 
       if (claimedFree) {
         // free 1-minute session
@@ -142,12 +168,16 @@ Deno.serve(async (req) => {
           .insert({ user_id: user.id, profile_id: profileId, kind: 'free_minute', expires_at: expiresAt })
           .select().single();
         if (cErr) {
-          // roll the claim back so a transient error doesn't burn the user's free minute
+          // roll BOTH claims back so a transient error doesn't burn the free minute
           await admin.from('users').update({ free_minute_used_at: null }).eq('id', user.id);
+          if (deviceHash && deviceReserved) await admin.from('device_free_trials').delete().eq('device_hash', deviceHash);
           return json({ error: 'session_create_failed', detail: cErr.message }, 500);
         }
         session = created;
       } else {
+        // Release a device reservation we made but couldn't use (this account had
+        // already spent its free minute) so a genuinely new user isn't blocked later.
+        if (deviceHash && deviceReserved) await admin.from('device_free_trials').delete().eq('device_hash', deviceHash);
         // free minute already used → paid path backed by an entitlement (Phase 4)
         session = await startPaidSession(admin, user.id, profileId, useKind);
         if (!session) return json({ error: 'needs_purchase' }); // client opens the paywall

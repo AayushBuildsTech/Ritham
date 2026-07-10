@@ -29,7 +29,7 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
       {
         heading: '1. Information we collect',
         body:
-          `• Account: your mobile number, used to sign you in via OTP.\n` +
+          `• Account: your name and email address from your Google account, used to sign you in.\n` +
           `• Birth details: name, gender, date, time and place of birth, which you provide ` +
           `to generate your Kundli, horoscopes and reports.\n` +
           `• Content you create: chat messages with the AI astrologer and report inputs ` +
@@ -125,7 +125,7 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
         body:
           `You must be 18 or older to use Ritham. You are responsible for the accuracy of ` +
           `the birth details you enter and for activity on your account. Keep access to ` +
-          `your phone number secure.`,
+          `your Google account secure.`,
       },
       {
         heading: '3. Purchases & payments',

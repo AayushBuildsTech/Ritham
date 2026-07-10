@@ -17,17 +17,9 @@ export function friendlyAuthError(err: unknown): string {
   if (status === 429 || /rate limit|too many|only request this after|for security purposes/.test(raw)) {
     return 'Too many attempts. Please wait a minute before trying again.';
   }
-  // expired OTP
-  if (/expired/.test(raw)) {
-    return 'This code has expired. Please tap “Resend OTP” to get a new one.';
-  }
-  // wrong / malformed OTP token
-  if (/invalid|incorrect|token|otp/.test(raw)) {
-    return 'That code isn’t right. Please check the 6 digits and try again.';
-  }
-  // bad phone number
-  if (/phone|number|e\.164|msisdn/.test(raw)) {
-    return 'That phone number doesn’t look right. Please check it and try again.';
+  // Google sign-in rejected / cancelled by the provider
+  if (/cancel|dismiss|denied|access_denied/.test(raw)) {
+    return 'Sign-in was cancelled. Please try again.';
   }
   // server-side / provider issues
   if (status != null && status >= 500) {

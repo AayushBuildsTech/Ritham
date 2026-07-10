@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const { error: rowErr } = await admin.from('users').delete().eq('id', uid);
     if (rowErr) return json({ error: 'data_delete_failed', detail: rowErr.message }, 500);
 
-    // 3. Delete the auth identity itself (the phone login).
+    // 3. Delete the auth identity itself (the Google login).
     const { error: authErr } = await admin.auth.admin.deleteUser(uid);
     if (authErr) return json({ error: 'auth_delete_failed', detail: authErr.message }, 500);
 

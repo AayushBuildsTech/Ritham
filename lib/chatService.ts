@@ -3,6 +3,7 @@
 // which holds the API key and enforces entitlements server-side.
 
 import { supabase } from './supabase';
+import { getDeviceId } from './device';
 
 // Supabase Edge Function slug. Deployed from supabase/functions/chat via the CLI,
 // so the slug matches the folder. (The earlier dashboard deploy under the name
@@ -123,8 +124,10 @@ export async function sendChat(
   sessionId?: string,
   useKind?: 'questions' | 'time',
 ): Promise<ChatResult> {
+  // deviceId lets the server keep the free minute scarce per device (anti-abuse).
+  const deviceId = await getDeviceId();
   const { data, error } = await supabase.functions.invoke(CHAT_FUNCTION, {
-    body: { profileId, message, sessionId, useKind },
+    body: { profileId, message, sessionId, useKind, deviceId },
   });
   if (error) {
     // Supabase wraps non-2xx as FunctionsHttpError; surface a usable shape

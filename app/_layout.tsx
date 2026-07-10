@@ -27,9 +27,9 @@ import { AnimatedSplash } from '../components/AnimatedSplash';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Global auth guard: reacts to session changes anywhere in the app and
-// redirects. Without this, verifying OTP updates the session but leaves the
-// user stranded on the verify screen, because app/index.tsx only redirects
-// while the root "/" route is mounted.
+// redirects. Without this, signing in updates the session but leaves the user
+// stranded on the sign-in screen, because app/index.tsx only redirects while
+// the root "/" route is mounted.
 function AuthGate() {
   const { session, loading } = useAuth();
   const segments = useSegments();

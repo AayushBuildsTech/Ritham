@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator,
+  View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Share,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -422,6 +422,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
 }) {
   const th = useColors();
   const styles = makeStyles(th);
+  const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [chartStyle, setChartStyle] = useState<ChartVariant>('north');
   const [chartKey, setChartKey] = useState('D1');
@@ -500,9 +501,42 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
     try { await onRefresh(); } finally { setRefreshing(false); }
   };
 
+  // Share a clean text summary of this Kundli to WhatsApp / anywhere.
+  async function handleShare() {
+    const lines = [
+      'My Vedic Kundli — Ritham',
+      '',
+      profile.name,
+      `${dobLabel} · ${tobLabel}`,
+      profile.birth_place,
+      '',
+      `Lagna (Ascendant): ${kundli.lagna}`,
+      `Moon Sign (Rashi): ${kundli.moon_sign}`,
+      `Sun Sign: ${kundli.sun_sign}`,
+      `Nakshatra: ${kundli.nakshatra}${kundli.pada ? ` · Pada ${kundli.pada}` : ''}`,
+    ];
+    if (maha) {
+      lines.push('', `Currently running: ${maha.lord} Mahadasha${antar ? ` — ${antar.lord} Antardasha` : ''}`);
+    }
+    lines.push('', 'Discover your own Kundli, horoscopes & AI astrologer on Ritham:', 'https://ritham.netlify.app');
+    try {
+      await Share.share({ message: lines.join('\n') });
+      track('kundli_shared');
+    } catch { /* user dismissed the share sheet */ }
+  }
+
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-      <BackHeader onBack={onBack} />
+      <View style={[styles.viewTopBar, { marginTop: insets.top }]}>
+        <Pressable style={styles.backInline} onPress={onBack} android_ripple={{ color: th.goldFaint, borderless: true, radius: 20 }}>
+          <Icon name="back" size={20} color={th.gold} />
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
+        <Pressable style={styles.shareBtn} onPress={handleShare} android_ripple={{ color: th.goldFaint }}>
+          <Icon name="share" size={16} color={th.goldLight} />
+          <Text style={styles.shareBtnText}>Share</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.viewHead}>
         <View style={styles.viewCrest}><Icon name="moon" size={26} color={th.gold} /></View>
@@ -730,6 +764,13 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   scroll: { padding: Spacing.lg },
   back: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: Spacing.sm, marginBottom: Spacing.sm },
   backText: { fontFamily: Fonts.bodyMedium, color: th.gold, fontSize: Fonts.size.md },
+  viewTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
+  backInline: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: Spacing.sm },
+  shareBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.pill,
+  },
+  shareBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
 
   eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, marginBottom: 6 },
   h1: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero, color: th.text, marginBottom: Spacing.xs },

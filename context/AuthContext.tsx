@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { configureGoogle, googleSignOut } from '../lib/googleAuth';
 
 interface AuthContextValue {
   session: Session | null;
@@ -21,6 +22,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Configure Google Sign-In once, app-wide, so sign-out/revoke work from anywhere.
+    configureGoogle();
+
     // Timeout so a broken Supabase config never hangs the app forever
     const timeout = setTimeout(() => setLoading(false), 5000);
 
@@ -44,6 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    // Clear the cached Google account too, so the next sign-in shows the account
+    // picker instead of silently reusing the last account.
+    await googleSignOut();
     await supabase.auth.signOut();
   };
 
