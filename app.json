@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0B0B0D",
+    "backgroundColor": "#0D0D1A",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ritham.app"
@@ -23,7 +23,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#FCF5E7",
+        "backgroundColor": "#0D0D1A",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "package": "com.ritham.app"
@@ -39,10 +39,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FCF5E7",
+          "backgroundColor": "#0D0D1A",
           "resizeMode": "contain",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 200
+          "imageWidth": 220
         }
       ],
       [
@@ -55,7 +55,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#C5A059"
+          "color": "#FF007F"
         }
       ],
       "@react-native-google-signin/google-signin"

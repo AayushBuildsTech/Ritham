@@ -1641,3 +1641,105 @@ Only phase 2 is tunable and real in production, so **`components/AnimatedSplash.
 of sequentially (was 0.56+0.5s); hold 0.65→0.16s; fade 0.46→0.3s. All visual beats kept. No rebuild
 (JS-only; fast-refresh + app relaunch). **Takeaway for judging startup: build a RELEASE APK — the long
 "logo" wait in dev is Metro bundling, not the app.** Untouched: native splash + AuthGate (fine for v1).
+
+## 40. "Stellar Velocity" rebrand — magenta/violet UI + Home redesign + rotating-ring splash (2026-07-10)
+
+Full visual pivot away from the §38 Behrouz black+gold/cream luxury look to a punchy, high-CTR
+**Cyber Magenta + Neon Violet** identity (Swiggy-style gradient rebrand). Reference target: a violet→
+magenta gradient header with an overlapping white "reading" card + feature cards. Default theme flipped
+to **DARK** (`context/ThemeContext.tsx` initial state `light`→`dark`). All JS/UI changes are live on
+device via fast-refresh — **no native rebuild needed** for them.
+
+- **Palette (`constants/theme.ts`) — one-file recolor.** Kept the legacy token keys but repointed them:
+  `gold`=`#FF007F` (Cyber Magenta), `goldLight`=`#FF3D9A`, secondary Electric Amethyst `#7B2CBF`,
+  off-white `#F8F9FA` canvas + white cards, near-black `#0D0D1A` text; `goldContrast`=`#FFFFFF` (white
+  on magenta fills). New token **`gHeader`** = `['#7B2CBF','#FF007F']` (also `gSplash`). `Accents`
+  retuned to a neon family, each gaining a `.grad` two-stop for icon chips. Every screen that reads
+  `useColors()` recolored automatically; only Home had hardcoded colors and was rewritten.
+- **Home (`app/(tabs)/index.tsx`) rebuilt to the reference.** Violet→magenta `LinearGradient` header
+  (brand tile + "Ritham", glass Kundli pill + settings, "TODAY'S COSMIC INSIGHT" eyebrow, date,
+  tappable "Hello, {name}" switcher, rounded bottom) → white **AI-Predicted Reading card overlapping**
+  the header (marginTop −48) with the moon sign + a 2×2 stat grid (LUCK/LOVE/FOCUS/CAREER, deterministic
+  `seededPct(sign+date+metric)` bars — decorative, never AI) + "Read full horoscope" → magenta/violet
+  gradient chat promo → free features as a **2-col card grid** (`FeatureCard`: gradient icon chip +
+  title + sub), replacing the old black/yellow rectangle rows. Home forces light status-bar via
+  `useFocusEffect`+`setStatusBarStyle` (dark header). `AnimatedSplash` splash text switched to white.
+- **New logo → assets.** Source `Detailings/ritham logo final.png` (1254², neon magenta/violet
+  Devanagari monogram inside a ring of 8 planets, near-white bg). Processed with PowerShell/.NET
+  System.Drawing (scratchpad `process_logo.ps1`/`make_icons.ps1`): background color-keyed to transparent,
+  then **radially split at r=320** (glyph ≤ r306, ring ≥ r335 — clean gap) into `logo-center.png`
+  (static glyph+bindu) + `logo-ring.png` (orbiting planets), plus `logo-transparent.png`. Regenerated
+  `icon.png` (opaque), `splash-icon.png`/`favicon.png`/`notification-icon.png` (transparent),
+  `android-icon-foreground.png` (padded 18% for adaptive safe zone). Home header + chat-promo now use
+  `logo-transparent` inside light tiles (contrast on the magenta gradient).
+- **Animated splash — rotating ring.** `components/AnimatedSplash.tsx` rewritten: dark violet gradient
+  bg, `logo-ring.png` in an endless 5.2s linear `Animated.loop` rotation around the static
+  `logo-center.png`, wordmark + "VEDIC WISDOM · REIMAGINED" fade up (~2.6s total). Verified rotating on
+  device.
+- **`app.json`** — splash `backgroundColor` `#FCF5E7`→`#0D0D1A`, `imageWidth` 200→220; `adaptiveIcon`
+  bg → `#0D0D1A`; notification `color` `#C5A059`→`#FF007F`; top-level `backgroundColor` → `#0D0D1A`.
+
+### Native splash — BLOCKED on Windows path limit (follow-up)
+The old gold logo still flashes for ~1s at cold start because the **native** splash is compiled into the
+installed APK. Native res were updated (`android/.../res/values/colors.xml` splash/icon colors → magenta/
+dark; all 5 `drawable-*/splashscreen_logo.png` → new neon logo) but **`gradlew :app:installDebug`
+FAILS**: `ninja: error: ... RNGestureHandlerDetectorShadowNode.cpp.o: Filename longer than 260
+characters` — react-native-gesture-handler new-arch codegen exceeds Windows MAX_PATH. Can't disable new
+arch (reanimated v4/worklets require it). `HKLM\...\FileSystem\LongPathsEnabled=0` and the session isn't
+admin. **To land the new native splash: build via EAS cloud, OR enable Windows long paths (admin) +
+`git config --system core.longpaths true` then rebuild, OR move the repo to a short path (e.g. C:\Ritham).**
+Note android/ is gitignored (CNG/prebuild-generated), so these res edits aren't committed — a
+`prebuild` from `app.json` regenerates the dark splash + new `splashscreen_logo` from assets anyway.
+
+---
+
+## FUTURE FEATURE (planned, not built): Live AI Voice Astrologer — costs & pricing
+
+Reference notes from planning (2026-07-10) for a **voice-only, real-time AI astrologer call in Indian
+regional languages**, running alongside the existing text chat. Claude is the "brain"; only the voice
+in/out layer is new. Nothing built yet — this is the decision + numbers to build against.
+
+### The pipeline (speech-to-speech)
+`user voice → STT (speech-to-text) → Claude Sonnet 5 (astrologer, kundli-grounded) → TTS (text-to-speech) → voice back`,
+over WebRTC with turn-taking / barge-in. No video. Reuses the existing chat system prompt + entitlement model.
+
+### Providers
+- **Brain:** Claude **Sonnet 5** (already used by `chat` fn). Pricing: $3/$15 per 1M in/out (intro $2/$10
+  through 2026-08-31); prompt caching reads ~0.1x. Claude works out to only **~₹1–2/min** — NOT the costly part.
+- **Regional STT+TTS:** **Sarvam AI** (sarvam.ai) — built for Indian languages (Hindi, Tamil, Telugu, Kannada,
+  Marathi, Bengali, Gujarati, Punjabi, Malayalam, Odia). Google Cloud STT/TTS is the fallback. ElevenLabs =
+  best voices but pricey (~₹8–25/min).
+- **Real-time orchestration:** self-host **Pipecat** or **LiveKit Agents** on a small always-on server
+  (Fly.io/Railway/Render). NOTE: this canNOT live in a Supabase Edge Function (those are short-lived) — needs
+  a dedicated voice server. Fast-prototype alternative: managed platform **Vapi/Retell** (bundles orchestration).
+
+### Running cost per minute
+- **DIY stack** (Sarvam + Claude + self-hosted Pipecat/LiveKit): **~₹4–6/min** (STT+TTS dominate).
+- **Managed** (Vapi/Retell): **~₹9–15/min**. Use only to validate demand, then move to DIY for margin.
+
+### Setup cost (we build it together on Claude Code — code/dev by AI, dashboards by user)
+- Dev/code: **₹0** (built together).
+- Voice server infra: **₹1,000–1,500/month**.
+- Starter prepaid credits (Sarvam + Vapi): **₹3,000–5,000** one-time.
+- **Total to launch ≈ ₹5,000 upfront + ~₹1,500/mo.** No license fees; all providers pay-as-you-go.
+
+### Launch market pricing (DECIDED) — priced to fund marketing, not burn
+Sell **"voice minutes" packs at an effective ≈ ₹15/min** (mirror the existing time-pack model in
+`config/pricing.ts` + `create-order`):
+| Pack    | Price | Minutes | ₹/min |
+|---------|-------|---------|-------|
+| Taster  | ₹49   | 3       | ₹16   |
+| Popular | ₹149  | 10      | ₹15   |
+| Value   | ₹399  | 28      | ₹14   |
+
+- Cost ~₹5/min, sell ~₹15/min → **~3x margin, ~₹10/min gross profit** = the ad/marketing budget.
+- Still ~half of human-astrologer apps (₹30–50/min), so easy to sell.
+- Managed stack must instead retail ₹20–30/min to stay profitable.
+
+### Build checklist when we start
+1. Voice-agent server (Pipecat/LiveKit Agents) wiring STT→Claude→TTS + VAD/turn-taking/barge-in.
+2. Deploy to Fly.io/Railway (always-on). Secrets: SARVAM key, ANTHROPIC key, LIVEKIT/transport.
+3. RN client: call screen + WebRTC (LiveKit or Daily RN SDK) + mic permissions + audio session.
+4. Meter per-minute via the existing time-based entitlement pattern (reuse `entitlements_ledger` /
+   `payment_orders` / `create-order` + Razorpay); add "voice minutes" packs to `config/pricing.ts`.
+5. Reuse the kundli-grounded system prompt + GREETING from `supabase/functions/chat/index.ts`.

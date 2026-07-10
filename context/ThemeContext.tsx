@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { darkColors, lightColors, ThemeColors } from '../constants/theme';
 
-// Light / dark theming. Default is LIGHT. The choice persists to AsyncStorage.
+// Light / dark theming. Default is DARK. The choice persists to AsyncStorage.
 // Screens read the active palette with useColors() and build their StyleSheet
 // per-render via a local makeStyles(c) factory.
 
@@ -21,7 +21,7 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>('light'); // default: light
+  const [mode, setModeState] = useState<ThemeMode>('dark'); // default: dark
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

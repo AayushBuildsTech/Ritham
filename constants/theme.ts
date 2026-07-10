@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Ritham design system — "Behrouz" luxury edition
-// Near-black canvas + matte gold, ivory type, gold hairlines.
+// Ritham design system — "Stellar Velocity" edition
+// Cyber Magenta (#FF007F) + Electric Amethyst (#7B2CBF) on an off-white canvas,
+// near-black (#0D0D1A) type. Mystical yet aggressively modern.
 // NOTE: the original short keys (bg, bgCard, gold, text, …) are preserved and
 // repointed to the new palette, so every existing screen recolors from this one
-// file. New tokens (canvas/surface/hairline/typography/radius/depth/motion) are
-// additive — migrate screens onto them over time.
+// file — `gold`/`goldLight`/… now carry the magenta brand tones. New tokens
+// (canvas/surface/hairline/gHeader/…) are additive.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Two themes (dark = default look, light = new) ─────────────────────────────
@@ -16,34 +17,36 @@
 type Tint = 'light' | 'dark';
 
 export const darkColors = {
-  canvas: '#0B0B0D', surface: '#171519', surfaceRaised: '#211E26', surfaceSunken: '#08080A',
-  gold: '#C5A059', goldLight: '#E4C983', goldDeep: '#9A7B3C', goldFaint: 'rgba(197,160,89,0.14)',
-  goldSurface: '#C5A059', // gold used as a BUTTON/badge fill (dark text on top)
-  goldContrast: '#0B0B0D', // dark text on gold
-  text: '#FDFBF7', textMuted: '#A29E95', textDim: '#6E6A62',
-  border: 'rgba(197,160,89,0.16)', borderStrong: 'rgba(197,160,89,0.34)', divider: 'rgba(253,251,247,0.07)',
-  error: '#C7524B', success: '#7FA36F',
-  bg: '#0B0B0D', bgMid: '#111013', bgCard: '#171519', tabActive: '#C5A059', tabInactive: '#6E6A62',
-  scrimTabBar: 'rgba(9,9,11,0.34)', scrimSheet: 'rgba(21,20,23,0.96)', scrimBackdrop: 'rgba(6,6,8,0.66)',
-  gHero: ['#1D1A22', '#141217'] as [string, string],
-  gSplash: ['#0C0A10', '#0B0B0D'] as [string, string],
+  canvas: '#0D0D1A', surface: '#17172B', surfaceRaised: '#20203A', surfaceSunken: '#090912',
+  gold: '#FF007F', goldLight: '#FF57A8', goldDeep: '#C4006A', goldFaint: 'rgba(255,0,127,0.16)',
+  goldSurface: '#FF007F', // magenta used as a BUTTON/badge fill (white text on top)
+  goldContrast: '#FFFFFF', // white text on magenta
+  text: '#F5F5FA', textMuted: '#A0A0B8', textDim: '#6B6B82',
+  border: 'rgba(255,255,255,0.09)', borderStrong: 'rgba(255,0,127,0.42)', divider: 'rgba(255,255,255,0.07)',
+  error: '#FF5A6E', success: '#2DD4A7',
+  bg: '#0D0D1A', bgMid: '#131324', bgCard: '#17172B', tabActive: '#FF007F', tabInactive: '#6B6B82',
+  scrimTabBar: 'rgba(13,13,26,0.42)', scrimSheet: 'rgba(23,23,43,0.96)', scrimBackdrop: 'rgba(6,6,14,0.68)',
+  gHero: ['#241B3E', '#15132A'] as [string, string],
+  gSplash: ['#7B2CBF', '#FF007F'] as [string, string],
+  gHeader: ['#7B2CBF', '#FF007F'] as [string, string], // violet → magenta brand header
   blurTint: 'dark' as Tint,
   statusBar: 'light' as Tint,
   isDark: true,
 };
 
 export const lightColors: typeof darkColors = {
-  canvas: '#F4EFE4', surface: '#FCFAF4', surfaceRaised: '#FFFFFF', surfaceSunken: '#EBE4D6',
-  gold: '#8C6A22', goldLight: '#6B5011', goldDeep: '#6E541A', goldFaint: 'rgba(160,124,42,0.12)',
-  goldSurface: '#E4B23E', // brighter gold for button/badge fills so dark text pops (not muddy brown)
-  goldContrast: '#1A1508', // dark text on gold
-  text: '#221D14', textMuted: '#574F3F', textDim: '#797060',
-  border: 'rgba(160,124,42,0.26)', borderStrong: 'rgba(160,124,42,0.5)', divider: 'rgba(34,29,20,0.08)',
-  error: '#B23A34', success: '#4E7A50',
-  bg: '#F4EFE4', bgMid: '#EFE8DB', bgCard: '#FCFAF4', tabActive: '#A07C2A', tabInactive: '#9A9284',
-  scrimTabBar: 'rgba(244,239,228,0.5)', scrimSheet: 'rgba(252,250,244,0.98)', scrimBackdrop: 'rgba(40,34,24,0.34)',
-  gHero: ['#FFFDF8', '#F4EFE4'],
-  gSplash: ['#F7F2E8', '#F4EFE4'],
+  canvas: '#F8F9FA', surface: '#FFFFFF', surfaceRaised: '#FFFFFF', surfaceSunken: '#EDEEF3',
+  gold: '#FF007F', goldLight: '#FF3D9A', goldDeep: '#C4006A', goldFaint: 'rgba(255,0,127,0.08)',
+  goldSurface: '#FF007F', // magenta button/badge fill (white text on top)
+  goldContrast: '#FFFFFF', // white text on magenta
+  text: '#0D0D1A', textMuted: '#5B5B6E', textDim: '#9C9CB0',
+  border: 'rgba(13,13,26,0.08)', borderStrong: 'rgba(255,0,127,0.34)', divider: 'rgba(13,13,26,0.06)',
+  error: '#E5484D', success: '#12A594',
+  bg: '#F8F9FA', bgMid: '#F1F2F5', bgCard: '#FFFFFF', tabActive: '#FF007F', tabInactive: '#9C9CB0',
+  scrimTabBar: 'rgba(248,249,250,0.72)', scrimSheet: 'rgba(255,255,255,0.98)', scrimBackdrop: 'rgba(13,13,26,0.4)',
+  gHero: ['#FFFFFF', '#F8F9FA'],
+  gSplash: ['#7B2CBF', '#FF007F'],
+  gHeader: ['#7B2CBF', '#FF007F'], // violet → magenta brand header
   blurTint: 'light',
   statusBar: 'dark',
   isDark: false,
@@ -58,14 +61,17 @@ export const Colors = darkColors;
 // Gold is the connective thread; each domain also carries a jewel accent used for
 // its icon chip, eyebrow, and soft card wash. `color` = the vivid line/text tone,
 // `faint` = low-alpha fill for chips/washes, `soft` = hairline/border tint.
+// "Stellar Velocity" neon accents. Names are kept for back-compat, but every hue
+// now lives in the vibrant magenta / violet / neon family so feature chips pop on
+// off-white. `grad` = the two-stop gradient used for icon chips (bright → deep).
 export const Accents = {
-  gold: { color: '#E4C983', faint: 'rgba(228,201,131,0.14)', soft: 'rgba(228,201,131,0.32)' },
-  saffron: { color: '#E8973B', faint: 'rgba(232,151,59,0.15)', soft: 'rgba(232,151,59,0.34)' },
-  amethyst: { color: '#A87AE0', faint: 'rgba(168,122,224,0.17)', soft: 'rgba(168,122,224,0.36)' },
-  emerald: { color: '#46B587', faint: 'rgba(70,181,135,0.16)', soft: 'rgba(70,181,135,0.34)' },
-  ruby: { color: '#E05561', faint: 'rgba(224,85,97,0.15)', soft: 'rgba(224,85,97,0.34)' },
-  sapphire: { color: '#5A8BE6', faint: 'rgba(90,139,230,0.16)', soft: 'rgba(90,139,230,0.36)' },
-  turquoise: { color: '#22C3C9', faint: 'rgba(34,195,201,0.16)', soft: 'rgba(34,195,201,0.36)' },
+  gold: { color: '#FF007F', faint: 'rgba(255,0,127,0.10)', soft: 'rgba(255,0,127,0.32)', grad: ['#FF3D9A', '#FF007F'] as [string, string] },
+  saffron: { color: '#FF4D6D', faint: 'rgba(255,77,109,0.10)', soft: 'rgba(255,77,109,0.32)', grad: ['#FF6B8A', '#E5004C'] as [string, string] },
+  amethyst: { color: '#7B2CBF', faint: 'rgba(123,44,191,0.10)', soft: 'rgba(123,44,191,0.32)', grad: ['#9D4EDD', '#7B2CBF'] as [string, string] },
+  emerald: { color: '#12A594', faint: 'rgba(18,165,148,0.10)', soft: 'rgba(18,165,148,0.32)', grad: ['#2DD4A7', '#0E8577'] as [string, string] },
+  ruby: { color: '#E5004C', faint: 'rgba(229,0,76,0.10)', soft: 'rgba(229,0,76,0.32)', grad: ['#FF2D78', '#B4003C'] as [string, string] },
+  sapphire: { color: '#6C5CE7', faint: 'rgba(108,92,231,0.10)', soft: 'rgba(108,92,231,0.32)', grad: ['#8B7BFF', '#5B4BD6'] as [string, string] },
+  turquoise: { color: '#00B8D9', faint: 'rgba(0,184,217,0.10)', soft: 'rgba(0,184,217,0.32)', grad: ['#3AD0EA', '#0092AD'] as [string, string] },
 } as const;
 export type AccentName = keyof typeof Accents;
 

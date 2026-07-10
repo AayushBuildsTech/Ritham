@@ -1,118 +1,116 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Fonts, Motion, ThemeColors } from '../constants/theme';
+import { Fonts, Motion, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
 
-// A bespoke animated start screen shown after the (static) native splash and
-// before the app reveals. Pure RN Animated — no reanimated, no native deps.
+// Animated start screen shown after the (static) native splash and before the
+// app reveals. The Ritham mark's planet RING orbits continuously around the
+// static central glyph (2-D rotation on its own axis), while the wordmark +
+// tagline fade up. Pure RN Animated — no reanimated, no native deps.
 //
-// Sequence (settle easing throughout, ~1.3s total — kept short so it doesn't
-// stack a long second splash on top of the native logo splash):
-//   1. wordmark "Ritham" fades up + eases from 1.04→1.0
-//   2. a thin gold hairline draws outward from center (scaleX 0→1)
-//   3. the tracked-out tagline fades in
+// Sequence (~2.6s total):
+//   1. ring begins an endless slow rotation immediately
+//   2. glyph + ring fade in and settle from 1.06→1.0
+//   3. the tracked-out wordmark + tagline fade in
 //   4. brief hold, then the whole overlay fades away → onFinish()
+const LOGO = 230;
+
 export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   const th = useColors();
   const styles = makeStyles(th);
-  const wordOpacity = useRef(new Animated.Value(0)).current;
-  const wordScale = useRef(new Animated.Value(1.04)).current;
-  const wordShift = useRef(new Animated.Value(12)).current;
-  const lineScale = useRef(new Animated.Value(0)).current;
-  const tagOpacity = useRef(new Animated.Value(0)).current;
+
+  const spin = useRef(new Animated.Value(0)).current;
+  const markOpacity = useRef(new Animated.Value(0)).current;
+  const markScale = useRef(new Animated.Value(1.06)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const textShift = useRef(new Animated.Value(10)).current;
   const overlay = useRef(new Animated.Value(1)).current;
 
   const ease = Easing.bezier(...Motion.easeOut);
 
   useEffect(() => {
+    // endless orbit of the planet ring
+    Animated.loop(
+      Animated.timing(spin, {
+        toValue: 1, duration: 5200, easing: Easing.linear, useNativeDriver: true,
+      }),
+    ).start();
+
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(wordOpacity, {
-          toValue: 1, duration: 420, easing: ease, useNativeDriver: true,
-        }),
-        Animated.timing(wordScale, {
-          toValue: 1, duration: 500, easing: ease, useNativeDriver: true,
-        }),
-        Animated.timing(wordShift, {
-          toValue: 0, duration: 500, easing: ease, useNativeDriver: true,
-        }),
+        Animated.timing(markOpacity, { toValue: 1, duration: 460, easing: ease, useNativeDriver: true }),
+        Animated.timing(markScale, { toValue: 1, duration: 620, easing: ease, useNativeDriver: true }),
       ]),
-      // line + tagline reveal together (previously sequential) to save time
       Animated.parallel([
-        Animated.timing(lineScale, {
-          toValue: 1, duration: 340, easing: ease, useNativeDriver: true,
-        }),
-        Animated.timing(tagOpacity, {
-          toValue: 1, duration: 340, easing: ease, useNativeDriver: true,
-        }),
+        Animated.timing(textOpacity, { toValue: 1, duration: 380, easing: ease, useNativeDriver: true }),
+        Animated.timing(textShift, { toValue: 0, duration: 380, easing: ease, useNativeDriver: true }),
       ]),
-      Animated.delay(160),
-      Animated.timing(overlay, {
-        toValue: 0, duration: 300, easing: ease, useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) onFinish();
-    });
+      Animated.delay(560),
+      Animated.timing(overlay, { toValue: 0, duration: 360, easing: ease, useNativeDriver: true }),
+    ]).start(({ finished }) => { if (finished) onFinish(); });
   }, []);
+
+  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   return (
     <Animated.View style={[styles.root, { opacity: overlay }]} pointerEvents="none">
       <LinearGradient
-        colors={th.gSplash}
+        colors={['#2A1150', '#150A28', '#0D0D1A']}
         start={{ x: 0.2, y: 0 }}
         end={{ x: 0.8, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
+
+      <Animated.View
+        style={[styles.mark, { opacity: markOpacity, transform: [{ scale: markScale }] }]}
+      >
+        <Animated.Image
+          source={require('../assets/logo-ring.png')}
+          style={[styles.layer, { transform: [{ rotate }] }]}
+          resizeMode="contain"
+        />
+        <Image
+          source={require('../assets/logo-center.png')}
+          style={styles.layer}
+          resizeMode="contain"
+        />
+      </Animated.View>
+
       <Animated.Text
-        style={[
-          styles.wordmark,
-          {
-            opacity: wordOpacity,
-            transform: [{ scale: wordScale }, { translateY: wordShift }],
-          },
-        ]}
+        style={[styles.wordmark, { opacity: textOpacity, transform: [{ translateY: textShift }] }]}
       >
         Ritham
       </Animated.Text>
-
-      <Animated.View style={[styles.rule, { transform: [{ scaleX: lineScale }] }]} />
-
-      <Animated.Text style={[styles.tagline, { opacity: tagOpacity }]}>
-        VEDIC WISDOM · REFINED
+      <Animated.Text style={[styles.tagline, { opacity: textOpacity }]}>
+        VEDIC WISDOM · REIMAGINED
       </Animated.Text>
     </Animated.View>
   );
 }
 
-const makeStyles = (th: ThemeColors) => StyleSheet.create({
+const makeStyles = (_th: ThemeColors) => StyleSheet.create({
   root: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: th.canvas,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
+  mark: { width: LOGO, height: LOGO, alignItems: 'center', justifyContent: 'center' },
+  layer: { position: 'absolute', width: LOGO, height: LOGO },
   wordmark: {
     fontFamily: Fonts.displayBold,
-    fontSize: 64,
-    color: th.goldLight,
+    fontSize: 46,
+    color: '#FFFFFF',
     letterSpacing: 1,
-    textShadowColor: 'rgba(197,160,89,0.45)',
+    marginTop: 34,
+    textShadowColor: 'rgba(255,0,127,0.55)',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 22,
-  },
-  rule: {
-    width: 120,
-    height: 1,
-    backgroundColor: th.gold,
-    marginTop: 18,
-    marginBottom: 16,
-    opacity: 0.9,
+    textShadowRadius: 24,
   },
   tagline: {
     fontFamily: Fonts.bodyMedium,
     fontSize: 11,
-    color: th.textMuted,
+    color: 'rgba(255,255,255,0.8)',
     letterSpacing: 4,
+    marginTop: 12,
   },
 });

@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Dimensions } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { setStatusBarStyle } from 'expo-status-bar';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { getPanchang, Panchang } from '../../lib/panchangService';
@@ -10,7 +12,7 @@ import { getRetrograde, getSadeSati, RetrogradeStatus, SadeSatiStatus } from '..
 import { PLANET_LABEL } from '../../config/retrogradeMeanings';
 import { Numerology } from '../../lib/numerology';
 import { track } from '../../lib/analytics';
-import { Colors, Fonts, Spacing, Radius, Type, Depth, AccentName, ThemeColors } from '../../constants/theme';
+import { Fonts, Spacing, Radius, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
 import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
 import { Icon, IconName } from '../../components/Icon';
@@ -23,6 +25,19 @@ type Profile = {
   id: string; name: string; dob: string; birthPlace: string;
   lat: number; lng: number; moonSign?: string;
 };
+
+const SCREEN_W = Dimensions.get('window').width;
+const GRID_GAP = 12;
+const CARD_W = (SCREEN_W - Spacing.lg * 2 - GRID_GAP) / 2;
+
+// Deterministic "cosmic" percentage seeded by sign + date + metric, so the daily
+// reading stats feel alive but stay stable across a whole day (never AI/random).
+function seededPct(seed: string, min = 52, max = 96): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  const r = (h >>> 0) / 4294967295;
+  return Math.round(min + r * (max - min));
+}
 
 export default function HomeScreen() {
   const th = useColors();
@@ -42,22 +57,23 @@ export default function HomeScreen() {
   const [retro, setRetro] = useState<RetrogradeStatus | null>(null);
   const [sade, setSade] = useState<SadeSatiStatus | null>(null);
 
+  // The header is a dark violet→magenta gradient, so force light status-bar
+  // content while Home is focused, then hand back to the theme default.
+  useFocusEffect(useCallback(() => {
+    setStatusBarStyle('light');
+    return () => setStatusBarStyle(th.statusBar);
+  }, [th.statusBar]));
+
   // ── load the ACTIVE person (birth details + Moon sign) ───────────────────────
-  // Everything on Home follows the active family member: horoscope, panchang,
-  // numerology and muhurat all receive this profile's id.
   useEffect(() => {
     if (profilesLoading) return;
-    // No people at all → guided onboarding (create self).
     if (!activeId) { if (members.length === 0) router.replace('/profile'); return; }
 
     let cancelled = false;
     (async () => {
       setEntry('loading');
-      // switching person: drop the previous person's cached content
       setPanchang(null); setNumerology(null); setRetro(null); setSade(null);
 
-      // NOTE: do NOT select `numerology` here — that column only exists after
-      // migration 010; selecting a missing column rejects the whole query.
       const { data } = await supabase
         .from('profiles').select('id, name, dob, birth_place, latitude, longitude, kundli_chart')
         .eq('id', activeId).maybeSingle();
@@ -74,7 +90,6 @@ export default function HomeScreen() {
     return () => { cancelled = true; };
   }, [activeId, profilesLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // person switcher options: each family member + a "Manage family" entry
   const switcherOpts: Option[] = [
     ...members.map((m) => ({
       label: m.name,
@@ -99,7 +114,6 @@ export default function HomeScreen() {
       if (!cancelled) setNumerology(num);
       const p = await getPanchang(profile.id);
       if (!cancelled && !p.error) setPanchang(p);
-      // transit trackers (deterministic, day-cached, no AI/provider call)
       const r = await getRetrograde();
       if (!cancelled) setRetro(r);
       if (profile.moonSign) {
@@ -120,151 +134,218 @@ export default function HomeScreen() {
     return <View style={styles.loading}><ActivityIndicator color={th.gold} size="large" /></View>;
   }
 
-  const firstName = profile?.name?.trim().split(/\s+/)[0];
+  const firstName = profile?.name?.trim().split(/\s+/)[0] || 'Seeker';
+  const today = new Date();
+  const dateLabel = today.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dayKey = today.toISOString().slice(0, 10);
+  const sign = profile?.moonSign;
+
+  const stats: { label: string; icon: IconName; pct: number }[] = sign ? [
+    { label: 'LUCK', icon: 'star', pct: seededPct(`${sign}${dayKey}luck`) },
+    { label: 'LOVE', icon: 'heart', pct: seededPct(`${sign}${dayKey}love`) },
+    { label: 'FOCUS', icon: 'eye', pct: seededPct(`${sign}${dayKey}focus`) },
+    { label: 'CAREER', icon: 'briefcase', pct: seededPct(`${sign}${dayKey}career`) },
+  ] : [];
+
+  const features: { icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }[] = profile ? [
+    {
+      icon: 'panchang', accent: 'saffron', title: 'Today’s Panchang',
+      sub: panchang ? `${panchang.tithi} · ${panchang.nakshatra?.split(' (')[0]}` : 'Daily almanac & timings',
+      onPress: () => router.push({ pathname: '/panchang', params: { profileId: profile.id } }),
+    },
+    {
+      icon: 'numerology', accent: 'amethyst', title: 'Your Numerology',
+      sub: numerology ? `Life Path ${numerology.life_path.number} · Expr ${numerology.expression.number}` : 'Core numbers from name & birth',
+      onPress: () => router.push({ pathname: '/numerology', params: { profileId: profile.id } }),
+    },
+    {
+      icon: 'muhurat', accent: 'emerald', title: 'Shubh Muhurat',
+      sub: 'Auspicious dates for your plans',
+      onPress: () => router.push({ pathname: '/muhurat', params: { profileId: profile.id } }),
+    },
+    {
+      icon: 'temple', accent: 'ruby', title: 'Live Darshan',
+      sub: 'Live aarti from major temples',
+      onPress: () => router.push('/darshan'),
+    },
+    {
+      icon: 'activity', accent: 'sapphire', title: 'Retrograde Tracker',
+      sub: retro
+        ? (retro.current.length
+            ? `${retro.current.map((c) => PLANET_LABEL[c.planet].split(' ')[0]).join(', ')} vakri now`
+            : 'No planets retrograde now')
+        : 'Which planets are vakri now',
+      onPress: () => router.push({ pathname: '/retrograde', params: { profileId: profile.id } }),
+    },
+    {
+      icon: 'clock', accent: 'turquoise', title: 'Sade Sati',
+      sub: sade
+        ? (sade.active ? `Phase ${sade.phase} of 3 · active` : 'Not in Sade Sati')
+        : 'Where you stand in Shani’s cycle',
+      onPress: () => router.push({ pathname: '/sadesati', params: { profileId: profile.id } }),
+    },
+  ] : [];
 
   return (
     <>
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.content, {
-        paddingTop: insets.top + Spacing.lg,
-        paddingBottom: TAB_BAR_HEIGHT + insets.bottom + Spacing.md,
-      }]}
+      contentContainerStyle={{ paddingBottom: TAB_BAR_HEIGHT + insets.bottom + Spacing.md }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
-      <Reveal index={0}>
-        <View style={styles.header}>
-          <Pressable
-            style={{ flex: 1 }}
-            onPress={() => setSwitcher(true)}
-            disabled={members.length === 0}
-            android_ripple={{ color: th.goldFaint }}
-          >
-            <Text style={styles.eyebrow}>NAMASTE</Text>
-            <View style={styles.nameRow}>
-              <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{firstName || 'Seeker'}</Text>
-              {members.length > 0 && (
-                <Icon name="chevronDown" size={22} color={th.gold} style={{ marginTop: 8 }} />
-              )}
+      {/* ── Gradient brand header ─────────────────────────────────────────────── */}
+      <LinearGradient
+        colors={th.gHeader}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
+      >
+        {/* faint constellation flourish */}
+        <Icon name="sparkle" size={150} color="rgba(255,255,255,0.06)" style={styles.headerGlyph} />
+
+        <View style={styles.headerTop}>
+          <View style={styles.brandRow}>
+            <View style={styles.brandTile}>
+              <Image source={require('../../assets/logo-transparent.png')} style={styles.brandMark} />
             </View>
-            {profile?.moonSign ? (
-              <View style={styles.moonChip}>
-                <Icon name="moon" size={13} color={th.gold} />
-                <Text style={styles.rashi} numberOfLines={1}>{profile.moonSign}</Text>
-              </View>
-            ) : (
-              <Text style={styles.accountLine}>{user?.email ?? ''}</Text>
-            )}
-          </Pressable>
-          <View style={styles.headerBtns}>
+            <Text style={styles.brandName}>Ritham</Text>
+          </View>
+          <View style={styles.headerActions}>
             {activeId && (
               <Pressable
                 style={styles.kundliBtn}
                 onPress={() => router.push({ pathname: '/profile', params: { id: activeId } })}
-                android_ripple={{ color: th.goldFaint }}
+                android_ripple={{ color: 'rgba(255,255,255,0.15)' }}
               >
-                <Icon name="moon" size={15} color={th.gold} />
-                <Text style={styles.kundliBtnText}>My Kundli</Text>
+                <Icon name="moon" size={14} color="#FFFFFF" />
+                <Text style={styles.kundliBtnText}>Kundli</Text>
               </Pressable>
             )}
-            <IconButton icon="settings" onPress={() => router.push('/settings')} />
+            <GlassIcon icon="settings" onPress={() => router.push('/settings')} />
           </View>
         </View>
-      </Reveal>
 
-      {entry === 'need_kundli' ? (
-        <Reveal index={1}>
-          <View style={styles.heroCard}>
-            <Text style={styles.eyebrow}>ONE STEP LEFT</Text>
-            <Text style={styles.heroTitle}>Finish your Kundli</Text>
-            <Text style={styles.bodyMuted}>
-              Your birth chart isn’t ready yet. Complete your Kundli to unlock your daily,
-              weekly, and monthly horoscope.
-            </Text>
-            <Pressable style={styles.ctaBtn} onPress={() => router.push('/profile')}>
-              <Text style={styles.ctaBtnText}>Complete your Kundli</Text>
-              <Icon name="arrowRight" size={16} color={th.goldContrast} />
-            </Pressable>
-          </View>
-        </Reveal>
-      ) : (
-        /* Ask-the-astrologer promo → chat (top of Home) */
-        <Reveal index={1}>
-          <Pressable style={styles.promoCard} onPress={goChat} android_ripple={{ color: 'rgba(255,255,255,0.08)' }}>
-            <View style={styles.promoRibbon}><Text style={styles.promoRibbonText}>NEW</Text></View>
-            <Image source={require('../../assets/android-icon-foreground.png')} style={styles.promoImg} />
-            <View style={styles.promoContent}>
-              <Text style={styles.promoH}>Got any questions?</Text>
-              <Text style={styles.promoSubW}>Chat with Astrologer</Text>
-              <View style={styles.promoPriceRow}>
-                <Text style={styles.promoPrice}>@INR 5/min</Text>
-                <View style={styles.promoBtn}><Text style={styles.promoBtnText}>Chat Now</Text></View>
-              </View>
+        <Text style={styles.cosmicEyebrow}>TODAY’S COSMIC INSIGHT</Text>
+        <Text style={styles.dateLine}>{dateLabel}</Text>
+        <Pressable
+          style={styles.helloRow}
+          onPress={() => setSwitcher(true)}
+          disabled={members.length === 0}
+          android_ripple={{ color: 'rgba(255,255,255,0.12)' }}
+        >
+          <Text style={styles.hello} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+            Hello, {firstName}
+          </Text>
+          {members.length > 0 && <Icon name="chevronDown" size={22} color="#FFFFFF" style={{ marginTop: 4 }} />}
+        </Pressable>
+      </LinearGradient>
+
+      <View style={styles.body}>
+        {entry === 'need_kundli' ? (
+          <Reveal index={0} style={styles.overlap}>
+            <View style={styles.readingCard}>
+              <Text style={styles.readingLabel}>ONE STEP LEFT</Text>
+              <Text style={styles.kundliTitle}>Finish your Kundli</Text>
+              <Text style={styles.kundliBody}>
+                Your birth chart isn’t ready yet. Complete your Kundli to unlock your daily,
+                weekly, and monthly horoscope.
+              </Text>
+              <Pressable style={styles.ctaBtn} onPress={() => router.push('/profile')}>
+                <Text style={styles.ctaBtnText}>Complete your Kundli</Text>
+                <Icon name="arrowRight" size={16} color="#FFFFFF" />
+              </Pressable>
             </View>
-          </Pressable>
-        </Reveal>
-      )}
-
-      {/* ── Secondary free features ─────────────────────────────────────────────── */}
-      {profile ? (
-        <>
-          <Reveal index={2}>
-            <Text style={styles.sectionEyebrow}>MORE FOR YOU</Text>
           </Reveal>
+        ) : (
+          /* ── AI-predicted reading card (overlaps the header) ─────────────────── */
+          <Reveal index={0} style={styles.overlap}>
+            <View style={styles.readingCard}>
+              <Text style={styles.readingLabel}>Your AI-Predicted Reading</Text>
+              <Text style={styles.readingSign}>{sign ?? '—'}</Text>
 
-          <FeatureRow
-            index={3} icon="star" accent="gold" title="Your Horoscope"
-            sub="Daily, weekly & monthly readings"
-            onPress={() => router.push({ pathname: '/horoscope', params: { profileId: profile.id, moonSign: profile.moonSign ?? '' } })}
-          />
-          <FeatureRow
-            index={3} icon="panchang" accent="saffron" title="Today’s Panchang"
-            sub={panchang ? `${panchang.tithi} · ${panchang.nakshatra?.split(' (')[0]}` : 'Daily almanac & timings'}
-            onPress={() => router.push({ pathname: '/panchang', params: { profileId: profile.id } })}
-          />
-          <FeatureRow
-            index={4} icon="numerology" accent="amethyst" title="Your Numerology"
-            sub={numerology ? `Life Path ${numerology.life_path.number} · Expression ${numerology.expression.number}` : 'Your core numbers from name & birth'}
-            onPress={() => router.push({ pathname: '/numerology', params: { profileId: profile.id } })}
-          />
-          <FeatureRow
-            index={5} icon="muhurat" accent="emerald" title="Shubh Muhurat Finder"
-            sub="Auspicious dates for your plans"
-            onPress={() => router.push({ pathname: '/muhurat', params: { profileId: profile.id } })}
-          />
-          <FeatureRow
-            index={6} icon="temple" accent="ruby" title="Live Darshan"
-            sub="Live aarti from major temples"
-            onPress={() => router.push('/darshan')}
-          />
-          <FeatureRow
-            index={7} icon="activity" accent="sapphire" title="Retrograde (Vakri) Tracker"
-            sub={retro
-              ? (retro.current.length
-                  ? `${retro.current.map((c) => PLANET_LABEL[c.planet].split(' ')[0]).join(', ')} retrograde now`
-                  : 'No planets retrograde right now')
-              : 'Which planets are vakri now'}
-            onPress={() => router.push({ pathname: '/retrograde', params: { profileId: profile.id } })}
-          />
-          <FeatureRow
-            index={8} icon="clock" accent="turquoise" title="Sade Sati Tracker"
-            sub={sade
-              ? (sade.active ? `Phase ${sade.phase} of 3 · in progress` : 'You are not in Sade Sati')
-              : 'Where you stand in Shani’s cycle'}
-            onPress={() => router.push({ pathname: '/sadesati', params: { profileId: profile.id } })}
-          />
-        </>
-      ) : null}
+              <View style={styles.statGrid}>
+                {stats.map((s) => (
+                  <View key={s.label} style={styles.statCell}>
+                    <View style={styles.statChip}>
+                      <Icon name={s.icon} size={15} color={th.gold} />
+                    </View>
+                    <View style={styles.statText}>
+                      <View style={styles.statTopRow}>
+                        <Text style={styles.statLabel}>{s.label}</Text>
+                        <Text style={styles.statPct}>{s.pct}%</Text>
+                      </View>
+                      <View style={styles.statTrack}>
+                        <LinearGradient
+                          colors={th.gHeader}
+                          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                          style={[styles.statFill, { width: `${s.pct}%` }]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
 
-      {/* Astrology disclaimer */}
-      <Reveal index={9}>
-        <Text style={styles.disclaimer}>
-          Horoscopes and readings are for guidance and reflection, not a substitute for
-          professional advice.
-        </Text>
-      </Reveal>
-      <View style={{ height: Spacing.xl }} />
+              <Pressable
+                style={styles.readFull}
+                onPress={() => router.push({ pathname: '/horoscope', params: { profileId: profile!.id, moonSign: sign ?? '' } })}
+                android_ripple={{ color: th.goldFaint }}
+              >
+                <Text style={styles.readFullText}>Read full horoscope</Text>
+                <Icon name="arrowRight" size={15} color={th.gold} />
+              </Pressable>
+            </View>
+          </Reveal>
+        )}
+
+        {/* ── Ask-the-astrologer gradient promo ──────────────────────────────────── */}
+        {profile && (
+          <Reveal index={1}>
+            <Pressable onPress={goChat} android_ripple={{ color: 'rgba(255,255,255,0.12)' }} style={styles.promoWrap}>
+              <LinearGradient
+                colors={['#FF3D9A', '#7B2CBF']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.promo}
+              >
+                <View style={styles.promoTextCol}>
+                  <View style={styles.promoBadge}><Text style={styles.promoBadgeText}>LIVE AI</Text></View>
+                  <Text style={styles.promoH}>Got a question?</Text>
+                  <Text style={styles.promoSub}>Chat with your AI Astrologer</Text>
+                  <View style={styles.promoBtn}>
+                    <Text style={styles.promoBtnText}>Chat Now</Text>
+                    <Icon name="arrowRight" size={15} color="#7B2CBF" />
+                  </View>
+                </View>
+                <View style={styles.promoTile}>
+                  <Image source={require('../../assets/logo-transparent.png')} style={styles.promoImg} />
+                </View>
+              </LinearGradient>
+            </Pressable>
+          </Reveal>
+        )}
+
+        {/* ── Starsights & predictions grid ──────────────────────────────────────── */}
+        {profile && (
+          <>
+            <Reveal index={2}>
+              <Text style={styles.sectionTitle}>Starsights & Predictions</Text>
+            </Reveal>
+            <View style={styles.grid}>
+              {features.map((f, i) => (
+                <FeatureCard key={f.title} index={3 + i} {...f} />
+              ))}
+            </View>
+          </>
+        )}
+
+        <Reveal index={9}>
+          <Text style={styles.disclaimer}>
+            Horoscopes and readings are for guidance and reflection, not a substitute for
+            professional advice.
+          </Text>
+        </Reveal>
+        <View style={{ height: Spacing.xl }} />
+      </View>
     </ScrollView>
 
     <SelectModal
@@ -280,39 +361,36 @@ export default function HomeScreen() {
 }
 
 // ── small building blocks ──────────────────────────────────────────────────────
-function IconButton({ icon, onPress }: { icon: IconName; onPress: () => void }) {
-  const th = useColors();
-  const styles = makeStyles(th);
+function GlassIcon({ icon, onPress }: { icon: IconName; onPress: () => void }) {
+  const styles = makeStyles(useColors());
   return (
     <Pressable
       onPress={onPress}
-      android_ripple={{ color: th.goldFaint, borderless: true, radius: 22 }}
-      style={styles.iconBtn}
+      android_ripple={{ color: 'rgba(255,255,255,0.18)', borderless: true, radius: 22 }}
+      style={styles.glassIcon}
     >
-      <Icon name={icon} size={20} color={th.gold} />
+      <Icon name={icon} size={19} color="#FFFFFF" />
     </Pressable>
   );
 }
 
-function FeatureRow({
-  index, icon, title, sub, onPress,
+function FeatureCard({
+  index, icon, accent, title, sub, onPress,
 }: { index: number; icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }) {
-  const styles = makeStyles(useColors());
+  const th = useColors();
+  const styles = makeStyles(th);
   return (
-    <Reveal index={index}>
-      <Pressable
-        style={styles.featCard}
-        android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
-        onPress={onPress}
-      >
-        <View style={styles.featIconCircle}>
-          <Icon name={icon} size={22} color="#111111" />
-        </View>
-        <View style={styles.featBody}>
-          <Text style={styles.featTitle}>{title}</Text>
-          <Text style={styles.featSub} numberOfLines={2}>{sub}</Text>
-        </View>
-        <View style={styles.featBtn}><Text style={styles.featBtnText}>View</Text></View>
+    <Reveal index={index} style={styles.gridItem}>
+      <Pressable style={styles.featCard} android_ripple={{ color: th.goldFaint }} onPress={onPress}>
+        <LinearGradient
+          colors={Accents[accent].grad}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={styles.featChip}
+        >
+          <Icon name={icon} size={22} color="#FFFFFF" />
+        </LinearGradient>
+        <Text style={styles.featTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.featSub} numberOfLines={2}>{sub}</Text>
       </Pressable>
     </Reveal>
   );
@@ -321,119 +399,119 @@ function FeatureRow({
 const makeStyles = (th: ThemeColors) => StyleSheet.create({
   loading: { flex: 1, backgroundColor: th.canvas, alignItems: 'center', justifyContent: 'center' },
   root: { flex: 1, backgroundColor: th.canvas },
-  content: { paddingHorizontal: Spacing.lg },
 
-  header: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.xl },
-  eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginBottom: 6 },
-  name: { fontFamily: Fonts.displayBold, fontSize: 32, color: th.text, lineHeight: 38, flexShrink: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  moonChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    marginTop: Spacing.sm, paddingVertical: 5, paddingHorizontal: Spacing.md,
-    backgroundColor: th.goldFaint, borderRadius: Radius.pill,
-    borderWidth: 1, borderColor: th.border, maxWidth: '100%',
+  // ── header ──
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xxl + Spacing.lg,
+    borderBottomLeftRadius: Radius.xl,
+    borderBottomRightRadius: Radius.xl,
+    overflow: 'hidden',
   },
-  rashi: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.goldLight, letterSpacing: 0.3, flexShrink: 1 },
-  accountLine: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, marginTop: 4 },
-  headerBtns: { flexDirection: 'row', gap: Spacing.sm, marginLeft: Spacing.md, marginTop: 4 },
-  iconBtn: {
-    width: 42, height: 42, borderRadius: Radius.pill,
-    backgroundColor: th.surface, borderWidth: 1, borderColor: th.border,
+  headerGlyph: { position: 'absolute', right: -24, top: 24 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xl },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandTile: {
+    width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFFFFF',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)',
+  },
+  brandMark: { width: 34, height: 34, resizeMode: 'contain' },
+  brandName: { fontFamily: Fonts.displayBold, fontSize: 26, color: '#FFFFFF', letterSpacing: 0.5 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  kundliBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, height: 38,
+    paddingHorizontal: Spacing.md, borderRadius: Radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+  },
+  kundliBtnText: { fontFamily: Fonts.bodySemibold, color: '#FFFFFF', fontSize: Fonts.size.sm },
+  glassIcon: {
+    width: 38, height: 38, borderRadius: Radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center', justifyContent: 'center',
   },
-  kundliBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, height: 42,
-    paddingHorizontal: Spacing.md, borderRadius: Radius.pill,
-    backgroundColor: th.surface, borderWidth: 1, borderColor: th.border,
-  },
-  kundliBtnText: { fontFamily: Fonts.bodySemibold, color: th.gold, fontSize: Fonts.size.sm },
+  cosmicEyebrow: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.xs, color: 'rgba(255,255,255,0.9)', letterSpacing: 2.5 },
+  dateLine: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: 'rgba(255,255,255,0.72)', marginTop: 6 },
+  helloRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.sm },
+  hello: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.hero - 4, color: '#FFFFFF', letterSpacing: 0.3, flexShrink: 1 },
 
-  sectionEyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2.5, textTransform: 'uppercase' as const, marginTop: Spacing.xl, marginBottom: Spacing.md },
+  // ── body ──
+  body: { paddingHorizontal: Spacing.lg },
+  overlap: { marginTop: -Spacing.xxl },
 
-  // underline segmented control
-  segment: { flexDirection: 'row', gap: Spacing.xl, marginBottom: Spacing.md },
-  segmentBtn: { alignItems: 'center' },
-  segmentText: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.md, color: th.textDim, paddingBottom: 6 },
-  segmentTextActive: { color: th.text },
-  segmentRule: { height: 1.5, width: 20, borderRadius: 2, backgroundColor: 'transparent' },
-  segmentRuleActive: { backgroundColor: th.gold },
+  // reading card (white, overlapping header)
+  readingCard: {
+    backgroundColor: th.surface, borderRadius: Radius.xl, padding: Spacing.lg,
+    borderWidth: 1, borderColor: th.border, ...Depth.raised,
+  },
+  readingLabel: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.textMuted, letterSpacing: 0.3 },
+  readingSign: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.gold, marginTop: 2, marginBottom: Spacing.md },
 
-  heroCard: {
-    backgroundColor: th.surface, borderRadius: Radius.lg, padding: Spacing.lg,
-    borderWidth: 1, borderColor: th.border, ...Depth.card,
+  statGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.md, rowGap: Spacing.md },
+  statCell: { flexDirection: 'row', alignItems: 'center', gap: 8, width: (CARD_W - Spacing.lg) - 4 },
+  statChip: {
+    width: 30, height: 30, borderRadius: 9, backgroundColor: th.goldFaint,
+    alignItems: 'center', justifyContent: 'center',
   },
-  heroCardPad: { padding: Spacing.lg },
-  heroTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.text, marginBottom: Spacing.sm },
-  quoteMark: {
-    fontFamily: Fonts.displayBold, fontSize: 44, color: th.gold,
-    height: 34, marginBottom: -4, opacity: 0.9,
-  },
-  horoBody: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.text, lineHeight: 25 },
-  shareRow: {
-    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 6,
-    marginTop: Spacing.md, paddingVertical: 6, paddingHorizontal: 12,
-    borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.pill,
-  },
-  shareText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
+  statText: { flex: 1 },
+  statTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  statLabel: { fontFamily: Fonts.bodySemibold, fontSize: 10.5, color: th.textMuted, letterSpacing: 0.8 },
+  statPct: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.sm, color: th.text },
+  statTrack: { height: 5, borderRadius: 3, backgroundColor: th.surfaceSunken, marginTop: 5, overflow: 'hidden' },
+  statFill: { height: 5, borderRadius: 3 },
 
-  // Ask-the-astrologer promo card — black banner w/ green NEW ribbon + yellow CTA
-  promoCard: {
-    backgroundColor: '#0A0A0A',
-    borderRadius: Radius.lg,
-    marginTop: Spacing.lg,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 118,
-    ...Depth.card,
+  readFull: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    marginTop: Spacing.lg, paddingVertical: 12, borderRadius: Radius.md,
+    borderWidth: 1.5, borderColor: th.borderStrong,
   },
-  promoRibbon: {
-    position: 'absolute', top: 14, left: -30, width: 116, zIndex: 2,
-    backgroundColor: '#33A63A',
-    alignItems: 'center', paddingVertical: 3,
-    transform: [{ rotate: '-45deg' }],
-  },
-  promoRibbonText: { fontFamily: Fonts.bodyBold, fontSize: 11, color: '#FFFFFF', letterSpacing: 1 },
-  promoImg: { width: 116, height: 116, resizeMode: 'contain' },
-  promoContent: { flex: 1, paddingVertical: Spacing.md, paddingRight: Spacing.md, paddingLeft: Spacing.xs },
-  promoH: { fontFamily: Fonts.bodyBold, fontSize: 20, color: '#FFFFFF' },
-  promoSubW: { fontFamily: Fonts.body, fontSize: 14, color: '#FFFFFF', marginTop: 3 },
-  promoPriceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.sm },
-  promoPrice: { fontFamily: Fonts.bodyBold, fontSize: 18, color: '#FFFFFF' },
-  promoBtn: { backgroundColor: '#F5C518', borderRadius: Radius.pill, paddingVertical: 9, paddingHorizontal: 16 },
-  promoBtnText: { fontFamily: Fonts.bodyBold, fontSize: 14, color: '#111111' },
-  bodyMuted: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21 },
-  horoLoading: { alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.sm },
+  readFullText: { fontFamily: Fonts.bodySemibold, color: th.gold, fontSize: Fonts.size.md, letterSpacing: 0.2 },
 
-  retryBtn: {
-    marginTop: Spacing.sm, borderWidth: 1, borderColor: th.border, borderRadius: Radius.sm,
-    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg,
-  },
-  retryText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
-
+  // need-kundli variant
+  kundliTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.text, marginTop: 4, marginBottom: Spacing.sm },
+  kundliBody: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21 },
   ctaBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: th.goldSurface, borderRadius: Radius.sm, paddingVertical: 14,
-    marginTop: Spacing.md,
+    backgroundColor: th.goldSurface, borderRadius: Radius.md, paddingVertical: 14, marginTop: Spacing.md,
   },
-  ctaBtnText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md, letterSpacing: 0.3 },
+  ctaBtnText: { fontFamily: Fonts.bodySemibold, color: '#FFFFFF', fontSize: Fonts.size.md, letterSpacing: 0.3 },
 
-  // feature cards — black banner w/ yellow icon + CTA (matches the promo card)
+  // promo
+  promoWrap: { marginTop: Spacing.lg, borderRadius: Radius.xl, overflow: 'hidden', ...Depth.card },
+  promo: { flexDirection: 'row', alignItems: 'center', minHeight: 132, paddingLeft: Spacing.lg },
+  promoTextCol: { flex: 1, paddingVertical: Spacing.md },
+  promoBadge: {
+    alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: Radius.pill, paddingVertical: 3, paddingHorizontal: 10, marginBottom: 8,
+  },
+  promoBadgeText: { fontFamily: Fonts.bodyBold, fontSize: 10, color: '#FFFFFF', letterSpacing: 1.2 },
+  promoH: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: '#FFFFFF' },
+  promoSub: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: 'rgba(255,255,255,0.9)', marginTop: 2 },
+  promoBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF', borderRadius: Radius.pill, paddingVertical: 9, paddingHorizontal: 16, marginTop: Spacing.md,
+  },
+  promoBtnText: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.sm, color: '#7B2CBF' },
+  promoTile: {
+    width: 116, height: 116, borderRadius: Radius.lg, backgroundColor: 'rgba(255,255,255,0.95)',
+    alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md,
+  },
+  promoImg: { width: 104, height: 104, resizeMode: 'contain' },
+
+  // grid
+  sectionTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginTop: Spacing.xl, marginBottom: Spacing.md },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  gridItem: { width: CARD_W, marginBottom: GRID_GAP },
   featCard: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
-    backgroundColor: '#0A0A0A', borderRadius: Radius.lg, padding: Spacing.md,
-    marginTop: Spacing.md,
-    ...Depth.card,
+    backgroundColor: th.surface, borderRadius: Radius.lg, padding: Spacing.md,
+    borderWidth: 1, borderColor: th.border, minHeight: 132, ...Depth.card,
   },
-  featIconCircle: {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: '#F5C518', alignItems: 'center', justifyContent: 'center',
+  featChip: {
+    width: 48, height: 48, borderRadius: Radius.md,
+    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm,
   },
-  featBody: { flex: 1 },
-  featTitle: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.md, color: '#FFFFFF' },
-  featSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: 'rgba(255,255,255,0.65)', marginTop: 2, lineHeight: 16 },
-  featBtn: { backgroundColor: '#F5C518', borderRadius: Radius.pill, paddingVertical: 8, paddingHorizontal: 14 },
-  featBtnText: { fontFamily: Fonts.bodyBold, fontSize: 13, color: '#111111' },
+  featTitle: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.md, color: th.text },
+  featSub: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textMuted, marginTop: 3, lineHeight: 16 },
 
   disclaimer: {
     fontFamily: Fonts.body, color: th.textDim, fontSize: Fonts.size.xs, lineHeight: 17,
