@@ -35,7 +35,9 @@ export type EventName =
   | 'family_member_removed'
   | 'active_profile_switched'
   | 'kundli_shared'
-  | 'horoscope_shared';
+  | 'horoscope_shared'
+  | 'call_start'
+  | 'call_ended';
 
 export function track(name: EventName, props?: Record<string, unknown>): void {
   // intentionally not awaited by callers — never block the UI on analytics

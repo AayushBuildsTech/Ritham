@@ -1,3 +1,4 @@
+import 'react-native-get-random-values'; // crypto polyfill required by the voice-call SDK (Daily/WebRTC)
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';

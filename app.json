@@ -10,7 +10,10 @@
     "backgroundColor": "#0D0D1A",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ritham.app"
+      "bundleIdentifier": "com.ritham.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Ritham needs your microphone so you can talk with your AI astrologer on a voice call."
+      }
     },
     "androidStatusBar": {
       "translucent": true,
@@ -26,7 +29,8 @@
         "backgroundColor": "#0D0D1A",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "package": "com.ritham.app"
+      "package": "com.ritham.app",
+      "permissions": ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"]
     },
     "web": {
       "bundler": "metro",
@@ -58,7 +62,17 @@
           "color": "#FF007F"
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "@daily-co/config-plugin-rn-daily-js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "extraMavenRepos": ["https://www.jitpack.io"]
+          }
+        }
+      ],
+      "./plugins/withDailyWebrtcFix"
     ],
     "experiments": {
       "typedRoutes": true

@@ -18,8 +18,9 @@ export const TAB_BAR_HEIGHT = 58;
 const TABS: Record<string, { icon: IconName; label: string }> = {
   index: { icon: 'home', label: 'Home' },
   chat: { icon: 'chat', label: 'Ask' },
-  store: { icon: 'store', label: 'Store' },
+  call: { icon: 'call', label: 'Call' },
   reports: { icon: 'reports', label: 'Reports' },
+  store: { icon: 'store', label: 'Store' },
 };
 
 // Glass bar: a real expo-blur BlurView under a faint scrim for contrast, a thin
@@ -87,8 +88,9 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="chat" />
-      <Tabs.Screen name="store" />
+      <Tabs.Screen name="call" />
       <Tabs.Screen name="reports" />
+      <Tabs.Screen name="store" />
     </Tabs>
   );
 }

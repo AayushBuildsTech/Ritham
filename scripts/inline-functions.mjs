@@ -31,8 +31,11 @@ const summary = readFileSync(join(fnDir, '_shared', 'kundliSummary.ts'), 'utf8')
   .replace(/^import \{[^}]*\} from '\.\/astro\.ts';\s*$/m, '').trim();
 const vedastro = readFileSync(join(fnDir, '_shared', 'vedastro.ts'), 'utf8')
   .replace(/^import \{[^}]*\} from '\.\/astro\.ts';\s*$/m, '').trim();
+// brain — the astrologer's greeting + mode directive + system prompt (chat/voice).
+const brain = readFileSync(join(fnDir, '_shared', 'brain.ts'), 'utf8')
+  .replace(/^import type \{[^}]*\} from '\.\/kundliSummary\.ts';\s*$/m, '').trim();
 
-const MODULES = { astro, kundliSummary: summary, vedastro };
+const MODULES = { astro, kundliSummary: summary, vedastro, brain };
 
 function engineBlock(parts) {
   const body = parts.map((p) => MODULES[p]).join('\n\n');
@@ -81,4 +84,12 @@ rebuild('panchang/index.ts', ['astro', 'vedastro'], [
 rebuild('horoscope/index.ts', ['astro', 'kundliSummary'], [
   /^import \{ currentDynamics \} from '\.\.\/_shared\/kundliSummary\.ts';\s*$/m,
   /^import type \{ RichKundli, Dynamics \} from '\.\.\/_shared\/kundliSummary\.ts';\s*$/m,
+]);
+
+// voice-llm: the custom LLM behind voice calls — reads the stored chart, computes
+// dynamics, and builds the same brain in spoken mode (astro + kundliSummary + brain).
+rebuild('voice-llm/index.ts', ['astro', 'kundliSummary', 'brain'], [
+  /^import \{ computeRichKundli, currentDynamics \} from '\.\.\/_shared\/kundliSummary\.ts';\s*$/m,
+  /^import type \{ RichKundli, Dynamics \} from '\.\.\/_shared\/kundliSummary\.ts';\s*$/m,
+  /^import \{ buildSystemPrompt, modeDirective \} from '\.\.\/_shared\/brain\.ts';\s*$/m,
 ]);

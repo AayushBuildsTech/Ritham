@@ -34,6 +34,14 @@ const SESSION_PLANS: Record<string, { price_paise: number; seconds: number }> = 
   nakshatra: { price_paise: 9900,  seconds: 900 },
   antariksh: { price_paise: 17900, seconds: 1800 },
 };
+// Voice-call packs (kind 'call'). Mirror of config/pricing.ts CALL_PACKS.
+const CALL_PACKS: Record<string, { price_paise: number; seconds: number }> = {
+  vaani:        { price_paise: 4900,  seconds: 120 },
+  sanvaad:      { price_paise: 11900, seconds: 300 },
+  samvaad_plus: { price_paise: 21900, seconds: 600 },
+  vistaar:      { price_paise: 39900, seconds: 1200 },
+  poorna:       { price_paise: 55900, seconds: 1800 },
+};
 const REPORT_PRICES: Record<string, { price_paise: number }> = {
   life:        { price_paise: 39900 },
   career:      { price_paise: 14900 },
@@ -70,11 +78,12 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceKey);
 
     const { kind, planId } = await req.json();
-    if (kind !== 'questions' && kind !== 'time' && kind !== 'report') return json({ error: 'bad_kind' }, 400);
+    if (kind !== 'questions' && kind !== 'time' && kind !== 'report' && kind !== 'call') return json({ error: 'bad_kind' }, 400);
 
     const plan =
       kind === 'questions' ? QUESTION_PACKS[planId] :
       kind === 'time'      ? SESSION_PLANS[planId] :
+      kind === 'call'      ? CALL_PACKS[planId] :
                              REPORT_PRICES[planId];
     if (!plan) return json({ error: 'unknown_plan' }, 400);
 

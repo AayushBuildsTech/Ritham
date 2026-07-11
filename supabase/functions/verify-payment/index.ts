@@ -15,6 +15,7 @@ const RZP_KEY_SECRET = Deno.env.get('RAZORPAY_KEY_SECRET') ?? '';
 // pack grant sizes (must mirror config/pricing.ts / create-order)
 const QUESTION_PACKS: Record<string, number> = { bindu: 1, panch: 5, darshan: 15, gyan: 40, brahmanda: 100 };
 const SESSION_PLANS: Record<string, number> = { jyoti: 60, kiran: 300, tara: 600, nakshatra: 900, antariksh: 1800 };
+const CALL_PACKS: Record<string, number> = { vaani: 120, sanvaad: 300, samvaad_plus: 600, vistaar: 1200, poorna: 1800 };
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -83,7 +84,9 @@ Deno.serve(async (req) => {
 
     // grant the entitlement — idempotent via unique(order_id)
     const questions = order.kind === 'questions' ? (QUESTION_PACKS[order.plan_id] ?? 0) : 0;
-    const seconds = order.kind === 'time' ? (SESSION_PLANS[order.plan_id] ?? 0) : 0;
+    const seconds =
+      order.kind === 'time' ? (SESSION_PLANS[order.plan_id] ?? 0) :
+      order.kind === 'call' ? (CALL_PACKS[order.plan_id] ?? 0) : 0;
 
     const { error: grantErr } = await admin.from('entitlements_ledger').insert({
       user_id: user.id,
@@ -111,13 +114,14 @@ Deno.serve(async (req) => {
 async function computeBalance(admin: any, userId: string) {
   const { data } = await admin
     .from('entitlements_ledger')
-    .select('kind, questions_remaining, seconds_total, consumed_at')
+    .select('kind, questions_remaining, seconds_total, seconds_used, consumed_at')
     .eq('user_id', userId);
-  let questions = 0, seconds = 0;
+  let questions = 0, seconds = 0, callSeconds = 0;
   for (const r of data ?? []) {
     if (r.consumed_at) continue;
     if (r.kind === 'questions') questions += r.questions_remaining;
     if (r.kind === 'time') seconds += r.seconds_total;
+    if (r.kind === 'call') callSeconds += Math.max(0, (r.seconds_total ?? 0) - (r.seconds_used ?? 0));
   }
-  return { questions, seconds };
+  return { questions, seconds, callSeconds };
 }

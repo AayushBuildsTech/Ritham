@@ -17,11 +17,12 @@ import { track } from './analytics';
 const CREATE_ORDER_FN = 'create-order';
 const VERIFY_PAYMENT_FN = 'verify-payment';
 
-export type PackKind = 'questions' | 'time' | 'report';
+export type PackKind = 'questions' | 'time' | 'report' | 'call';
 
 export interface Balance {
-  questions: number; // remaining questions across active question packs
-  seconds: number;   // remaining seconds across unused time packs
+  questions: number;    // remaining questions across active question packs
+  seconds: number;      // remaining seconds across unused chat time packs
+  callSeconds: number;  // remaining seconds across active voice-call packs
 }
 
 export interface PurchaseResult {
@@ -97,12 +98,13 @@ export async function purchasePack(
 export async function getBalance(): Promise<Balance> {
   const { data } = await supabase
     .from('entitlements_ledger')
-    .select('kind, questions_remaining, seconds_total, consumed_at')
+    .select('kind, questions_remaining, seconds_total, seconds_used, consumed_at')
     .is('consumed_at', null);
-  let questions = 0, seconds = 0;
+  let questions = 0, seconds = 0, callSeconds = 0;
   for (const r of data ?? []) {
     if (r.kind === 'questions') questions += r.questions_remaining ?? 0;
     if (r.kind === 'time') seconds += r.seconds_total ?? 0;
+    if (r.kind === 'call') callSeconds += Math.max(0, (r.seconds_total ?? 0) - (r.seconds_used ?? 0));
   }
-  return { questions, seconds };
+  return { questions, seconds, callSeconds };
 }

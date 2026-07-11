@@ -4,7 +4,70 @@
 
 ---
 
-## 0. Latest Session (2026-07-09) — Chat fixes, trackers, UI polish, report resilience, pre-launch + security/legal audit
+## 0. Latest Session (2026-07-11) — AI VOICE CALLING shipped & working end-to-end on device
+
+Added a **"Call" tab**: users tap and have a real spoken one-on-one with the same AI Jyotishi
+as chat — same brain, same Kundli, in native Hindi. Verified live on device: connects, greets,
+answers with the real chart, meters minutes, ends cleanly.
+
+**Architecture (pay-as-you-go, ₹0 fixed/month).** In-app WebRTC via **Vapi** (orchestrator, no
+monthly base) → Deepgram STT → **our Claude brain** (BYO custom-LLM) → **ElevenLabs Indian voice**.
+- `supabase/functions/_shared/brain.ts` — the astrologer prompt extracted **verbatim from chat**
+  (single source), with a new `modeDirective('voice')`: spoken, conversational, precise (answer
+  first + one line on dasha/yoga), 2–3 sentences, feminine forms. Inlined into `voice-llm` via
+  `scripts/inline-functions.mjs` (chat keeps its own identical copy — a later cleanup can point
+  chat at brain.ts too).
+- `supabase/functions/voice-llm/` — OpenAI-compatible **streaming** `/chat/completions` Vapi calls
+  each turn. Reuses `buildSystemPrompt` + Kundli, streams `claude-sonnet-5`, `max_tokens 4096`.
+  **Deployed with `--no-verify-jwt`** (Vapi has no Supabase JWT; auth is our signed token).
+- `supabase/functions/voice-token/` — app calls it (JWT-gated) to authorize a call: checks paid
+  `call` seconds or the free 60s, creates a `call_sessions` row, mints an **HMAC-signed token**,
+  returns the Vapi start config (assistantOverrides: token-scoped model URL, `maxDurationSeconds`,
+  Indian voice, anti-barge-in `stopSpeakingPlan`, female first-message). Has a `release` refund path.
+- `supabase/functions/voice-webhook/` (`--no-verify-jwt`) — meters actual seconds on the terminal
+  `end-of-call-report` and decrements the ledger.
+- Migration `020_voice_calls.sql` — `call_sessions`, `call_messages`, `'call'` entitlement kind
+  (+ `seconds_used`), `users.free_call_used_at`, `device_free_call_trials`, RLS.
+- Billing reuses Razorpay: `CALL_PACKS` in `config/pricing.ts` + `create-order`/`verify-payment`;
+  `getBalance` gains `callSeconds`.
+- Client: `app/(tabs)/call.tsx` (pre-call / live / ended, pricing up front), `components/CallOrb.tsx`
+  (reanimated "living orb"), `lib/callService.ts` (Vapi SDK wrapper, refund-on-failure), Paywall
+  `variant="call"`, 5th tab in `app/(tabs)/_layout.tsx`, mic perms in `app.json`.
+
+**Native build (Expo dev build, `expo run:android`).** `@vapi-ai/react-native` pulls Daily/WebRTC.
+Fixes captured as **patch-package** patches (`patches/`) + a config plugin (`plugins/withDailyWebrtcFix.js`)
+so they survive reinstall:
+- New-Arch TurboModule parse error in `@daily-co/react-native-webrtc` `WebRTCModule` → made the one
+  sync+void `@ReactMethod` (`transceiverSetCodecPreferences`) async; stubbed `UVCCamera2Enumerator.isSupported→false`.
+- `@daily-co/react-native-webrtc` pulls `AndroidUSBCamera:libausbc` whose siblings (libuvc/libnative/…)
+  fail to build on JitPack → JitPack repo added (`expo-build-properties`) + exclude the broken
+  siblings (config plugin); UVC is audio-call-irrelevant.
+- `@daily-co/react-native-daily-js` did `{...NativeModules.X}` (spread) which drops methods under the
+  New Architecture → patched to reference `setKeepDeviceAwake`/`setShowOngoingMeetingNotification` explicitly.
+- `react-native-get-random-values` imported first in `app/_layout.tsx` (crypto polyfill).
+
+**Vapi-contract gotchas fixed (important for future edits):**
+1. Model override needs the **full** object: `{provider:'custom-llm', model:'ritham', url}` — url-only → 400.
+2. Vapi appends `/chat/completions` to the model url → **pass the token as a PATH segment**
+   (`/voice-llm/<token>`), not `?t=` (query gets corrupted). `voice-llm` reads the token from the path.
+3. `voice-webhook` must act **only** on `end-of-call-report` — acting on mid-call `status-update`
+   events was marking the session ended, causing the next LLM turn to 409 `call_ended` → ejection.
+
+**Secrets set (CLI):** `VOICE_TOKEN_SECRET`, `VOICE_LLM_URL`, `VAPI_PUBLIC_KEY`, `VAPI_ASSISTANT_ID`
+(+ existing `ANTHROPIC_API_KEY`). **Vapi assistant:** Custom LLM → voice-llm, Deepgram, ElevenLabs,
+Server URL → voice-webhook. **Voice:** ElevenLabs Indian **female** voice `zMndFmtlJvAIQjxXWZTU`
+(`eleven_multilingual_v2`); persona/greeting/Hindi made feminine.
+
+**TODO / cleanup (next session):** remove the temporary `[call]` (callService) and `[voice-llm]`
+console.logs; set `VAPI_WEBHOOK_SECRET` + its Vapi Server-URL secret (skipped for speed — webhook is
+currently open); finalise pack names/prices; the migration/entitlement path is deployed but the
+`020` migration + a paid-call purchase flow still want a full end-to-end Razorpay test.
+
+`npx tsc --noEmit` = 0 errors. All voice functions deployed via CLI.
+
+---
+
+## Prior Session (2026-07-09) — Chat fixes, trackers, UI polish, report resilience, pre-launch + security/legal audit
 
 **1. Chat now truly reads the dasha (deploy bug fixed).** Users saw the astrologer say "consult a trusted jyotishi" for their dasha. Root cause was NOT missing data — the VedAstro rich chart (incl. full dasha) was stored fine (verified live: `engine_version 3`, 12 dasha periods, current Mahadasha Rahu). The real issues: (a) a **prompt loophole** — Rule #1 forbade *asking for data* but not *deflecting to a human astrologer*; (b) the earlier manual deploy went to the **orphaned `bright-processor`** function, not `chat` (the app calls slug `chat`). Fixes in `supabase/functions/chat/index.ts`, redeployed via CLI to `chat`:
 - Hardened Rule #1: explicitly bans "consult/see another jyotishi/pandit/astrologer" deflections; reasserts "YOU ARE THIS PERSON'S JYOTISHI, the dasha is in front of you."

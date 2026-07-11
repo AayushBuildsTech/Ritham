@@ -7,41 +7,75 @@
 import { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import {
-  SESSION_PLANS, QUESTION_PACKS, paiseTo, formatSeconds,
+  SESSION_PLANS, QUESTION_PACKS, CALL_PACKS, paiseTo, formatSeconds,
+  paisePerMinute, CHEAPEST_CALL_PER_MIN,
 } from '../config/pricing';
-import { purchasePack, Balance } from '../lib/paymentService';
+import { purchasePack, Balance, PackKind } from '../lib/paymentService';
 import { Colors, Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
 import { Icon } from './Icon';
 
-// The chat paywall only sells chat packs (never reports).
+// The chat paywall sells chat packs (Questions | Time); the 'call' variant sells
+// voice-call minute packs. One component, two variants — see `variant` prop.
 type PaywallKind = 'questions' | 'time';
 
 interface Props {
   title?: string;
   subtitle?: string;
   prefill?: { contact?: string; email?: string; name?: string };
-  onPurchased: (kind: PaywallKind, balance?: Balance) => void;
+  variant?: 'chat' | 'call';                                     // default 'chat'
+  onPurchased?: (kind: PaywallKind, balance?: Balance) => void;  // chat variant
+  onPurchasedCall?: (balance?: Balance) => void;                 // call variant
 }
 
-export default function Paywall({ title, subtitle, prefill, onPurchased }: Props) {
+export default function Paywall({ title, subtitle, prefill, variant = 'chat', onPurchased, onPurchasedCall }: Props) {
   const th = useColors();
   const styles = makeStyles(th);
   const [tab, setTab] = useState<PaywallKind>('questions');
   const [buyingId, setBuyingId] = useState<string | null>(null);
 
-  async function buy(kind: PaywallKind, planId: string) {
+  async function buy(kind: PackKind, planId: string) {
     if (buyingId) return;
     setBuyingId(planId);
     const res = await purchasePack(kind, planId, prefill);
     setBuyingId(null);
 
     if (res.ok) {
-      onPurchased(kind, res.balance);
+      if (kind === 'call') onPurchasedCall?.(res.balance);
+      else onPurchased?.(kind as PaywallKind, res.balance);
       return;
     }
     if (res.error === 'cancelled') return; // silent — user backed out
     Alert.alert('Payment not completed', friendlyError(res.error));
+  }
+
+  // ── call variant: voice-call minute packs, per-minute value up front ──────────
+  if (variant === 'call') {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.eyebrow}>TALK TO YOUR JYOTISHI</Text>
+        <Text style={styles.title}>{title ?? 'Buy call minutes'}</Text>
+        <Text style={styles.subtitle}>
+          {subtitle ?? `From ${CHEAPEST_CALL_PER_MIN} · you only pay for the minutes you speak.`}
+        </Text>
+        {CALL_PACKS.map((p) => (
+          <PackRow
+            key={p.id}
+            left={`${p.label} · ${formatSeconds(p.seconds)}`}
+            price={paiseTo(p.price_paise)}
+            badge={'badge' in p && p.badge === 'most_popular' ? 'Most popular' : undefined}
+            note={`${paiseTo(paisePerMinute(p.price_paise, p.seconds))}/min`}
+            busy={buyingId === p.id}
+            disabled={!!buyingId}
+            onPress={() => buy('call', p.id)}
+          />
+        ))}
+        <View style={styles.secureRow}>
+          <Icon name="lock" size={12} color={th.textDim} />
+          <Text style={styles.secure}>Secure payment via Razorpay · UPI, cards & wallets</Text>
+        </View>
+      </View>
+    );
   }
 
   return (

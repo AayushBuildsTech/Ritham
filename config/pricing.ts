@@ -8,6 +8,17 @@ export const SESSION_PLANS = [
   { id: 'antariksh', label: 'Antariksh', seconds: 1800, price_paise: 17900 },
 ] as const;
 
+// Voice-call packs (AI phone-style call with the astrologer). Priced above the
+// ~₹11–13/min pay-as-you-go cost so every minute nets profit; the first 60s is free
+// (granted server-side, not a pack). Seconds are partially consumable across calls.
+export const CALL_PACKS = [
+  { id: 'vaani',        label: 'Vaani',    seconds: 120,  price_paise: 4900 },
+  { id: 'sanvaad',      label: 'Sanvaad',  seconds: 300,  price_paise: 11900 },
+  { id: 'samvaad_plus', label: 'Samvaad+', seconds: 600,  price_paise: 21900, badge: 'most_popular' },
+  { id: 'vistaar',      label: 'Vistaar',  seconds: 1200, price_paise: 39900 },
+  { id: 'poorna',       label: 'Poorna',   seconds: 1800, price_paise: 55900 },
+] as const;
+
 export const QUESTION_PACKS = [
   { id: 'bindu',     label: 'Bindu',     questions: 1,   price_paise: 900,  first_purchase_only: false },
   { id: 'panch',     label: 'Panch',     questions: 5,   price_paise: 3500, first_purchase_only: false },
@@ -33,6 +44,7 @@ export const REPORT_PRICES = {
 } as const;
 
 export type SessionPlanId = typeof SESSION_PLANS[number]['id'];
+export type CallPackId = typeof CALL_PACKS[number]['id'];
 export type QuestionPackId = typeof QUESTION_PACKS[number]['id'];
 export type ReportType = keyof typeof REPORT_PRICES;
 
@@ -90,5 +102,18 @@ export function paiseTo(paise: number): string {
 export function formatSeconds(s: number): string {
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
-  return m === 1 ? '1 min' : `${m} min`;
+  const rem = s % 60;
+  if (rem === 0) return m === 1 ? '1 min' : `${m} min`;
+  return `${m} min ${rem}s`;
 }
+
+// Effective per-minute price of a call pack (for the "from ₹X/min" value line).
+export function paisePerMinute(paise: number, seconds: number): number {
+  return Math.round(paise / (seconds / 60));
+}
+
+// The lowest per-minute call price across packs, e.g. "₹19/min" — surfaced up front.
+export const CHEAPEST_CALL_PER_MIN: string = (() => {
+  const min = Math.min(...CALL_PACKS.map((p) => paisePerMinute(p.price_paise, p.seconds)));
+  return `₹${Math.round(min / 100)}/min`;
+})();

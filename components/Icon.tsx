@@ -9,8 +9,16 @@ const MAP = {
   // ── tab bar ──
   home: ['mci', 'home-variant-outline'],
   chat: ['mci', 'chat-processing-outline'],
+  call: ['mci', 'phone-outline'],
   store: ['mci', 'shopping-outline'],
   reports: ['mci', 'file-document-outline'],
+  // ── voice call ──
+  phone: ['feather', 'phone'],
+  phoneCall: ['feather', 'phone-call'],
+  phoneOff: ['feather', 'phone-off'],
+  mic: ['feather', 'mic'],
+  micOff: ['feather', 'mic-off'],
+  message: ['feather', 'message-circle'],
   // ── home features ──
   moon: ['mci', 'moon-waning-crescent'],
   panchang: ['mci', 'om'],
