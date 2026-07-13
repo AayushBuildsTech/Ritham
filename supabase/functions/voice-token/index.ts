@@ -234,11 +234,23 @@ Deno.serve(async (req) => {
           // lower bar let the echo through. voiceSeconds requires sustained real speech;
           // backoffSeconds keeps her quiet a moment after a genuine interruption.
           // NOTE: "stop", "no", "wait", "actually" still interrupt instantly regardless.
-          stopSpeakingPlan: { numWords: 10, voiceSeconds: 1.0, backoffSeconds: 2.0 },
-          startSpeakingPlan: { waitSeconds: 0.6 },
-          // Krisp denoising: strip background noise + the speaker's echo before the
-          // transcriber hears it, so it isn't mistaken for the caller interrupting.
-          backgroundDenoisingEnabled: true,
+          // voiceSeconds MUST be ≤ 0.5 (Vapi's max) — a larger value makes Vapi reject the
+          // whole call with a 400 ("call could not start").
+          stopSpeakingPlan: { numWords: 10, voiceSeconds: 0.5, backoffSeconds: 2.0 },
+          // How quickly she replies after the caller stops talking. She was "still
+          // listening" for too long because Vapi's default no-punctuation wait is ~1.5s
+          // and Deepgram rarely punctuates Hindi — so that wait applied every turn (on top
+          // of waitSeconds), stalling her and burning the caller's seconds on silence.
+          // Drop the waits so she picks up promptly, but keep enough that a mid-thought
+          // pause doesn't make her jump in.
+          startSpeakingPlan: {
+            waitSeconds: 0.4,
+            transcriptionEndpointingPlan: {
+              onPunctuationSeconds: 0.3,
+              onNoPunctuationSeconds: 1.0,
+              onNumberSeconds: 0.4,
+            },
+          },
           metadata: { callSessionId: session.id },
           // Vapi requires the FULL model object on an override (provider + model + url),
           // not just the url — otherwise POST /call/web returns 400.
