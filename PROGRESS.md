@@ -4,7 +4,67 @@
 
 ---
 
-## 0. Latest Session (2026-07-13, later) — VOICE CALL made natural in Hindi + reliability fixes
+## 0. Latest Session (2026-07-13, evening) — NEW "Past Life Predictions" report + fixed report purchases (all types)
+
+Added a new premium report **Past Life Predictions** (`type: 'pastlife'`, ₹149) in a new **"Karmic &
+Spiritual"** section on the Reports tab. It reuses the existing single-person chart pipeline (same as
+career/love/health): `/report-chart` intake → `/report-view` viewer → `computeChartFacts` →
+`narrateChart` (Claude) → `renderChartHtml`. **All server changes deployed via CLI** to project
+`eaxdqizerkuqkujxacru`; **verified on device** (card renders, Razorpay opens, report generates & renders).
+
+**🔴 Root cause found — report PURCHASES were broken for EVERY report type (not just pastlife):**
+Migration `020_voice_calls.sql` rebuilt `entitlements_ledger_kind_check` as `('questions','time','call')`
+— accidentally **dropping `'report'`** that `008` had added. Flow reached: order created → Razorpay paid →
+then `verify-payment`'s entitlement INSERT (`kind='report'`) hit a **check-constraint violation** →
+`grant_failed` (500) → the app showed **"Payment not completed."** Diagnosed from device logs
+(`[PAYDBG]` markers: order created ✓ → checkout success ✓ → verify-payment failed). Fixed in **`022`**
+(re-adds `'report'` + `'call'`, and **reconciles** any already-paid-but-ungranted report orders so the
+user isn't charged twice). **Lesson: when a later migration re-CREATEs a CHECK constraint, it must
+re-list ALL previously-allowed values — dropping one silently breaks that path.**
+
+**What was needed to make `pastlife` work end-to-end (each was a real, separate blocker):**
+1. `config/pricing.ts` — price (₹14900), added to `CHART_REPORT_TYPES`, new `'karmic'` `ReportGroup`,
+   `REPORT_META` card, `REPORT_GROUPS` header.
+2. `lib/reportService.ts` — added `pastlife` to its own hardcoded `ChartReportType` union (TS caught this).
+3. `app/report-chart.tsx` — `SCOPE.pastlife` bullets + a "reflective, not literal" disclaimer.
+4. `lib/i18n.ts` — **`reports.group.karmic` + `report.pastlife.title`** in EN & HI. The Reports tab renders
+   titles/group headers via `t()`, so without these it showed raw keys (`report.pastlife.title`). Card
+   *description* comes from `REPORT_META.desc` directly (no i18n key).
+5. `supabase/functions/report/index.ts` — `pastlife` in `ChartReportType`/`CHART_TYPES`, `CHART_META`
+   (focus houses `[5,9,12,8,4]`), `buildSystem.per`, and a `mockChart` branch (else it fell through to the
+   `education` mock).
+6. `supabase/functions/create-order/index.ts` — added `pastlife` to its **server-side price mirror**
+   (intentionally duplicated; without it checkout returns `unknown_plan`).
+7. Migration **`021`** — widened `reports_type_check` to include `'pastlife'` (else the report-row INSERT fails).
+
+**Made the reading actually about the PAST LIFE (user feedback: first output read like generic chart notes):**
+- Rewrote `buildSystem.per.pastlife` into an immersive, second-person **story of who you were** —
+  reads **Ketu sign** (former role: warrior/healer/monk/ruler/trader…), **Ketu house** (the arena that
+  life revolved around), **8th/12th** (how it ended), **Saturn/retrogrades** (karma carried), **Rahu**
+  (this life's growth direction). Sections: *Who You Were · The Life You Lived · The Karma You Carried
+  In · Echoes in This Life · Your Soul's Direction Now.*
+- Rewrote the `mockChart` pastlife branch to tell the same specific story deterministically, using new
+  archetype maps `PAST_SIGN_ROLE` / `PAST_HOUSE_ARENA` / `RAHU_DIRECTION`.
+- **Raised `pastlife` max_tokens 8000 → 12000** (`narrateChart`). The first real paid generation had
+  fallen back to the mock because the richer JSON truncated at 8k → unparseable → mock. A throwaway
+  `claude-diag` fn confirmed the deployed key + `claude-sonnet-5` work (HTTP 200); it was truncation, not
+  a key/model problem. (Diag fn deleted after use.)
+- Migration **`023`** — one-time **goodwill credit**: grants a complimentary unconsumed `pastlife` credit
+  to anyone who already paid for one (data-driven, idempotent), so the user regenerates the improved
+  version free.
+
+**Deploys this session:** `create-order`, `report` (edge fns, CLI); migrations `021`, `022`, `023`
+(`supabase db push --linked`). **Still user-side:** unlock phone → Reports → Karmic & Spiritual → Past
+Life Predictions → Create report → Continue (uses the free credit, no charge) to get the new reading.
+
+**Device automation gotchas (adb over Wi-Fi, `192.168.1.14:5555`):** dev client couldn't reach Metro at
+the guessed LAN IP → used `adb reverse tcp:8081 tcp:8081` + relaunch at `localhost:8081`. Screen kept
+sleeping/locking (black screencaps, `mCurrentFocus=NotificationShade` = lockscreen) — can't unlock
+without the PIN, so final regeneration is left to the user.
+
+---
+
+## Prior Session (2026-07-13, later) — VOICE CALL made natural in Hindi + reliability fixes
 
 Overhauled the AI **voice call** so it sounds like a real Hindi jyotishi and stops misbehaving.
 All fixes are server-side (`voice-token` + `voice-llm`), **deployed via CLI** to project

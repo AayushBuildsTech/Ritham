@@ -41,6 +41,8 @@ export const REPORT_PRICES = {
   // Existing (unchanged).
   vastu:       { price_paise: 14900 },
   matchmaking: { price_paise: 19900 },
+  // Karmic & spiritual — reads the user's own Kundli.
+  pastlife:    { price_paise: 14900 },
 } as const;
 
 export type SessionPlanId = typeof SESSION_PLANS[number]['id'];
@@ -50,14 +52,14 @@ export type ReportType = keyof typeof REPORT_PRICES;
 
 // The five new reports are single-person chart readings driven only by the
 // user's own Kundli — they share one intake screen (/report-chart).
-export const CHART_REPORT_TYPES = ['life', 'career', 'love', 'health', 'education'] as const;
+export const CHART_REPORT_TYPES = ['life', 'career', 'love', 'health', 'education', 'pastlife'] as const;
 export type ChartReportType = typeof CHART_REPORT_TYPES[number];
 export function isChartReport(t: string): t is ChartReportType {
   return (CHART_REPORT_TYPES as readonly string[]).includes(t);
 }
 
 // UI metadata for the Reports section (single source of truth for cards).
-export type ReportGroup = 'flagship' | 'personal' | 'home';
+export type ReportGroup = 'flagship' | 'personal' | 'home' | 'karmic';
 export interface ReportMeta {
   type: ReportType;
   title: string;
@@ -86,6 +88,9 @@ export const REPORT_META: ReportMeta[] = [
     desc: 'Upload your floor plan for a room-by-room Vaastu consultancy with score & remedies.' },
   { type: 'matchmaking', title: 'Matchmaking Report', icon: '💞', group: 'home', route: '/report-matchmaking',
     desc: 'Ashtakoot Guna Milan with your partner — 36-guna score, doshas, both charts, remedies.' },
+  // ── Karmic & spiritual ───────────────────────────────────────────────────────
+  { type: 'pastlife', title: 'Past Life Predictions', icon: '☸', group: 'karmic', route: '/report-chart',
+    desc: 'Karmic patterns, soul lessons & poorva-punya from previous lives — read through your 5th, 9th, 12th & 8th houses and the Rahu–Ketu axis.' },
 ];
 
 // Group headers for the Reports tab, in display order.
@@ -93,6 +98,7 @@ export const REPORT_GROUPS: { key: ReportGroup; label: string }[] = [
   { key: 'flagship', label: 'Comprehensive' },
   { key: 'personal', label: 'Focused Readings' },
   { key: 'home', label: 'Home & Compatibility' },
+  { key: 'karmic', label: 'Karmic & Spiritual' },
 ];
 
 export function paiseTo(paise: number): string {

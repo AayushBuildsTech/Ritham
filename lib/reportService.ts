@@ -12,9 +12,9 @@ import type { Lang } from './i18n';
 
 const REPORT_FUNCTION = 'report';
 
-// The five chart reports (life/career/love/health/education) plus the two
-// original reports (vastu, property-based; matchmaking, two-person).
-export type ChartReportType = 'life' | 'career' | 'love' | 'health' | 'education';
+// The single-person chart reports (life/career/love/health/education/pastlife)
+// plus the two original reports (vastu, property-based; matchmaking, two-person).
+export type ChartReportType = 'life' | 'career' | 'love' | 'health' | 'education' | 'pastlife';
 export type ReportType = 'vastu' | 'matchmaking' | ChartReportType;
 
 export interface ReportRow {

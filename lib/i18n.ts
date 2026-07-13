@@ -132,6 +132,7 @@ const en: Dict = {
   'reports.group.flagship': 'Comprehensive',
   'reports.group.personal': 'Focused Readings',
   'reports.group.home': 'Home & Compatibility',
+  'reports.group.karmic': 'Karmic & Spiritual',
   'reports.generate': 'Create report',
   'reports.buy': 'Get report',
   'reports.myReports': 'My reports',
@@ -146,6 +147,7 @@ const en: Dict = {
   'report.education.title': 'Education & Career (Students)',
   'report.vastu.title': 'Vaastu Report',
   'report.matchmaking.title': 'Matchmaking Report',
+  'report.pastlife.title': 'Past Life Predictions',
 
   // ── Store ──────────────────────────────────────────────────────────
   'store.title': 'Store',
@@ -337,6 +339,7 @@ const hi: Dict = {
   'reports.group.flagship': 'सम्पूर्ण',
   'reports.group.personal': 'विशेष रिपोर्ट',
   'reports.group.home': 'घर और अनुकूलता',
+  'reports.group.karmic': 'कर्म और आध्यात्म',
   'reports.generate': 'रिपोर्ट बनाएं',
   'reports.buy': 'रिपोर्ट लें',
   'reports.myReports': 'मेरी रिपोर्ट',
@@ -351,6 +354,7 @@ const hi: Dict = {
   'report.education.title': 'शिक्षा और करियर (विद्यार्थी)',
   'report.vastu.title': 'वास्तु रिपोर्ट',
   'report.matchmaking.title': 'मिलान (कुंडली मिलान) रिपोर्ट',
+  'report.pastlife.title': 'पूर्व जन्म भविष्यवाणी',
 
   // ── स्टोर ───────────────────────────────────────────────────────────
   'store.title': 'स्टोर',

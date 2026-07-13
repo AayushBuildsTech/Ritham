@@ -55,6 +55,13 @@ const SCOPE: Record<ChartReportType, string[]> = {
     'Guidance for the student and parents',
     'Remedies to strengthen focus & memory',
   ],
+  pastlife: [
+    'Poorva-punya (past-life merit) from your 5th & 9th houses',
+    'Karmic axis & soul direction — Rahu / Ketu placement',
+    'Unfinished threads: retrograde planets & the 12th / 8th houses',
+    'Karmic lessons this life is here to resolve',
+    'Remedies to honour and lighten past-life karma',
+  ],
 };
 
 function personFromProfile(p: ProfileRow): MatchPerson | null {
@@ -195,6 +202,12 @@ export default function ChartReportIntake() {
         {type === 'health' && (
           <Text style={styles.disclaimer}>
             A gentle wellbeing reading — not medical advice, diagnosis or treatment.
+          </Text>
+        )}
+
+        {type === 'pastlife' && (
+          <Text style={styles.disclaimer}>
+            A reflective, spiritual reading offered for insight — not a literal factual claim about a specific former life.
           </Text>
         )}
 

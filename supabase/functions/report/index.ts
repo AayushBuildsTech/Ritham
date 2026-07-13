@@ -1125,8 +1125,8 @@ namespace Chart {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Types
 // ─────────────────────────────────────────────────────────────────────────────
-export type ChartReportType = 'life' | 'career' | 'love' | 'health' | 'education';
-export const CHART_TYPES: ChartReportType[] = ['life', 'career', 'love', 'health', 'education'];
+export type ChartReportType = 'life' | 'career' | 'love' | 'health' | 'education' | 'pastlife';
+export const CHART_TYPES: ChartReportType[] = ['life', 'career', 'love', 'health', 'education', 'pastlife'];
 export function isChartType(t: unknown): t is ChartReportType {
   return typeof t === 'string' && (CHART_TYPES as string[]).includes(t);
 }
@@ -1252,6 +1252,8 @@ export const CHART_META: Record<ChartReportType, Meta> = {
     focus: [1, 6, 8, 12], scoreCap: 'CONSTITUTIONAL STRENGTH' },
   education: { title: 'Education & Career Report', sub: 'Studies, intellect & academic direction', brand: 'EDUCATION · STUDENTS',
     focus: [4, 5, 9, 2], scoreCap: 'ACADEMIC STRENGTH' },
+  pastlife: { title: 'Past Life Predictions', sub: 'Karmic patterns & soul lessons across lifetimes', brand: 'PAST LIFE · KARMIC READING',
+    focus: [5, 9, 12, 8, 4], scoreCap: 'KARMIC DEPTH' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1425,7 +1427,9 @@ export async function narrateChart(
       body: JSON.stringify({
         // Hindi (Devanagari) tokenises heavier — raise the budget so the JSON, especially
         // the large `life` report, is not truncated into unparseable output.
-        model, max_tokens: lang === 'hi' ? (type === 'life' ? 24000 : 12000) : (type === 'life' ? 16000 : 8000),
+        model, max_tokens: lang === 'hi'
+          ? (type === 'life' ? 24000 : type === 'pastlife' ? 16000 : 12000)
+          : (type === 'life' ? 16000 : type === 'pastlife' ? 12000 : 8000),
         thinking: { type: 'disabled' }, system,
         messages: [{ role: 'user', content: factSheet }],
       }),
@@ -1496,6 +1500,30 @@ function buildSystem(type: ChartReportType, lang: 'en' | 'hi' = 'en'): string {
       `\n\nFocus: EDUCATION & CAREER FOR STUDENTS. Provide 4-5 sections: Academic strengths & learning style (4th/5th, Mercury/Jupiter), ` +
       `Favourable fields & streams of study, Exam & competition timing (dasha), and Guidance for the student and their parents. ` +
       `Encouraging and practical.`,
+    pastlife:
+      `\n\nThis is a PAST-LIFE READING. The reader wants to know WHO THEY WERE in their most recent previous life — not a general ` +
+      `chart analysis. Write it as a vivid, immersive, second-person STORY of that former life, grounded at every step in this chart. ` +
+      `\n\nRead the soul's past from these signals:\n` +
+      `• KETU — its SIGN reveals the temperament, role and skills the soul had already mastered (Aries=warrior/pioneer, Taurus=landholder/artisan, ` +
+      `Gemini=trader/scribe, Cancer=nurturer/keeper of home, Leo=noble/ruler, Virgo=healer/servant, Libra=diplomat/artist, Scorpio=mystic/physician/occultist, ` +
+      `Sagittarius=priest/teacher/pilgrim, Capricorn=elder/administrator/builder, Aquarius=reformer/ascetic/outsider, Pisces=monk/mystic/healer). ` +
+      `Its HOUSE reveals the arena that life revolved around (1 self/body, 2 family/wealth, 3 courage/craft, 4 home/land, 5 devotion/children/learning, ` +
+      `6 service/healing/conflict, 7 partnership/trade, 8 upheaval/occult/sudden endings, 9 dharma/pilgrimage, 10 duty/office, 11 community/gains, 12 seclusion/foreign lands/moksha). ` +
+      `Its lord's placement adds further colour.\n` +
+      `• The 12TH & 8TH HOUSES — how that life ended, its losses, exile, seclusion, hidden matters or sudden turns.\n` +
+      `• RETROGRADE planets and SATURN — the karma, debts and unfinished work carried forward.\n` +
+      `• RAHU (sign & house) — the unfamiliar direction the soul chose to grow toward in THIS life.\n\n` +
+      `Be SPECIFIC and evocative — give the former life a recognisable shape: the person's likely role or vocation, temperament, the setting and ` +
+      `era-flavour, the key relationships, the karma left unfinished, and how that life most probably ended. Frame everything interpretively ` +
+      `("your chart suggests…", "you most likely…", "the soul remembers…") — never as fixed fact, never fatalistic, and never naming a specific ` +
+      `real historical person.\n\n` +
+      `Provide 5-6 sections IN THIS ORDER: (1) "Who You Were" — the past-life personality, role and gifts, drawn from Ketu's sign; ` +
+      `(2) "The Life You Lived" — its setting, daily world, key relationships and how it most likely ended (Ketu's house, 8th, 12th); ` +
+      `(3) "The Karma You Carried In" — debts, attachments and unfinished business (12th, 8th, Saturn, retrogrades); ` +
+      `(4) "Echoes in This Life" — how that past life surfaces now as instinctive talents, deep fears, cravings and strangely familiar people (Ketu→Rahu axis); ` +
+      `(5) "Your Soul's Direction Now" — what this life is truly for and how to grow toward Rahu; and optionally (6) a deeper karmic reflection. ` +
+      `Let the "timing" field describe WHEN in this life these past-life themes surface most strongly, via the current and upcoming Mahadasha. ` +
+      `Tone: warm, mystical and dignified — worthy of a premium paid reading.`,
   };
   return common + per[type] + (lang === 'hi' ? HINDI_REPORT_DIRECTIVE : '');
 }
@@ -1536,6 +1564,53 @@ const houseTheme: Record<number, string> = {
 
 function benefics(f: ChartFacts) { return f.yogas.filter((y) => y.nature === 'benefic'); }
 function cautions(f: ChartFacts) { return f.yogas.filter((y) => y.nature === 'caution'); }
+
+// ── Past-life archetypes (used by the pastlife mock narration) ────────────────
+// Ketu's SIGN → the temperament & role the soul had already mastered before this life.
+const PAST_SIGN_ROLE: Record<number, string> = {
+  0:  'a fearless warrior or pioneer — quick to act, used to leading from the front and fighting for what you believed in',
+  1:  'a landholder, farmer or artisan — steady and sensual, devoted to the earth, to beauty, and to what you could build and keep',
+  2:  'a messenger, trader or scribe — quick-witted and restless, living by your words, your cleverness and your hands',
+  3:  'a nurturer and keeper of the home — deeply feeling, bound to family, tradition and the tides of the heart',
+  4:  'a noble, ruler or performer — proud and radiant, accustomed to authority, loyalty and the centre of the stage',
+  5:  'a healer, craftsperson or servant of others — precise and humble, giving your days to work, remedy and quiet perfection',
+  6:  'a diplomat, artist or devoted partner — refined and relational, forever seeking harmony, beauty and balance between people',
+  7:  'a mystic, physician or seeker of secrets — intense and private, drawn to the hidden, the taboo and the power of transformation',
+  8:  'a priest, teacher or wandering pilgrim — devout and philosophical, living for truth, dharma and the open road',
+  9:  'an elder, administrator or builder — disciplined and dutiful, carrying responsibility and the long, patient work of years',
+  10: 'a reformer, ascetic or outsider — unconventional and detached, serving a cause larger than your own comfort',
+  11: 'a monk, mystic or healer of souls — gentle and otherworldly, dissolving into devotion, compassion and the unseen',
+};
+// Ketu's HOUSE → the arena that former life revolved around.
+const PAST_HOUSE_ARENA: Record<number, string> = {
+  1:  'That life revolved around your own self and body — a path of visible identity, personal struggle and standing alone.',
+  2:  'That life centred on family, wealth and lineage — resources, sustenance, speech and the fortunes of your household.',
+  3:  'That life was one of effort, courage and craft — siblings, journeys, skill of the hands and self-made striving.',
+  4:  'That life was rooted in home, land and mother — a settled, domestic world of property, comfort and belonging.',
+  5:  'That life turned on devotion, creativity and learning — children, worship, art, or the teaching of others.',
+  6:  'That life was given to service, healing and hardship — labour, medicine, duty, and the facing of illness or foes.',
+  7:  'That life was defined by partnership and the public — marriage, trade and your constant dealings with others.',
+  8:  'That life was marked by upheaval and mystery — sudden turns, hidden matters, the occult, and things inherited or lost.',
+  9:  'That life was one of faith and wisdom — pilgrimage, philosophy, teachers and the long search for the sacred.',
+  10: 'That life was shaped by duty and public role — office, reputation, leadership and the weight of your position.',
+  11: 'That life moved among community and networks — friends, gains, guilds and the causes you belonged to.',
+  12: 'That life unfolded in seclusion or distant lands — monastery, exile, retreat, or a longing to dissolve into the beyond.',
+};
+// Rahu's HOUSE → the unfamiliar direction the soul chose to grow toward in THIS life.
+const RAHU_DIRECTION: Record<number, string> = {
+  1:  'to finally put yourself first, forge your own identity and be seen',
+  2:  'to build security, family and a steady material foundation',
+  3:  'to find your voice, take bold initiative and master a practical craft',
+  4:  'to root down, make a home and tend your inner emotional world',
+  5:  'to create, love openly and express your unique gifts',
+  6:  'to serve, heal and do the humble daily work of improvement',
+  7:  'to truly partner with another and learn the art of relationship',
+  8:  'to surrender control, transform and explore life’s deeper mysteries',
+  9:  'to seek wisdom, purpose and a philosophy to live by',
+  10: 'to step into responsibility, achievement and a public role',
+  11: 'to belong to a community and work toward a larger shared vision',
+  12: 'to let go, turn inward and reconnect with the spiritual',
+};
 
 function mockChart(type: ChartReportType, p: ChartPerson, f: ChartFacts): ChartAnalysis {
   const nm = firstName(p.name);
@@ -1702,6 +1777,67 @@ function mockChart(type: ChartReportType, p: ChartPerson, f: ChartFacts): ChartA
       `Treat this as wellbeing guidance and consult a qualified doctor for any real concern.`,
     ];
     base.verdict = `A workable constitution that rewards steady, mindful living — small daily kindnesses to body and mind go a long way for ${nm}.`;
+    return base;
+  }
+
+  if (type === 'pastlife') {
+    const ketu = f.planets['Ketu'];
+    const rahu = f.planets['Rahu'];
+    const role = ketu ? PAST_SIGN_ROLE[ketu.signIdx] : 'a soul of quiet, well-worn wisdom';
+    const arena = ketu ? PAST_HOUSE_ARENA[ketu.house] : 'That life was lived close to the themes your chart still remembers most deeply.';
+    const direction = rahu ? RAHU_DIRECTION[rahu.house] : 'to grow gently beyond the comfortable and familiar';
+    const kSign = ketu ? ketu.sign : '—';
+    const kHouseLord = ketu ? `${H(ketu.house).lord}` : '—';
+    // How that life likely ended — read from the 8th (sudden/transformative) and 12th (withdrawal/loss).
+    const eighthLoaded = H(8).occupants.length > 0;
+    const twelfthLoaded = H(12).occupants.length > 0;
+    const ending =
+      eighthLoaded
+        ? `With ${occ(8)} weighing on the eighth house, that life most likely ended through sudden change or upheaval — an abrupt turn rather than a slow fading.`
+        : twelfthLoaded
+        ? `With ${occ(12)} touching the twelfth house, that life most likely closed in withdrawal and letting-go — in seclusion, far from home, or in quiet surrender.`
+        : `That life most likely ended peacefully, its work quietly complete, the soul ready to move on.`;
+
+    base.overview =
+      `${preface}Every soul arrives already ancient. ${ketu ? `In ${nm}'s chart, Ketu — the keeper of past-life memory — rests in ${kSign} in the ${ordinal(ketu.house)} house, ` : 'In this chart, the karmic signatures '}` +
+      `and it whispers of the life ${nm} most recently lived. This reading follows those threads — who you likely were, the world you moved through, ` +
+      `the karma you carried across the threshold of death, and how it quietly shapes the person you are becoming now.`;
+
+    base.sections = [
+      sect('Who You Were',
+        `Your chart suggests that in your most recent past life you were ${role}. ` +
+        `Ketu in ${kSign} carries the flavour of that former self — a nature so well-practised it now feels effortless, almost like instinct rather than learning. ` +
+        `${nm} most likely walked that life already skilled in these ways, so complete in them that the soul chose, this time, to set them gently down and turn elsewhere.`,
+        [ketu ? `Ketu (soul’s past): ${kSign}, ${ordinal(ketu.house)} house` : 'Ketu: —', `Former nature: ${role.split(' — ')[0]}`]),
+      sect('The Life You Lived',
+        `${arena} It was governed, in feeling, by ${kHouseLord} — the ruler of Ketu's house — colouring the texture of your days, your work and your closest bonds. ` +
+        `The seventh house of partnership (${occ(7)}) hints at the ties that mattered most in that life — the people you loved, served or answered to. ` +
+        `${ending}`,
+        [ketu ? `Life’s arena: ${ordinal(ketu.house)} house (${houseTheme[ketu.house]})` : 'Arena: —', `Key bonds (7th): ${occ(7)}`]),
+      sect('The Karma You Carried In',
+        `Not everything was finished. The twelfth house (${occ(12)}, ruled by ${lordOf(12)}) and the eighth (${occ(8)}, ruled by ${lordOf(8)}) mark the unpaid accounts and unhealed attachments the soul brought across. ` +
+        `${cautions(f).length ? `Signatures such as ${cautions(f).slice(0, 2).map((y) => y.name).join(' and ')} point to the specific debts and lessons chosen for this life — not punishments, but invitations to complete what was left undone. ` : 'The chart carries no harsh afflictions, suggesting the karma brought forward is gentle — more a matter of refining and giving back than of hard repayment. '}` +
+        `These are the places where ${nm}'s life can feel strangely fated, asking for release rather than resistance.`,
+        [`Unfinished (12th): ${occ(12)}`, `Carried debts (8th): ${occ(8)}`]),
+      sect('Echoes in This Life',
+        `The past life never truly leaves — it echoes. The gifts of ${kSign} return as instincts and talents ${nm} seems to have been "born knowing", ` +
+        `while its shadow can return as quiet fears, cravings, or people who feel achingly familiar on first meeting — souls very likely known before. ` +
+        `Wherever life feels effortless, that is Ketu remembering; wherever it feels compelling yet uncertain, the soul is being called forward, not back.`,
+        [rahu ? `Growth axis: Ketu ${kSign} → Rahu ${rahu.sign}` : 'Growth axis: —']),
+      sect('Your Soul’s Direction Now',
+        `If the past life mastered one way of being, this life asks for its opposite. ${rahu ? `Rahu in the ${ordinal(rahu.house)} house calls ${nm} ${direction}. ` : `The soul is called ${direction}. `}` +
+        `This is unfamiliar ground — it can feel awkward, even frightening — yet it is precisely where growth, hunger and destiny now live. ` +
+        `The current ${d.current.lord} Mahadasha is the chapter through which these past-life themes are surfacing most strongly${d.upcoming[0]?.lord ? `, shifting again as the ${d.upcoming[0].lord} period opens` : ''}.`,
+        [rahu ? `This life’s direction: ${direction}` : 'Direction: —', `Active chapter: ${d.current.lord} Mahadasha`]),
+    ];
+    base.guidance = [
+      `Honour the gifts you carried in (Ketu in ${kSign}) — but don't hide inside them; they are your comfort zone, not your growth.`,
+      rahu ? `Lean deliberately toward Rahu's call ${direction} — the discomfort there is the doorway to this life's purpose.` : `Lean gently toward what feels unfamiliar — that is where this life's purpose waits.`,
+      `Treat people who feel instantly familiar as karmic connections — meet them to complete the past, not repeat it.`,
+      `Where life feels fated or stuck (12th / 8th themes), practise release and acceptance rather than force.`,
+      `Keep a steady spiritual practice — meditation, mantra or seva loosens old karmic knots across the whole chart.`,
+    ];
+    base.verdict = `Read with an open heart: ${nm}'s chart tells the story of a soul that has already travelled far — and this life offers real grace to lay down the old, grow lighter, and step at last toward what it came here to become.`;
     return base;
   }
 
