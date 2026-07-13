@@ -19,6 +19,13 @@ const VOICE_TOKEN_SECRET = Deno.env.get('VOICE_TOKEN_SECRET') ?? '';
 const VOICE_LLM_URL = Deno.env.get('VOICE_LLM_URL') ?? '';       // deployed voice-llm fn URL
 const VAPI_PUBLIC_KEY = Deno.env.get('VAPI_PUBLIC_KEY') ?? '';
 const VAPI_ASSISTANT_ID = Deno.env.get('VAPI_ASSISTANT_ID') ?? '';
+// Speech-to-text language for the caller's OWN speech. Hindi-first ('hi') so the
+// jyotishi actually understands Hindi (an English STT mis-hears Hindi → the astrologer
+// answers the wrong thing → feels like a robot who doesn't know Hindi). Deepgram 'hi'
+// transcribes into Devanagari, which also lets the LLM reply in matching Devanagari.
+// Tunable without a redeploy: set VOICE_STT_LANGUAGE ('hi' | 'multi' | 'en') as a secret.
+const VOICE_STT_LANGUAGE = Deno.env.get('VOICE_STT_LANGUAGE') ?? 'hi';
+const VOICE_STT_MODEL = Deno.env.get('VOICE_STT_MODEL') ?? 'nova-2';
 
 const FREE_SECONDS = 60;
 const MAX_ALLOWANCE = 3600;   // safety ceiling on a single call (30-min pack is 1800)
@@ -26,8 +33,11 @@ const EXP_BUFFER = 300;       // token lives a little past the allowance
 
 // Spoken opening greeting (TTS-friendly — no emoji). The astrologer speaks first
 // so the call feels warm; set here so it's guaranteed regardless of Vapi UI.
+// WRITTEN IN DEVANAGARI on purpose: the ElevenLabs voice pronounces from the SCRIPT,
+// so Devanagari sounds like natural Hindi while romanized Latin Hindi comes out with a
+// foreign English accent (the "robot who doesn't know Hindi" problem).
 const FIRST_MESSAGE =
-  'Namaste. Main aapki jyotishi hoon. Aapki kundli mere saamne hai. Bataiye, aaj aap kya jaanna chahte hain?';
+  'नमस्ते। मैं आपकी ज्योतिषी हूँ। आपकी कुंडली मेरे सामने है। बताइए, आज आप क्या जानना चाहते हैं?';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -190,13 +200,45 @@ Deno.serve(async (req) => {
           maxDurationSeconds: allowance,
           firstMessage: FIRST_MESSAGE,
           firstMessageMode: 'assistant-speaks-first',
-          // Native Indian Hindi voice (warm male pandit) — sounds authentically Indian,
-          // unlike the default ElevenLabs voice. Overrides the assistant's voice per call.
-          voice: { provider: '11labs', voiceId: 'zMndFmtlJvAIQjxXWZTU', model: 'eleven_multilingual_v2' },
-          // Don't let brief echo/noise cut the astrologer off mid-answer — require a few
-          // real words before yielding, and pause naturally before speaking.
-          stopSpeakingPlan: { numWords: 3, voiceSeconds: 0.4, backoffSeconds: 1.2 },
+          // Native Indian Hindi voice — sounds authentically Indian, unlike the default
+          // ElevenLabs voice. Overrides the assistant's voice per call. The voice-llm brain
+          // replies in Devanagari on Hindi turns so this voice pronounces natural Hindi.
+          //
+          // Voice SETTINGS are pinned so the live call matches the ElevenLabs studio
+          // preview. Left unset, Vapi's defaults (low stability + aggressive latency
+          // optimization) make v2 voices wobble, add audible breaths and sound "exhausted".
+          //   stability 0.6      → steady, professional read; kills the random breathiness
+          //                        (lower = more emotional/erratic; higher = flatter/monotone)
+          //   similarityBoost .85 → stays true to the original voice, so it sounds like the preview
+          //   style 0            → no style exaggeration (adds artifacts + latency)
+          //   useSpeakerBoost    → sharpens resemblance to the real voice
+          //   optimizeStreamingLatency 0 → MAX audio quality (0–4; higher = faster but more artifacts)
+          voice: {
+            provider: '11labs',
+            voiceId: 'dVTC43Yewy5fAIcmsISI',
+            model: 'eleven_multilingual_v2',
+            stability: 0.6,
+            similarityBoost: 0.85,
+            style: 0,
+            useSpeakerBoost: true,
+            optimizeStreamingLatency: 0,
+          },
+          // Hindi-first transcriber so the caller's own Hindi speech is understood (not
+          // mangled by an English STT). Deepgram 'hi' returns Devanagari, matching the reply.
+          transcriber: { provider: 'deepgram', model: VOICE_STT_MODEL, language: VOICE_STT_LANGUAGE },
+          // Barge-in tuning — the #1 cause of the astrologer cutting off mid-sentence is
+          // her OWN voice echoing back into the mic (speakerphone) and being transcribed as
+          // if the caller spoke. numWords is the strongest guard: she only yields once the
+          // caller has said this many TRANSCRIBED words, so echo/background noise can't stop
+          // her. Maxed to 10 (Vapi's ceiling) because her sentences are long enough that a
+          // lower bar let the echo through. voiceSeconds requires sustained real speech;
+          // backoffSeconds keeps her quiet a moment after a genuine interruption.
+          // NOTE: "stop", "no", "wait", "actually" still interrupt instantly regardless.
+          stopSpeakingPlan: { numWords: 10, voiceSeconds: 1.0, backoffSeconds: 2.0 },
           startSpeakingPlan: { waitSeconds: 0.6 },
+          // Krisp denoising: strip background noise + the speaker's echo before the
+          // transcriber hears it, so it isn't mistaken for the caller interrupting.
+          backgroundDenoisingEnabled: true,
           metadata: { callSessionId: session.id },
           // Vapi requires the FULL model object on an override (provider + model + url),
           // not just the url — otherwise POST /call/web returns 400.

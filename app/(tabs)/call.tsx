@@ -51,6 +51,9 @@ export default function CallScreen() {
   const [muted, setMuted] = useState(false);
   const [captionsOn, setCaptionsOn] = useState(false);
   const [lastLine, setLastLine] = useState('');
+  // true once the astrologer has spoken her opening — until then the screen shows a
+  // "greeting you" status instead of "Listening…", so it's clear she speaks first.
+  const [greeted, setGreeted] = useState(false);
 
   const handleRef = useRef<CallHandle | null>(null);
   const startedRef = useRef(false);
@@ -90,13 +93,14 @@ export default function CallScreen() {
         [{ text: isHindi ? 'ठीक है' : 'OK' }, { text: isHindi ? 'कुंडली खोलें' : 'Open Kundli', onPress: () => router.push('/profile') }]);
       return;
     }
-    setMuted(false); setCaptionsOn(false); setLastLine('');
+    setMuted(false); setCaptionsOn(false); setLastLine(''); setGreeted(false);
     startedRef.current = false; usedRef.current = 0;
     setPhase('call'); setCallState('connecting');
 
     const res = await startCall({
       profileId: active.id,
-      onState: setCallState,
+      // she speaks her intro first — mark it the moment her voice begins
+      onState: (s) => { if (s === 'speaking') setGreeted(true); setCallState(s); },
       onVolume: setVolume,
       onTranscript: (role, text) => { if (role === 'assistant') setLastLine(text); },
       onEnd: () => { setCallState('ended'); refreshBalance(); },
@@ -117,7 +121,7 @@ export default function CallScreen() {
   function endCall() { handleRef.current?.stop(); }
   function toggleMute() { const n = !muted; setMuted(n); handleRef.current?.setMuted(n); }
   function closeCall() {
-    handleRef.current = null; startedRef.current = false;
+    handleRef.current = null; startedRef.current = false; setGreeted(false);
     setPhase('precall'); setCallState('idle'); setVolume(0);
     refreshBalance();
   }
@@ -126,6 +130,7 @@ export default function CallScreen() {
     callState === 'connecting' ? (isHindi ? 'जुड़ रहे हैं…' : 'Connecting…') :
     callState === 'speaking' ? (isHindi ? 'रिदम बोल रहे हैं…' : 'Ritham is speaking…') :
     callState === 'error' ? (isHindi ? 'कॉल बाधित' : 'Call interrupted') :
+    !greeted ? (isHindi ? 'ज्योतिषी नमस्ते कह रही हैं…' : 'Ritham is greeting you…') :
     (isHindi ? 'सुन रहे हैं…' : 'Listening…');
 
   const hasMinutes = callSeconds > 0;
