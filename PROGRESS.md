@@ -55,6 +55,31 @@ after editing `_shared/brain.ts` (it inlines brain). Client `call.tsx` ships in 
 **Tuning knobs if needed:** replies too short → raise `VOICE_MAX_TOKENS`; too flat/monotone → lower
 `voice.stability`; heavy Hinglish → set `VOICE_STT_LANGUAGE=multi` (+ `VOICE_STT_MODEL=nova-3`) secret.
 
+**Follow-up on-device debugging (same session) — verified working end-to-end.** Ran the dev build on
+device (wireless ADB) reading live `[call]` client logs from Metro to diagnose from real traces, not
+guesses. Fixes, in order found:
+1. **🔴 "Call could not start" = Vapi 400.** `stopSpeakingPlan.voiceSeconds` was `1.0`; **Vapi caps it
+   at 0.5** → the whole `POST /call/web` was rejected. Set `0.5`. Also removed `backgroundDenoisingEnabled`
+   (current Vapi API rejects the field). GOTCHA: any out-of-range override value 400s the entire call.
+2. **Stops mid-sentence = truncation, NOT echo.** The trace showed NO user transcript at the cut — she was
+   giving 6–7 sentence / ~20s answers that hit the token cap and truncated mid-word. `VOICE_MAX_TOKENS`
+   512 was too tight for token-heavy Devanagari (cut a normal reply); raised to **1024**, and — the real
+   fix — appended a hard **`VOICE_BREVITY_TAIL`** as the LAST line of the system prompt (highest recency)
+   forcing 1–2 sentence answers, because the verbose chat-brain body was overriding the earlier rule.
+3. **No reply after the user speaks = Supabase cold start.** First call after each redeploy timed out
+   (function boots slowly); second (warm) call answered in ~2s. Fix: **`voice-token` fires a fire-and-forget
+   `{"warmup":true}` POST to `voice-llm`** the moment a call is authorized, so the isolate is warm before
+   the first question (~10s later, after the greeting). `voice-llm` returns early on `warmup`.
+4. **Reply generated but never spoken (silence) = the token STREAM dying mid-reply.** Switched `voice-llm`
+   off token-by-token streaming: it now fetches the whole short reply in ONE shot and emits it as a single
+   SSE chunk via `streamText`, with a **guaranteed spoken FALLBACK** ("एक पल, ज़रा दोबारा बताइए…") so a
+   Claude/network hiccup can never leave the caller in dead silence. (`bridgeStream`/`openaiCompletion` are
+   now unused but left in place.)
+
+Note: some test flakiness was the **wireless-ADB Wi-Fi** dropping the WebRTC call (`recv transport changed
+to disconnected`, `Meeting ended due to ejection`) — environmental, not the app. The temporary `[call]`
+transcript/speech diagnostic logging added to `lib/callService.ts` during this was **removed** before commit.
+
 ---
 
 ## Prior Session (2026-07-13, earlier) — BILINGUAL (English / हिन्दी) — app-wide language switch

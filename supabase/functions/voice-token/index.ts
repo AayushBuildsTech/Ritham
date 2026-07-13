@@ -187,6 +187,15 @@ Deno.serve(async (req) => {
     // which would corrupt a "?t=" query, but is harmless after a path segment.
     const modelUrl = VOICE_LLM_URL ? `${VOICE_LLM_URL}/${token}` : null;
 
+    // Warm the voice-llm isolate NOW (fire-and-forget) so the caller's FIRST question,
+    // ~10s later after the spoken greeting, isn't met with cold-start silence. Supabase
+    // isolates go cold when idle; without this the first turn of a fresh call can time out.
+    if (VOICE_LLM_URL) {
+      fetch(VOICE_LLM_URL, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"warmup":true}',
+      }).catch(() => {});
+    }
+
     return json({
       ok: true,
       callSessionId: session.id,

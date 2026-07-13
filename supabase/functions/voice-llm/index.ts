@@ -25,13 +25,13 @@ const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
 const VOICE_TOKEN_SECRET = Deno.env.get('VOICE_TOKEN_SECRET') ?? '';
 const VOICE_SHARED_SECRET = Deno.env.get('VOICE_SHARED_SECRET') ?? '';
 const MODEL = 'claude-sonnet-5';
-const VOICE_MAX_TOKENS = 512;   // KEEP REPLIES SHORT. Long replies are the real cause of the
-                                // mid-answer cutoffs: a 2-paragraph answer takes too long to
-                                // speak and Vapi aborts it (seen as "LLM request aborted before
-                                // completion"). The directive asks for 2–3 sentences; this cap is
-                                // the backstop so a reply can never balloon into an essay. 512
-                                // comfortably fits a proper short spoken answer, so it rarely
-                                // truncates a compliant reply.
+const VOICE_MAX_TOKENS = 1024;  // Ceiling only — the 2–3 sentence rule in the voice directive is
+                                // what keeps replies short. This must sit ABOVE a compliant reply so
+                                // it never truncates one: Devanagari is TOKEN-HEAVY in Claude's
+                                // tokenizer (a ~40-word Hindi answer can be 400–600 tokens), so 512
+                                // was cutting normal replies off MID-SENTENCE. 1024 gives a proper
+                                // short answer room to finish, yet is still far below the old 4096
+                                // that allowed 30-second essays.
 const HISTORY_MAX = 16;         // only send the tail of the conversation
 
 // Graceful close: once the caller has this many seconds (or fewer) of their allowance
@@ -40,10 +40,22 @@ const HISTORY_MAX = 16;         // only send the tail of the conversation
 // Vapi side is the ultimate safety net.)
 const WRAP_UP_SECONDS = 15;
 const WRAP_UP_DIRECTIVE =
-  'THE CALL IS ENDING NOW: the caller\'s time is almost over. Make THIS reply your CLOSING — in one or ' +
-  'two short, warm sentences: acknowledge that the time is up, give a brief blessing, and say a proper ' +
-  'goodbye (in Hindi, Devanagari, e.g. «बस अभी समय पूरा हो रहा है — भगवान आपका भला करें, फिर बात करेंगे, नमस्ते।»). ' +
+  'THE CALL IS ENDING NOW: the caller\'s time is almost over. Make THIS reply your CLOSING, in one or ' +
+  'two short warm sentences: acknowledge that the time is up, give a brief blessing, and say a proper ' +
+  'goodbye (in Hindi Devanagari, e.g. भगवान आपका भला करे, फिर बात करेंगे, नमस्ते।). ' +
   'Do NOT open a new topic, do NOT ask a new question, do NOT begin a fresh reading. Match the caller\'s language.';
+
+// Appended as the LAST line of the system prompt (models weight the end most) so it wins
+// over the verbose chat-brain body: the model was giving 6–7 sentence answers that overran
+// the turn and got truncated mid-word. This forces a genuinely short spoken turn.
+const VOICE_BREVITY_TAIL =
+  'ABSOLUTE FINAL RULE — overrides EVERYTHING above, the single most important instruction: you are on a ' +
+  'LIVE PHONE CALL. Your ENTIRE reply is ONE or at most TWO short sentences (about 25 words), then you ' +
+  'STOP and wait. Give ONLY the direct answer, plus one brief reason if it fits in the second sentence. ' +
+  'Do NOT describe multiple life phases, do NOT walk through the dasha timeline, do NOT stack ' +
+  '"pehle yeh phir woh" plans, do NOT name several grahas or dates in one turn. The caller will ask if ' +
+  'they want more. RIGHT length example: "आयुष जी, आपके लिए business अच्छा रहेगा, क्योंकि बुध सप्तम भाव में ' +
+  'मज़बूत है। और कुछ पूछना चाहेंगे?" Never longer than that.';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -119,6 +131,9 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    // Warmup ping (fired by voice-token when a call is authorized) — just boots this
+    // isolate so the caller's FIRST real question doesn't hit a cold start. Return early.
+    if (body?.warmup) return json({ ok: true, warm: true });
     const _msgs = Array.isArray(body?.messages) ? body.messages : [];
     console.log('[voice-llm] hit', new URL(req.url).pathname, '| stream', body?.stream, '| msgs', _msgs.length, '| roles', _msgs.map((m: any) => m?.role).join(','));
 
@@ -187,53 +202,54 @@ Deno.serve(async (req) => {
       modeDirective('voice'),
       wrapUp ? WRAP_UP_DIRECTIVE : '',
       buildSystemPrompt(profile, dyn),
+      VOICE_BREVITY_TAIL,   // LAST = highest recency, forces the short spoken turn
     ].filter(Boolean).join('\n\n');
 
-    const wantsStream = body?.stream !== false; // orchestrators default to streaming
+    // ── Get the full short reply in ONE shot, then emit it as a single SSE chunk. ──
+    // Token-by-token streaming from Claude was dying mid-reply (partial audio → silence).
+    // A short spoken answer computes fast, and a one-shot response is far more reliable.
+    // We ALWAYS return a valid spoken line (the real reply, or a graceful fallback) so a
+    // Claude/network hiccup can never leave the caller sitting in dead silence.
+    const FALLBACK = 'एक पल, ज़रा अपना सवाल दोबारा बताइए, मैं सुन रही हूँ।';
 
-    // ── MOCK fallback until the Claude key is set (keeps the pipe testable) ────
     if (!ANTHROPIC_API_KEY) {
       const k: RichKundli = profile.kundli_chart;
-      const text = `Namaste. Aapki kundli mein ${k.moon_sign} rashi aur ${dyn.mahadasha?.lord ?? ''} ` +
-        `mahadasha chal rahi hai. Bataiye, aap kya jaanna chahte hain?`;
+      const text = `नमस्ते। आपकी कुंडली में ${k.moon_sign} राशि है। बताइए, आप क्या जानना चाहते हैं?`;
       persistTurn(admin, callSession.id, turns, text);
-      return wantsStream ? streamText(text, MODEL) : openaiCompletion(text, MODEL);
+      return streamText(text, MODEL);
     }
 
-    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: VOICE_MAX_TOKENS,
-        thinking: { type: 'disabled' },
-        stream: wantsStream,
-        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-        messages: turns,
-      }),
-    });
-
-    if (!anthropicRes.ok) {
-      const detail = await anthropicRes.text();
-      console.log('[voice-llm] CLAUDE ERROR', anthropicRes.status, detail.slice(0, 400));
-      return json({ error: 'claude_error', detail }, 502);
-    }
-    console.log('[voice-llm] claude ok', anthropicRes.status, '| stream', wantsStream, '| turns', turns.length);
-
-    if (!wantsStream) {
-      const data = await anthropicRes.json();
-      const text = (data.content ?? []).find((b: any) => b.type === 'text')?.text
-        ?? 'Ek pal — kya aap apna sawaal dobara bata sakte hain?';
-      persistTurn(admin, callSession.id, turns, text);
-      return openaiCompletion(text, MODEL);
+    let replyText = FALLBACK;
+    try {
+      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: VOICE_MAX_TOKENS,
+          thinking: { type: 'disabled' },
+          system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+          messages: turns,
+        }),
+      });
+      if (anthropicRes.ok) {
+        const data = await anthropicRes.json();
+        const t = (data.content ?? []).find((b: any) => b.type === 'text')?.text;
+        if (t && t.trim()) replyText = t.trim();
+        else console.log('[voice-llm] empty claude reply — using fallback');
+      } else {
+        console.log('[voice-llm] CLAUDE ERROR', anthropicRes.status, (await anthropicRes.text()).slice(0, 300));
+      }
+    } catch (e) {
+      console.log('[voice-llm] claude fetch threw —', String((e as Error)?.message ?? e));
     }
 
-    // ── translate Anthropic SSE → OpenAI SSE, accumulating for the transcript ──
-    return bridgeStream(anthropicRes, MODEL, (full) => persistTurn(admin, callSession.id, turns, full));
+    persistTurn(admin, callSession.id, turns, replyText);
+    return streamText(replyText, MODEL);
   } catch (e) {
     console.log('[voice-llm] SERVER ERROR', String((e as Error)?.message ?? e), String((e as Error)?.stack ?? '').slice(0, 400));
     return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
