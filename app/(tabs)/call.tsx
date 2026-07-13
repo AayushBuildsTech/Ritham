@@ -14,6 +14,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Fonts, Spacing, Radius, Depth, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
 import { Icon } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
@@ -35,9 +36,11 @@ const mmss = (s: number) => {
 export default function CallScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { active } = useActiveProfile();
+  const dur = (s: number) => (isHindi ? formatSeconds(s).replace('min', 'मिनट') : formatSeconds(s));
 
   const [phase, setPhase] = useState<Phase>('precall');
   const [callState, setCallState] = useState<CallState>('idle');
@@ -75,14 +78,16 @@ export default function CallScreen() {
   }, [phase, callState, allowance]);
 
   const hasKundli = !!active?.hasKundli;
-  const person = active?.name ?? 'you';
-  const relation = active ? (RELATION_LABEL[active.relation] ?? 'Family') : '';
+  const person = active?.name ?? (isHindi ? 'आप' : 'you');
+  const relation = active ? (RELATION_LABEL[active.relation] ?? (isHindi ? 'परिवार' : 'Family')) : '';
 
   async function begin() {
     if (!active) return;
     if (!hasKundli) {
-      Alert.alert('Kundli needed', 'Please open this person’s Kundli once so it’s ready, then call.',
-        [{ text: 'OK' }, { text: 'Open Kundli', onPress: () => router.push('/profile') }]);
+      Alert.alert(
+        isHindi ? 'कुंडली आवश्यक' : 'Kundli needed',
+        isHindi ? 'कृपया इस व्यक्ति की कुंडली एक बार खोलें ताकि वह तैयार हो जाए, फिर कॉल करें।' : 'Please open this person’s Kundli once so it’s ready, then call.',
+        [{ text: isHindi ? 'ठीक है' : 'OK' }, { text: isHindi ? 'कुंडली खोलें' : 'Open Kundli', onPress: () => router.push('/profile') }]);
       return;
     }
     setMuted(false); setCaptionsOn(false); setLastLine('');
@@ -101,7 +106,7 @@ export default function CallScreen() {
     if (!res.ok) {
       if (res.error === 'needs_purchase') { setPhase('paywall'); return; }
       setPhase('precall');
-      Alert.alert('Call', callErrorMessage(res.error));
+      Alert.alert(isHindi ? 'कॉल' : 'Call', callErrorMessage(res.error));
       return;
     }
     handleRef.current = res.handle ?? null;
@@ -118,13 +123,13 @@ export default function CallScreen() {
   }
 
   const statusText =
-    callState === 'connecting' ? 'Connecting…' :
-    callState === 'speaking' ? 'Ritham is speaking…' :
-    callState === 'error' ? 'Call interrupted' :
-    'Listening…';
+    callState === 'connecting' ? (isHindi ? 'जुड़ रहे हैं…' : 'Connecting…') :
+    callState === 'speaking' ? (isHindi ? 'रिदम बोल रहे हैं…' : 'Ritham is speaking…') :
+    callState === 'error' ? (isHindi ? 'कॉल बाधित' : 'Call interrupted') :
+    (isHindi ? 'सुन रहे हैं…' : 'Listening…');
 
   const hasMinutes = callSeconds > 0;
-  const primaryLabel = !hasKundli ? 'Finish your Kundli' : hasMinutes ? 'Call now' : 'Start free call';
+  const primaryLabel = !hasKundli ? (isHindi ? 'अपनी कुंडली पूरी करें' : 'Finish your Kundli') : hasMinutes ? (isHindi ? 'अभी कॉल करें' : 'Call now') : (isHindi ? 'निःशुल्क कॉल करें' : 'Start free call');
 
   return (
     <View style={styles.root}>
@@ -149,8 +154,8 @@ export default function CallScreen() {
         </Reveal>
 
         <Reveal index={3}>
-          <Text style={styles.title}>Talk to your Jyotishi</Text>
-          <Text style={styles.subtitle}>Ask anything, out loud — in your own language.</Text>
+          <Text style={styles.title}>{isHindi ? 'अपने ज्योतिषी से बात करें' : 'Talk to your Jyotishi'}</Text>
+          <Text style={styles.subtitle}>{isHindi ? 'कुछ भी पूछें, बोलकर — अपनी भाषा में।' : 'Ask anything, out loud — in your own language.'}</Text>
         </Reveal>
 
         {/* value + balance (pricing surfaced up front) */}
@@ -159,11 +164,11 @@ export default function CallScreen() {
             <View style={styles.dot} />
             <Text style={styles.valueText}>
               {hasMinutes
-                ? `You have ${formatSeconds(callSeconds)} of call time`
-                : 'Your first 60 seconds are free'}
+                ? (isHindi ? `आपके पास ${dur(callSeconds)} का कॉल समय है` : `You have ${formatSeconds(callSeconds)} of call time`)
+                : (isHindi ? 'आपके पहले 60 सेकंड निःशुल्क हैं' : 'Your first 60 seconds are free')}
             </Text>
           </View>
-          <Text style={styles.perMin}>Calls from {CHEAPEST_CALL_PER_MIN} · you pay only for what you speak</Text>
+          <Text style={styles.perMin}>{isHindi ? `${CHEAPEST_CALL_PER_MIN} से कॉल · आप केवल बोले गए समय का भुगतान करते हैं` : `Calls from ${CHEAPEST_CALL_PER_MIN} · you pay only for what you speak`}</Text>
         </Reveal>
 
         <Reveal index={5}>
@@ -173,7 +178,7 @@ export default function CallScreen() {
             <Text style={styles.primaryText}>{primaryLabel}</Text>
           </Pressable>
           <Pressable style={styles.secondary} onPress={() => setPhase('paywall')}>
-            <Text style={styles.secondaryText}>Buy call minutes</Text>
+            <Text style={styles.secondaryText}>{isHindi ? 'कॉल मिनट खरीदें' : 'Buy call minutes'}</Text>
           </Pressable>
         </Reveal>
       </ScrollView>
@@ -186,15 +191,15 @@ export default function CallScreen() {
           {callState === 'ended' || callState === 'error' ? (
             // ── ended summary ──
             <View style={[styles.callBody, { paddingTop: insets.top + Spacing.xxl }]}>
-              <Text style={styles.endedTitle}>Call ended</Text>
+              <Text style={styles.endedTitle}>{isHindi ? 'कॉल समाप्त' : 'Call ended'}</Text>
               <Text style={styles.endedSub}>
-                You spoke for {formatSeconds(Math.max(0, Math.round(usedRef.current)))}
+                {isHindi ? `आपने ${dur(Math.max(0, Math.round(usedRef.current)))} बात की` : `You spoke for ${formatSeconds(Math.max(0, Math.round(usedRef.current)))}`}
               </Text>
               <View style={{ height: Spacing.lg }} />
               <View style={styles.valueRow}>
                 <View style={styles.dot} />
                 <Text style={styles.valueText}>
-                  {callSeconds > 0 ? `${formatSeconds(callSeconds)} of call time left` : 'No call time left'}
+                  {callSeconds > 0 ? (isHindi ? `${dur(callSeconds)} का कॉल समय शेष` : `${formatSeconds(callSeconds)} of call time left`) : (isHindi ? 'कोई कॉल समय शेष नहीं' : 'No call time left')}
                 </Text>
               </View>
               <View style={{ height: Spacing.xl }} />
@@ -204,16 +209,16 @@ export default function CallScreen() {
               >
                 <LinearGradient colors={th.gSplash} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
                 <Icon name={callSeconds > 0 ? 'phoneCall' : 'diamond'} size={18} color={th.goldContrast} />
-                <Text style={styles.primaryText}>{callSeconds > 0 ? 'Call again' : 'Buy minutes'}</Text>
+                <Text style={styles.primaryText}>{callSeconds > 0 ? (isHindi ? 'फिर कॉल करें' : 'Call again') : (isHindi ? 'मिनट खरीदें' : 'Buy minutes')}</Text>
               </Pressable>
-              <Pressable style={styles.secondary} onPress={closeCall}><Text style={styles.secondaryText}>Done</Text></Pressable>
+              <Pressable style={styles.secondary} onPress={closeCall}><Text style={styles.secondaryText}>{isHindi ? 'पूर्ण' : 'Done'}</Text></Pressable>
             </View>
           ) : (
             // ── live call ──
             <View style={[styles.callBody, { paddingTop: insets.top + Spacing.lg }]}>
               <View style={styles.liveHeader}>
-                <Text style={styles.liveName}>Ritham · Jyotishi</Text>
-                <Text style={[styles.timer, remaining <= 30 && { color: th.error }]}>{mmss(remaining)} left</Text>
+                <Text style={styles.liveName}>{isHindi ? 'रिदम · ज्योतिषी' : 'Ritham · Jyotishi'}</Text>
+                <Text style={[styles.timer, remaining <= 30 && { color: th.error }]}>{mmss(remaining)} {isHindi ? 'शेष' : 'left'}</Text>
               </View>
 
               <View style={styles.liveOrb}>
@@ -226,9 +231,9 @@ export default function CallScreen() {
               <View style={{ flex: 1 }} />
 
               <View style={styles.controls}>
-                <ControlButton icon={muted ? 'micOff' : 'mic'} label={muted ? 'Unmute' : 'Mute'} onPress={toggleMute} active={muted} th={th} />
-                <EndButton onPress={endCall} th={th} />
-                <ControlButton icon="message" label="Captions" onPress={() => setCaptionsOn((v) => !v)} active={captionsOn} th={th} />
+                <ControlButton icon={muted ? 'micOff' : 'mic'} label={muted ? (isHindi ? 'अनम्यूट' : 'Unmute') : (isHindi ? 'म्यूट' : 'Mute')} onPress={toggleMute} active={muted} th={th} />
+                <EndButton onPress={endCall} th={th} label={isHindi ? 'समाप्त' : 'End'} />
+                <ControlButton icon="message" label={isHindi ? 'कैप्शन' : 'Captions'} onPress={() => setCaptionsOn((v) => !v)} active={captionsOn} th={th} />
               </View>
               <View style={{ height: insets.bottom + Spacing.lg }} />
             </View>
@@ -266,14 +271,14 @@ function ControlButton({ icon, label, onPress, active, th }: { icon: any; label:
   );
 }
 
-function EndButton({ onPress, th }: { onPress: () => void; th: ThemeColors }) {
+function EndButton({ onPress, th, label }: { onPress: () => void; th: ThemeColors; label: string }) {
   const styles = makeStyles(th);
   return (
     <Pressable style={styles.ctrl} onPress={onPress}>
       <View style={styles.endCircle}>
         <Icon name="phoneOff" size={24} color="#FFFFFF" />
       </View>
-      <Text style={styles.ctrlLabel}>End</Text>
+      <Text style={styles.ctrlLabel}>{label}</Text>
     </Pressable>
   );
 }

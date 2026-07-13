@@ -12,11 +12,13 @@ import { friendlyAuthError } from '../../lib/authErrors';
 import { track } from '../../lib/analytics';
 import { Fonts, Spacing, Radius, Depth, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Reveal } from '../../components/Reveal';
 
 export default function SignInScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -35,7 +37,7 @@ export default function SignInScreen() {
       const idToken = (res as any)?.data?.idToken ?? (res as any)?.idToken;
       if (!idToken) {
         setLoading(false);
-        setError('Google sign-in was cancelled.');
+        setError(t('auth.cancelled'));
         return;
       }
       const { error: err } = await supabase.auth.signInWithIdToken({
@@ -54,7 +56,7 @@ export default function SignInScreen() {
       if (e?.code === statusCodes.SIGN_IN_CANCELLED) return; // user backed out — no error
       if (e?.code === statusCodes.IN_PROGRESS) return;
       if (e?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        setError('Google Play Services is required to sign in. Please update it and try again.');
+        setError(t('auth.playServices'));
         return;
       }
       setError(friendlyAuthError(e));
@@ -67,15 +69,15 @@ export default function SignInScreen() {
         <View style={styles.header}>
           <Text style={styles.logo}>Ritham</Text>
           <View style={styles.rule} />
-          <Text style={styles.tagline}>VEDIC WISDOM · REFINED</Text>
+          <Text style={styles.tagline}>{t('auth.tagline')}</Text>
         </View>
       </Reveal>
 
       <Reveal index={1}>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Begin your journey</Text>
+          <Text style={styles.cardTitle}>{t('auth.beginJourney')}</Text>
           <Text style={styles.cardSubtitle}>
-            Sign in to create your account and unlock your chart, horoscopes, and readings.
+            {t('auth.subtitle')}
           </Text>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -91,16 +93,16 @@ export default function SignInScreen() {
             ) : (
               <View style={styles.btnInner}>
                 <AntDesign name="google" size={18} color={th.goldContrast} />
-                <Text style={styles.btnText}>Continue with Google</Text>
+                <Text style={styles.btnText}>{t('auth.continueGoogle')}</Text>
               </View>
             )}
           </Pressable>
 
           <Text style={styles.disclaimer}>
-            By continuing, you agree to our{' '}
-            <Text style={styles.link} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })}>Terms of Service</Text>
-            {' '}and{' '}
-            <Text style={styles.link} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })}>Privacy Policy</Text>.
+            {t('auth.agreePre')}
+            <Text style={styles.link} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })}>{t('auth.terms')}</Text>
+            {t('auth.and')}
+            <Text style={styles.link} onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })}>{t('auth.privacy')}</Text>.
           </Text>
         </View>
       </Reveal>

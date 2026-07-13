@@ -13,6 +13,7 @@ import {
 import { purchasePack, Balance, PackKind } from '../lib/paymentService';
 import { Colors, Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from './Icon';
 
 // The chat paywall sells chat packs (Questions | Time); the 'call' variant sells
@@ -31,8 +32,13 @@ interface Props {
 export default function Paywall({ title, subtitle, prefill, variant = 'chat', onPurchased, onPurchasedCall }: Props) {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const [tab, setTab] = useState<PaywallKind>('questions');
   const [buyingId, setBuyingId] = useState<string | null>(null);
+
+  // Localised duration ("5 min" → "5 मिनट"); packs are whole-minute so this is safe.
+  const dur = (s: number) => (isHindi ? formatSeconds(s).replace('min', 'मिनट') : formatSeconds(s));
+  const qLabel = (n: number) => (isHindi ? `${n} प्रश्न` : `${n} question${n > 1 ? 's' : ''}`);
 
   async function buy(kind: PackKind, planId: string) {
     if (buyingId) return;
@@ -46,25 +52,27 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
       return;
     }
     if (res.error === 'cancelled') return; // silent — user backed out
-    Alert.alert('Payment not completed', friendlyError(res.error));
+    Alert.alert(isHindi ? 'भुगतान पूरा नहीं हुआ' : 'Payment not completed', friendlyError(res.error, isHindi));
   }
 
   // ── call variant: voice-call minute packs, per-minute value up front ──────────
   if (variant === 'call') {
     return (
       <View style={styles.card}>
-        <Text style={styles.eyebrow}>TALK TO YOUR JYOTISHI</Text>
-        <Text style={styles.title}>{title ?? 'Buy call minutes'}</Text>
+        <Text style={styles.eyebrow}>{isHindi ? 'अपने ज्योतिषी से बात करें' : 'TALK TO YOUR JYOTISHI'}</Text>
+        <Text style={styles.title}>{title ?? (isHindi ? 'कॉल मिनट खरीदें' : 'Buy call minutes')}</Text>
         <Text style={styles.subtitle}>
-          {subtitle ?? `From ${CHEAPEST_CALL_PER_MIN} · you only pay for the minutes you speak.`}
+          {subtitle ?? (isHindi
+            ? `${CHEAPEST_CALL_PER_MIN} से · आप केवल बात किए गए मिनटों का भुगतान करते हैं।`
+            : `From ${CHEAPEST_CALL_PER_MIN} · you only pay for the minutes you speak.`)}
         </Text>
         {CALL_PACKS.map((p) => (
           <PackRow
             key={p.id}
-            left={`${p.label} · ${formatSeconds(p.seconds)}`}
+            left={`${p.label} · ${dur(p.seconds)}`}
             price={paiseTo(p.price_paise)}
-            badge={'badge' in p && p.badge === 'most_popular' ? 'Most popular' : undefined}
-            note={`${paiseTo(paisePerMinute(p.price_paise, p.seconds))}/min`}
+            badge={'badge' in p && p.badge === 'most_popular' ? (isHindi ? 'सबसे लोकप्रिय' : 'Most popular') : undefined}
+            note={`${paiseTo(paisePerMinute(p.price_paise, p.seconds))}/${isHindi ? 'मिनट' : 'min'}`}
             busy={buyingId === p.id}
             disabled={!!buyingId}
             onPress={() => buy('call', p.id)}
@@ -72,7 +80,7 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
         ))}
         <View style={styles.secureRow}>
           <Icon name="lock" size={12} color={th.textDim} />
-          <Text style={styles.secure}>Secure payment via Razorpay · UPI, cards & wallets</Text>
+          <Text style={styles.secure}>{isHindi ? 'Razorpay से सुरक्षित भुगतान · UPI, कार्ड और वॉलेट' : 'Secure payment via Razorpay · UPI, cards & wallets'}</Text>
         </View>
       </View>
     );
@@ -80,8 +88,8 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
 
   return (
     <View style={styles.card}>
-      <Text style={styles.eyebrow}>UNLOCK MORE</Text>
-      <Text style={styles.title}>{title ?? 'Continue your reading'}</Text>
+      <Text style={styles.eyebrow}>{isHindi ? 'और अधिक अनलॉक करें' : 'UNLOCK MORE'}</Text>
+      <Text style={styles.title}>{title ?? (isHindi ? 'अपनी बातचीत जारी रखें' : 'Continue your reading')}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
 
       {/* Questions | Time toggle */}
@@ -90,13 +98,13 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
           style={[styles.toggleBtn, tab === 'questions' && styles.toggleActive]}
           onPress={() => setTab('questions')}
         >
-          <Text style={[styles.toggleText, tab === 'questions' && styles.toggleTextActive]}>Questions</Text>
+          <Text style={[styles.toggleText, tab === 'questions' && styles.toggleTextActive]}>{isHindi ? 'प्रश्न' : 'Questions'}</Text>
         </Pressable>
         <Pressable
           style={[styles.toggleBtn, tab === 'time' && styles.toggleActive]}
           onPress={() => setTab('time')}
         >
-          <Text style={[styles.toggleText, tab === 'time' && styles.toggleTextActive]}>Time</Text>
+          <Text style={[styles.toggleText, tab === 'time' && styles.toggleTextActive]}>{isHindi ? 'समय' : 'Time'}</Text>
         </Pressable>
       </View>
 
@@ -104,10 +112,10 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
         ? QUESTION_PACKS.map((p) => (
             <PackRow
               key={p.id}
-              left={`${p.label} · ${p.questions} question${p.questions > 1 ? 's' : ''}`}
+              left={`${p.label} · ${qLabel(p.questions)}`}
               price={paiseTo(p.price_paise)}
-              badge={'badge' in p && p.badge === 'most_popular' ? 'Most popular' : undefined}
-              note={'first_purchase_only' in p && p.first_purchase_only ? 'First purchase only' : undefined}
+              badge={'badge' in p && p.badge === 'most_popular' ? (isHindi ? 'सबसे लोकप्रिय' : 'Most popular') : undefined}
+              note={'first_purchase_only' in p && p.first_purchase_only ? (isHindi ? 'केवल पहली खरीद' : 'First purchase only') : undefined}
               busy={buyingId === p.id}
               disabled={!!buyingId}
               onPress={() => buy('questions', p.id)}
@@ -116,7 +124,7 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
         : SESSION_PLANS.map((p) => (
             <PackRow
               key={p.id}
-              left={`${p.label} · ${formatSeconds(p.seconds)}`}
+              left={`${p.label} · ${dur(p.seconds)}`}
               price={paiseTo(p.price_paise)}
               busy={buyingId === p.id}
               disabled={!!buyingId}
@@ -126,7 +134,7 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
 
       <View style={styles.secureRow}>
         <Icon name="lock" size={12} color={th.textDim} />
-        <Text style={styles.secure}>Secure payment via Razorpay · UPI, cards & wallets</Text>
+        <Text style={styles.secure}>{isHindi ? 'Razorpay से सुरक्षित भुगतान · UPI, कार्ड और वॉलेट' : 'Secure payment via Razorpay · UPI, cards & wallets'}</Text>
       </View>
     </View>
   );
@@ -161,7 +169,16 @@ function PackRow({
   );
 }
 
-function friendlyError(code?: string): string {
+function friendlyError(code?: string, isHindi = false): string {
+  if (isHindi) {
+    switch (code) {
+      case 'first_purchase_only_used': return 'वह इंट्रो पैक एक-बार का ऑफ़र है और पहले ही उपयोग हो चुका है।';
+      case 'razorpay_not_configured':  return 'भुगतान अभी सेट नहीं है। कृपया बाद में फिर कोशिश करें।';
+      case 'signature_mismatch':       return 'हम उस भुगतान की पुष्टि नहीं कर सके। यदि राशि कटी है तो वह वापस कर दी जाएगी।';
+      case 'payment_failed':           return 'भुगतान पूरा नहीं हुआ। कृपया फिर कोशिश करें।';
+      default:                         return 'कुछ गड़बड़ हो गई। कृपया थोड़ी देर में फिर कोशिश करें।';
+    }
+  }
   switch (code) {
     case 'first_purchase_only_used': return 'That intro pack is a one-time offer and has already been used.';
     case 'razorpay_not_configured':  return 'Payments are not set up yet. Please try again later.';

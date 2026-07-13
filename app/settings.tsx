@@ -10,12 +10,14 @@ import { remindersEnabled, setRemindersEnabled } from '../lib/notificationsServi
 import { CONTACT_EMAIL } from '../constants/legal';
 import { Colors, Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
 import { useColors, useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon, IconName } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function SettingsScreen() {
   const th = useColors();
   const { isDark, toggle } = useTheme();
+  const { lang, isHindi, setLang, t } = useLanguage();
   const styles = makeStyles(th);
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -84,56 +86,73 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Settings" onBack={() => router.back()} />
+      <ScreenHeader title={t('settings.title')} onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Appearance */}
-        <Text style={styles.sectionLabel}>APPEARANCE</Text>
+        {/* Language */}
+        <Text style={styles.sectionLabel}>{isHindi ? 'भाषा' : 'LANGUAGE'}</Text>
         <View style={styles.group}>
-          <Row icon={isDark ? 'moon' : 'sun'} label="Theme" value={isDark ? 'Dark' : 'Light'} onPress={toggle} last />
+          <Row
+            icon="info"
+            label={t('settings.language')}
+            value={isHindi ? 'हिन्दी' : 'English'}
+            onPress={() => setLang(lang === 'hi' ? 'en' : 'hi')}
+            last
+          />
+        </View>
+        <Text style={styles.deleteHint}>
+          {isHindi
+            ? 'ऐप की भाषा बदलें। चैट आपकी लिखी भाषा को स्वयं पहचानता है।'
+            : 'Switch the app language. Chat still auto-detects the language you type in.'}
+        </Text>
+
+        {/* Appearance */}
+        <Text style={styles.sectionLabel}>{isHindi ? 'रूप' : 'APPEARANCE'}</Text>
+        <View style={styles.group}>
+          <Row icon={isDark ? 'moon' : 'sun'} label={t('settings.theme')} value={isDark ? t('settings.themeDark') : t('settings.themeLight')} onPress={toggle} last />
         </View>
 
         {/* Notifications */}
-        <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
+        <Text style={styles.sectionLabel}>{isHindi ? 'सूचनाएं' : 'NOTIFICATIONS'}</Text>
         <View style={styles.group}>
-          <Row icon="clock" label="Daily guidance" value={remOn ? 'On' : 'Off'} onPress={toggleReminders} last />
+          <Row icon="clock" label={isHindi ? 'दैनिक मार्गदर्शन' : 'Daily guidance'} value={remOn ? (isHindi ? 'चालू' : 'On') : (isHindi ? 'बंद' : 'Off')} onPress={toggleReminders} last />
         </View>
-        <Text style={styles.deleteHint}>A gentle reading at 7 AM and 6 PM each day.</Text>
+        <Text style={styles.deleteHint}>{isHindi ? 'हर दिन सुबह 7 और शाम 6 बजे एक कोमल राशिफल।' : 'A gentle reading at 7 AM and 6 PM each day.'}</Text>
 
         {/* Account */}
-        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        <Text style={styles.sectionLabel}>{isHindi ? 'खाता' : 'ACCOUNT'}</Text>
         <View style={styles.group}>
-          <Row icon="mail" label="Email" value={user?.email ?? '—'} />
+          <Row icon="mail" label={isHindi ? 'ईमेल' : 'Email'} value={user?.email ?? '—'} />
           <Row
             icon="moon"
-            label={active && active.relation !== 'self' ? `${active.name}’s Kundli` : 'Your Kundli'}
-            value="View / edit"
+            label={active && active.relation !== 'self' ? t('settings.personKundli', { name: active.name }) : t('settings.yourKundli')}
+            value={isHindi ? 'देखें / बदलें' : 'View / edit'}
             onPress={() => router.push(activeId ? { pathname: '/profile', params: { id: activeId } } : '/profile')}
           />
-          <Row icon="family" label="Family members" value="Add / manage" onPress={() => router.push('/family')} last />
+          <Row icon="family" label={t('settings.profiles')} value={isHindi ? 'जोड़ें / प्रबंधित करें' : 'Add / manage'} onPress={() => router.push('/family')} last />
         </View>
 
         {/* Legal */}
-        <Text style={styles.sectionLabel}>LEGAL</Text>
+        <Text style={styles.sectionLabel}>{isHindi ? 'कानूनी' : 'LEGAL'}</Text>
         <View style={styles.group}>
-          <Row icon="lock" label="Privacy Policy" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })} />
-          <Row icon="document" label="Terms of Service" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })} />
-          <Row icon="info" label="Astrology Disclaimer" chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'disclaimer' } })} last />
+          <Row icon="lock" label={t('settings.privacy')} chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'privacy' } })} />
+          <Row icon="document" label={t('settings.terms')} chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'terms' } })} />
+          <Row icon="info" label={t('settings.disclaimer')} chevron onPress={() => router.push({ pathname: '/legal/[doc]', params: { doc: 'disclaimer' } })} last />
         </View>
 
         {/* Support */}
-        <Text style={styles.sectionLabel}>SUPPORT</Text>
+        <Text style={styles.sectionLabel}>{isHindi ? 'सहायता' : 'SUPPORT'}</Text>
         <View style={styles.group}>
-          <Row icon="send" label="Contact us" value={CONTACT_EMAIL} last />
+          <Row icon="send" label={isHindi ? 'संपर्क करें' : 'Contact us'} value={CONTACT_EMAIL} last />
         </View>
 
         <Pressable style={styles.signOutBtn} onPress={confirmSignOut} disabled={deleting} android_ripple={{ color: 'rgba(199,82,75,0.15)' }}>
           <Icon name="logout" size={16} color={th.error} />
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>{t('settings.signOut')}</Text>
         </Pressable>
 
         {/* Danger zone */}
-        <Text style={styles.sectionLabel}>DANGER ZONE</Text>
+        <Text style={styles.sectionLabel}>{isHindi ? 'संवेदनशील' : 'DANGER ZONE'}</Text>
         <Pressable
           style={[styles.deleteBtn, deleting && styles.deleteBtnBusy]}
           onPress={confirmDelete}
@@ -144,16 +163,18 @@ export default function SettingsScreen() {
           ) : (
             <>
               <Icon name="trash" size={16} color={th.error} />
-              <Text style={styles.deleteText}>Delete Account</Text>
+              <Text style={styles.deleteText}>{t('settings.deleteAccount')}</Text>
             </>
           )}
         </Pressable>
         <Text style={styles.deleteHint}>
-          Permanently erases your account and all data. This can’t be undone.
+          {isHindi
+            ? 'आपका खाता और सारा डेटा स्थायी रूप से मिट जाता है। इसे वापस नहीं लाया जा सकता।'
+            : 'Permanently erases your account and all data. This can’t be undone.'}
         </Text>
 
         <Text style={styles.version}>Ritham · v{version}</Text>
-        <Text style={styles.tagline}>Made with care for seekers of clarity</Text>
+        <Text style={styles.tagline}>{isHindi ? 'स्पष्टता के खोजियों के लिए, सम्मान के साथ' : 'Made with care for seekers of clarity'}</Text>
         <View style={{ height: Spacing.xl }} />
       </ScrollView>
     </View>

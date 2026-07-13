@@ -7,6 +7,7 @@ import { useActiveProfile } from '../context/ProfileContext';
 import { track } from '../lib/analytics';
 import { Fonts, Spacing, Radius, Depth, Accents, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { Reveal } from '../components/Reveal';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -26,6 +27,7 @@ function formatWhen(iso: string): string {
 export default function ChatHistoryScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { members } = useActiveProfile();
@@ -70,11 +72,11 @@ export default function ChatHistoryScreen() {
     const n = selected.size;
     if (!n) return;
     Alert.alert(
-      `Delete ${n} chat${n > 1 ? 's' : ''}?`,
-      'This permanently removes the selected conversation' + (n > 1 ? 's' : '') + ' and cannot be undone.',
+      isHindi ? `${n} चैट हटाएं?` : `Delete ${n} chat${n > 1 ? 's' : ''}?`,
+      isHindi ? 'यह चयनित बातचीत को स्थायी रूप से हटा देता है और इसे वापस नहीं लाया जा सकता।' : 'This permanently removes the selected conversation' + (n > 1 ? 's' : '') + ' and cannot be undone.',
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: runDelete },
+        { text: isHindi ? 'रद्द करें' : 'Cancel', style: 'cancel' },
+        { text: isHindi ? 'हटाएं' : 'Delete', style: 'destructive', onPress: runDelete },
       ],
     );
   }
@@ -85,7 +87,7 @@ export default function ChatHistoryScreen() {
     setDeleting(true);
     const { error } = await deleteChatSessions(ids);
     setDeleting(false);
-    if (error) { Alert.alert('Could not delete', error); return; }
+    if (error) { Alert.alert(isHindi ? 'हटाया नहीं जा सका' : 'Could not delete', error); return; }
     track('chat_history_deleted', { count: ids.length });
     const removed = new Set(ids);
     setItems((prev) => (prev ? prev.filter((i) => !removed.has(i.id)) : prev));
@@ -96,22 +98,22 @@ export default function ChatHistoryScreen() {
 
   const headerRight = hasItems ? (
     <Pressable onPress={() => (selecting ? exitSelect() : setSelecting(true))} hitSlop={8} disabled={deleting}>
-      <Text style={styles.headerAction}>{selecting ? 'Cancel' : 'Select'}</Text>
+      <Text style={styles.headerAction}>{selecting ? (isHindi ? 'रद्द करें' : 'Cancel') : (isHindi ? 'चुनें' : 'Select')}</Text>
     </Pressable>
   ) : undefined;
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Chat History" onBack={() => router.back()} right={headerRight} />
+      <ScreenHeader title={isHindi ? 'चैट इतिहास' : 'Chat History'} onBack={() => router.back()} right={headerRight} />
 
       {items === null ? (
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <View style={styles.emptyIcon}><Icon name="history" size={30} color={th.gold} /></View>
-          <Text style={styles.emptyTitle}>No past conversations yet</Text>
+          <Text style={styles.emptyTitle}>{isHindi ? 'अभी कोई पिछली बातचीत नहीं' : 'No past conversations yet'}</Text>
           <Text style={styles.emptySub}>
-            Your chats with the astrologer will appear here so you can revisit them anytime.
+            {isHindi ? 'ज्योतिषी के साथ आपकी बातचीत यहाँ दिखेगी ताकि आप उन्हें कभी भी दोबारा देख सकें।' : 'Your chats with the astrologer will appear here so you can revisit them anytime.'}
           </Text>
         </View>
       ) : (
@@ -126,11 +128,11 @@ export default function ChatHistoryScreen() {
             <Reveal index={0}>
               <View style={styles.subHeader}>
                 <Text style={styles.eyebrow}>
-                  {selecting ? `${selected.size} SELECTED` : 'YOUR PAST READINGS'}
+                  {selecting ? (isHindi ? `${selected.size} चयनित` : `${selected.size} SELECTED`) : (isHindi ? 'आपकी पिछली रीडिंग' : 'YOUR PAST READINGS')}
                 </Text>
                 {selecting && (
                   <Pressable onPress={toggleAll} hitSlop={8}>
-                    <Text style={styles.selectAll}>{allSelected() ? 'Clear all' : 'Select all'}</Text>
+                    <Text style={styles.selectAll}>{allSelected() ? (isHindi ? 'सभी हटाएं' : 'Clear all') : (isHindi ? 'सभी चुनें' : 'Select all')}</Text>
                   </Pressable>
                 )}
               </View>
@@ -183,7 +185,7 @@ export default function ChatHistoryScreen() {
                   <>
                     <Icon name="trash" size={17} color={selected.size === 0 ? th.textDim : th.error} />
                     <Text style={[styles.deleteText, selected.size === 0 && styles.deleteTextDisabled]}>
-                      Delete{selected.size > 0 ? ` (${selected.size})` : ''}
+                      {isHindi ? 'हटाएं' : 'Delete'}{selected.size > 0 ? ` (${selected.size})` : ''}
                     </Text>
                   </>
                 )}

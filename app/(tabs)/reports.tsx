@@ -8,10 +8,22 @@ import { listReports, reportCredits, ReportRow, ReportType } from '../../lib/rep
 import { REPORT_META, REPORT_GROUPS, paiseTo, REPORT_PRICES } from '../../config/pricing';
 import { Colors, Fonts, Spacing, Radius, Depth, Accents, AccentName, accentCardGradient, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { GradientCard } from '../../components/GradientCard';
 import { TAB_BAR_HEIGHT } from './_layout';
+
+// Hindi one-line descriptions per report type (English lives in REPORT_META).
+const REPORT_DESC_HI: Record<string, string> = {
+  life: 'आपका पूरा जीवन विश्लेषण — सभी 12 भाव, ग्रह, योग, महादशा समयरेखा और उपाय।',
+  career: '10वें भाव और धन का विश्लेषण, उपयुक्त क्षेत्र, नौकरी बनाम व्यवसाय, शुभ करियर अवधि।',
+  love: 'आपके संबंधों की प्रवृत्ति, समय, और साथी में क्या तलाशें — 5वें और 7वें भाव से।',
+  health: 'शारीरिक प्रवृत्तियां, ध्यान देने योग्य क्षेत्र, और कोमल जीवनशैली मार्गदर्शन। चिकित्सा सलाह नहीं।',
+  education: 'शुभ अध्ययन क्षेत्र, शैक्षणिक शक्तियां, परीक्षा का समय — विद्यार्थियों और अभिभावकों के लिए।',
+  vastu: 'कमरे-दर-कमरे वास्तु परामर्श के लिए अपना फ्लोर प्लान अपलोड करें — स्कोर और उपायों के साथ।',
+  matchmaking: 'साथी के साथ अष्टकूट गुण मिलान — 36-गुण स्कोर, दोष, दोनों कुंडलियां, उपाय।',
+};
 
 // map report type → thin-line icon (replaces the emoji in REPORT_META)
 const REPORT_ICON: Record<string, IconName> = {
@@ -38,6 +50,7 @@ const REPORT_ACCENT: Record<string, AccentName> = {
 export default function ReportsScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi } = useLanguage();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -83,9 +96,9 @@ export default function ReportsScreen() {
       showsVerticalScrollIndicator={false}
     >
       <Reveal index={0}>
-        <Text style={styles.eyebrow}>THE RITHAM LIBRARY</Text>
-        <Text style={styles.h1}>Reports</Text>
-        <Text style={styles.sub}>Premium, personalised readings — beautifully presented.</Text>
+        <Text style={styles.eyebrow}>{isHindi ? 'रिदम लाइब्रेरी' : 'THE RITHAM LIBRARY'}</Text>
+        <Text style={styles.h1}>{t('reports.title')}</Text>
+        <Text style={styles.sub}>{isHindi ? 'प्रीमियम, व्यक्तिगत रीडिंग — सुंदर ढंग से प्रस्तुत।' : 'Premium, personalised readings — beautifully presented.'}</Text>
       </Reveal>
 
       {REPORT_GROUPS.map((group, gi) => {
@@ -94,7 +107,7 @@ export default function ReportsScreen() {
         return (
           <View key={group.key} style={styles.groupSection}>
             <Reveal index={gi + 1}>
-              <Text style={styles.groupLabel}>{group.label}</Text>
+              <Text style={styles.groupLabel}>{t('reports.group.' + group.key)}</Text>
             </Reveal>
             {items.map((meta) => {
               const priceObj = (REPORT_PRICES as any)[meta.type];
@@ -112,10 +125,10 @@ export default function ReportsScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={styles.cardTitleRow}>
-                        <Text style={styles.cardTitle}>{meta.title}</Text>
-                        {flagship && <Text style={styles.flagBadge}>FLAGSHIP</Text>}
+                        <Text style={styles.cardTitle}>{t('report.' + meta.type + '.title')}</Text>
+                        {flagship && <Text style={styles.flagBadge}>{isHindi ? 'प्रमुख' : 'FLAGSHIP'}</Text>}
                       </View>
-                      <Text style={styles.cardDesc}>{meta.desc}</Text>
+                      <Text style={styles.cardDesc}>{isHindi ? (REPORT_DESC_HI[meta.type] ?? meta.desc) : meta.desc}</Text>
                     </View>
                   </View>
 
@@ -128,7 +141,7 @@ export default function ReportsScreen() {
                       >
                         <View style={styles.rowGap}>
                           <Icon name="document" size={15} color={th.goldLight} />
-                          <Text style={styles.myReportsText}>My Reports ({pastReports.length})</Text>
+                          <Text style={styles.myReportsText}>{t('reports.myReports')} ({pastReports.length})</Text>
                         </View>
                         <Icon name={open === meta.type ? 'chevronUp' : 'chevronDown'} size={16} color={th.textMuted} />
                       </Pressable>
@@ -141,9 +154,9 @@ export default function ReportsScreen() {
                           android_ripple={{ color: th.goldFaint }}
                         >
                           <Text style={styles.reportRowText} numberOfLines={1}>
-                            {meta.title}{r.score != null ? ` · ${r.score}${meta.type === 'matchmaking' ? '%' : '/100'}` : ''}
+                            {t('report.' + meta.type + '.title')}{r.score != null ? ` · ${r.score}${meta.type === 'matchmaking' ? '%' : '/100'}` : ''}
                           </Text>
-                          <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString('en-IN')}</Text>
+                          <Text style={styles.reportRowDate}>{new Date(r.created_at).toLocaleDateString(isHindi ? 'hi-IN' : 'en-IN')}</Text>
                         </Pressable>
                       ))}
                     </>
@@ -155,7 +168,7 @@ export default function ReportsScreen() {
                     android_ripple={{ color: th.goldDeep }}
                   >
                     <Text style={styles.primaryBtnText}>
-                      {hasCredits ? 'Create Report' : `Get Report · ${price}`}
+                      {hasCredits ? t('reports.generate') : `${t('reports.buy')} · ${price}`}
                     </Text>
                     <Icon name="arrowRight" size={15} color={th.goldContrast} />
                   </Pressable>
@@ -181,7 +194,7 @@ export default function ReportsScreen() {
       <Reveal index={9}>
         <View style={styles.secureRow}>
           <Icon name="lock" size={13} color={th.textDim} />
-          <Text style={styles.secureNote}>Reports are generated privately and stored for unlimited re-download.</Text>
+          <Text style={styles.secureNote}>{isHindi ? 'रिपोर्ट निजी रूप से बनाई जाती हैं और असीमित पुनः-डाउनलोड के लिए सहेजी जाती हैं।' : 'Reports are generated privately and stored for unlimited re-download.'}</Text>
         </View>
       </Reveal>
       <View style={{ height: Spacing.xl }} />

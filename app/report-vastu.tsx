@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { uploadFloorplan, generateVastu, reportCredits } from '../lib/reportService';
+import { useLanguage } from '../context/LanguageContext';
 import { purchasePack } from '../lib/paymentService';
 import { track } from '../lib/analytics';
 import { REPORT_PRICES, paiseTo } from '../config/pricing';
@@ -21,6 +22,7 @@ const CONCERNS = ['General well-being', 'Career', 'Finances', 'Relationships', '
 
 export default function VastuIntake() {
   const th = useColors();
+  const { lang } = useLanguage();
   const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
@@ -89,7 +91,7 @@ export default function VastuIntake() {
       name: name.trim() || 'Your Home',
       facing, shape, kitchen, master_bedroom: masterBedroom, pooja, toilets, concern,
     };
-    const res = await generateVastu(answers, up.path);
+    const res = await generateVastu(answers, up.path, lang);
     setGenerating(false);
 
     if (res.report_id) {

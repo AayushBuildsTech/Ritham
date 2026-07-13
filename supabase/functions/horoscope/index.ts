@@ -24,6 +24,7 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 type Period = 'daily' | 'weekly' | 'monthly';
+type Lang = 'en' | 'hi';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -40,11 +41,13 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    const { profileId, period } = await req.json();
+    const { profileId, period, lang: langRaw } = await req.json();
     if (period !== 'daily' && period !== 'weekly' && period !== 'monthly') {
       return json({ error: 'bad_period' }, 400);
     }
     if (!profileId) return json({ error: 'missing_profile' }, 400);
+    // App language: 'hi' → Hindi (Devanagari) reading; anything else → English.
+    const lang: Lang = langRaw === 'hi' ? 'hi' : 'en';
 
     // resolve the user's chart from their (own) profile
     const { data: profile } = await admin
@@ -55,7 +58,10 @@ Deno.serve(async (req) => {
     const sign: string | undefined = chart?.moon_sign;
     if (!sign) return json({ error: 'kundli_missing' }, 400);
 
-    const periodKey = periodKeyFor(period as Period);
+    // Language is folded into the cache key so a Hindi and an English reading for the
+    // same profile/period are cached as separate rows. English keeps the plain key
+    // (back-compat with rows cached before bilingual support).
+    const periodKey = periodKeyFor(period as Period, lang);
 
     // Cache hit? PER-PROFILE now (spec §2 — the horoscope references THIS person's dasha
     // + current transits, not a generic sign reading). Still generated at most once per
@@ -74,7 +80,7 @@ Deno.serve(async (req) => {
     try { if (Array.isArray(chart?.dasha_timeline) && chart.dasha_timeline.length) dyn = currentDynamics(chart); } catch (_) { /* sign-level */ }
 
     // miss → generate, then store (ignore unique-violation from a concurrent writer)
-    const body = await generateHoroscope(sign, period as Period, periodKey, dyn);
+    const body = await generateHoroscope(sign, period as Period, periodKey, dyn, lang);
     const { error: insErr } = await admin
       .from('horoscopes').insert({ profile_id: profileId, sign, period, period_key: periodKey, body });
     if (insErr && (insErr as any).code === '23505') {
@@ -100,12 +106,18 @@ function istYMD(): { y: number; m: number; d: number; iso: string } {
   return { y, m, d, iso };
 }
 
-function periodKeyFor(period: Period): string {
+function periodKeyFor(period: Period, lang: Lang = 'en'): string {
   const { y, m, d, iso } = istYMD();
-  if (period === 'daily') return iso;                 // YYYY-MM-DD
-  if (period === 'monthly') return iso.slice(0, 7);   // YYYY-MM
-  const { year, week } = isoWeek(y, m, d);            // weekly → ISO week
-  return `${year}-W${String(week).padStart(2, '0')}`;
+  let key: string;
+  if (period === 'daily') key = iso;                      // YYYY-MM-DD
+  else if (period === 'monthly') key = iso.slice(0, 7);   // YYYY-MM
+  else {
+    const { year, week } = isoWeek(y, m, d);              // weekly → ISO week
+    key = `${year}-W${String(week).padStart(2, '0')}`;
+  }
+  // Suffix the language so Hindi & English readings cache separately. English keeps
+  // the bare key so rows cached before bilingual support still hit.
+  return lang === 'hi' ? `${key}:hi` : key;
 }
 
 function isoWeek(y: number, m: number, d: number): { year: number; week: number } {
@@ -134,10 +146,15 @@ function transitContext(dyn: any): string {
   return parts.join('; ');
 }
 
-function buildPrompt(sign: string, period: Period, dyn: any): { system: string; user: string } {
+function buildPrompt(sign: string, period: Period, dyn: any, lang: Lang = 'en'): { system: string; user: string } {
   const span = period === 'daily' ? 'today' : period === 'weekly' ? 'this week' : 'this month';
   const ctx = transitContext(dyn);
-  const system = ctx
+  // When the app language is Hindi, the astrological framing stays (it encodes the
+  // computed facts), but the OUTPUT must be entirely Devanagari Hindi.
+  const hindiDirective = lang === 'hi'
+    ? ' Write the ENTIRE horoscope in natural, warm HINDI in Devanagari script — the way a real family pandit speaks. Keep common Sanskrit/astrology terms (Rashi, Nakshatra, Guru, Shani, Rahu, Ketu, dasha, Sade Sati) in Devanagari too. Do NOT reply in English or romanised Hindi.'
+    : '';
+  const system = (ctx
     ? [
         `You are Ritham, a warm and wise Vedic astrologer (jyotishi) writing a ${period} horoscope`,
         `for a person whose Moon sign (Rashi) is ${sign}.`,
@@ -160,15 +177,28 @@ function buildPrompt(sign: string, period: Period, dyn: any): { system: string; 
         `Tone: calm, encouraging, grounded — never fear-mongering, never kitschy.`,
         `Length: 2–3 short paragraphs. Address the reader as "you". Plain, warm English with the`,
         `occasional Sanskrit term.`,
-      ].join(' ');
-  const user = `Write the ${period} horoscope for ${sign} (${span}).`;
+      ].join(' ')) + hindiDirective;
+  const user = lang === 'hi'
+    ? `${sign} राशि के लिए ${period === 'daily' ? 'आज का' : period === 'weekly' ? 'इस सप्ताह का' : 'इस महीने का'} राशिफल हिंदी (देवनागरी) में लिखें।`
+    : `Write the ${period} horoscope for ${sign} (${span}).`;
   return { system, user };
 }
 
-async function generateHoroscope(sign: string, period: Period, periodKey: string, dyn: any = null): Promise<string> {
+async function generateHoroscope(sign: string, period: Period, periodKey: string, dyn: any = null, lang: Lang = 'en'): Promise<string> {
   if (!ANTHROPIC_API_KEY) {
-    const span = period === 'daily' ? 'Today' : period === 'weekly' ? 'This week' : 'This month';
     const signName = sign.split(' (')[0];
+    if (lang === 'hi') {
+      const span = period === 'daily' ? 'आज' : period === 'weekly' ? 'इस सप्ताह' : 'इस महीने';
+      return (
+        `🌙 (झलक राशिफल — Claude API कुंजी सेट होते ही असली AI सक्रिय हो जाएगा।)\n\n` +
+        `${span}, ${signName} राशि के लिए चंद्रमा एक स्थिर, सजग गति का साथ देते हैं। रिश्तों में धैर्य रखें ` +
+        `और कोमलता से बोलें — एक छोटी-सी दया आपके पास लौटकर आती है। काम और धन में, कुछ नया शुरू करने के बजाय ` +
+        `जो अधूरा है उसे पूरा करने पर ध्यान दें; निरंतरता अभी आपकी मित्र है।\n\n` +
+        `${span} का एक सरल संकल्प: प्रतिक्रिया देने से पहले कुछ गहरी साँसें लें, और थोड़ा दान या एक शांत मंत्र ` +
+        `अर्पित करें। तारे जल्दबाज़ी से अधिक शांत आत्मविश्वास को प्रोत्साहित करते हैं।`
+      );
+    }
+    const span = period === 'daily' ? 'Today' : period === 'weekly' ? 'This week' : 'This month';
     const ctx = transitContext(dyn);
     const ctxLine = ctx ? ` With ${ctx.split(';')[0].trim()} in play, ` : ' ';
     return (
@@ -181,7 +211,7 @@ async function generateHoroscope(sign: string, period: Period, periodKey: string
     );
   }
 
-  const { system, user } = buildPrompt(sign, period, dyn);
+  const { system, user } = buildPrompt(sign, period, dyn, lang);
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -191,7 +221,9 @@ async function generateHoroscope(sign: string, period: Period, periodKey: string
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 700,
+      // Devanagari tokenises heavier than Latin — give Hindi more room so the
+      // 2–3 paragraph reading isn't truncated mid-sentence.
+      max_tokens: lang === 'hi' ? 1100 : 700,
       thinking: { type: 'disabled' },
       system,
       messages: [{ role: 'user', content: user }],
@@ -203,7 +235,10 @@ async function generateHoroscope(sign: string, period: Period, periodKey: string
   }
   const data = await res.json();
   const textBlock = (data.content ?? []).find((b: any) => b.type === 'text');
-  return textBlock?.text ?? 'The stars are quiet just now — please check back shortly.';
+  const fallback = lang === 'hi'
+    ? 'तारे इस समय शांत हैं — कृपया थोड़ी देर बाद फिर देखें।'
+    : 'The stars are quiet just now — please check back shortly.';
+  return textBlock?.text ?? fallback;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -4,7 +4,76 @@
 
 ---
 
-## 0. Latest Session (2026-07-11) — AI VOICE CALLING shipped & working end-to-end on device
+## 0. Latest Session (2026-07-13) — BILINGUAL (English / हिन्दी) — app-wide language switch
+
+Added a full **English / Hindi** language system. A language chooser now appears **before Google
+login** on first launch, and it's changeable anytime in **Settings**. Pick English → app as usual.
+Pick हिन्दी → the whole UI renders in Hindi (Devanagari), horoscopes generate in Hindi, and paid
+reports are narrated in Hindi. Chat is intentionally **unchanged** — it already auto-detects the
+user's script and mirrors it (English → English, Hinglish → Hinglish, Devanagari → Devanagari).
+
+**Client `npx tsc --noEmit` = 0 errors.** Nothing deployed yet — see "Deploy needed" below.
+
+**Architecture (mirrors ThemeContext — client is the source of truth, works pre-login):**
+- `context/LanguageContext.tsx` — `LanguageProvider` + `useLanguage()` + `useT()`. Persists `lang`
+  ('en'|'hi') and a `chosen` flag to AsyncStorage (keys `ritham.lang`, `ritham.langChosen`). No DB
+  column — the language rides in the request body to the functions that need it.
+- `lib/i18n.ts` — the bilingual string table (`translate(lang, key, vars)`), missing-key/hi falls
+  back to English then to the key. `{var}` interpolation.
+- `app/language.tsx` — pre-login chooser (bilingual copy, radio cards). On continue → `setLang` →
+  `router.replace('/(auth)')`.
+- `app/_layout.tsx` — `LanguageProvider` wraps the tree (inside `ThemeProvider`); `RootLayoutInner`
+  also gates the splash on `langReady`. **AuthGate** now: if `!chosen` → force `/language` before
+  anything (even sign-in); else the usual auth routing. NOTE: `app/language.tsx` is a new route, so
+  two spots cast to satisfy the (stale) generated router types until Expo regenerates them on next run.
+
+**UI translated (via `useT()` / inline `isHindi ?`): ALL screens.** Tab bar, **Home**, **Chat**,
+**Call**, **Reports** tab, **Store**, **Settings** (+ language toggle), **Sign-in**, **Language**
+chooser, **Paywall** (shared), **Horoscope**, **Panchang**, **Muhurat**, **Numerology**,
+**Retrograde**, **Sade Sati**, **Profile / Kundli form + Kundli view**, **Family**,
+**Onboarding-family**, **Darshan**, **Chat history**, **Chat conversation**, **Report view**. Every
+string falls back to English if a key is missing, so nothing can break. `npx tsc --noEmit` = 0 errors.
+
+**Astrological CONTENT now translated too (2026-07-13, later):** `lib/astroHindi.ts` maps the
+computed/VedAstro tokens (rashi, graha, nakshatra, dignity, condition flags, weekday, house ordinals)
+to Devanagari at render time — the stored chart stays English + shared, we translate on display. The
+**entire Kundli view** now renders in Hindi (KeyCards, lagna-lord line, planetary-positions +
+house-lords + D9/D10 tables, Vimshottari dasha, chart legend, varga tab labels, share text, and the
+"chart at a glance" life-area cards via `buildLifeAreasHi`). Config prose got Hindi variants:
+`sadeSatiPhases.ts` (`*_HI`), `retrogradeMeanings.ts` (`*_HI`), `constants/numerology.ts`
+(`NUMEROLOGY_MEANINGS_HI` / `meaningForHi`), `config/temples.ts` (`TEMPLE_HI`), plus Panchang
+nakshatra/weekday and Muhurat nakshatra.
+
+**Only remaining English (documented boundary):** the **yoga/dosha NAME + DETAIL prose** on the Kundli
+view — that text is authored per-chart by VedAstro/the engine and stored English in `kundli_chart`, so
+it can't be map-translated (same category as chat/report AI text). Yoga *names* are mostly Sanskrit
+proper nouns anyway. Panchang **tithi/yoga/karana** values stay as their Sanskrit transliterations
+(they are the Sanskrit terms). Everything else the user reads is Devanagari. `tsc` = 0 errors.
+
+**Backend — Hindi generation (the client passes `lang`):**
+- `supabase/functions/horoscope/index.ts` — reads `lang` from the body; **folds language into the
+  cache `period_key`** (`…:hi` suffix) so Hindi & English cache as separate rows with NO migration
+  (English keeps the bare key → old rows still hit). Hindi prompt directive + Hindi mock + higher
+  `max_tokens` (1100) for Devanagari. `lib/horoscopeService.getHoroscope(profileId, period, lang)`.
+- `supabase/functions/report/index.ts` — reads `lang`; a shared `HINDI_REPORT_DIRECTIVE` is appended
+  to all three AI generators (`generateVastuLive`, `generateMatchLive`, `narrateChart`/`buildSystem`)
+  so every human-readable JSON string value is Devanagari while the JSON contract + computed facts
+  stay English. Raised `max_tokens` for Hindi. `lib/reportService` generate* now take `lang`; the 3
+  report intake screens pass the active `lang`. (Fixed HTML chrome labels — cover boilerplate,
+  disclaimers — are still English; the AI-authored prose/headings are Hindi. A follow-up can translate
+  the render scaffolding.)
+- Chat: **no change** (requirement) — Devanagari-in → Devanagari-out already works (`chat/index.ts`
+  language rule).
+
+**⚠️ Deploy needed (nothing shipped this session):** redeploy the **`horoscope`** and **`report`**
+Edge Functions via CLI (`npx supabase functions deploy horoscope --project-ref eaxdqizerkuqkujxacru`
+and same for `report`). Both are single-file (engines inlined) so no `_shared` regen. The client
+changes ship in the JS bundle (no native rebuild — no new native modules). New analytics events
+`language_selected` / `language_changed` added to `lib/analytics.ts`.
+
+---
+
+## Prior Session (2026-07-11) — AI VOICE CALLING shipped & working end-to-end on device
 
 Added a **"Call" tab**: users tap and have a real spoken one-on-one with the same AI Jyotishi
 as chat — same brain, same Kundli, in native Hindi. Verified live on device: connects, greets,

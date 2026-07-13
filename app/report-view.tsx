@@ -8,12 +8,14 @@ import { getReport, ReportRow } from '../lib/reportService';
 import { track } from '../lib/analytics';
 import { Colors, Fonts, Spacing, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
 export default function ReportView() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi } = useLanguage();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -52,12 +54,12 @@ export default function ReportView() {
       const { uri } = await Print.printToFileAsync({ html: report.html });
       track('report_downloaded', { type: report.type });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Your Report' });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: isHindi ? 'आपकी रिपोर्ट' : 'Your Report' });
       } else {
-        Alert.alert('Saved', `PDF saved to: ${uri}`);
+        Alert.alert(isHindi ? 'सहेजा गया' : 'Saved', `${isHindi ? 'PDF यहाँ सहेजी गई:' : 'PDF saved to:'} ${uri}`);
       }
     } catch {
-      Alert.alert('Export failed', 'We couldn’t create the PDF. Please try again.');
+      Alert.alert(isHindi ? 'निर्यात विफल' : 'Export failed', isHindi ? 'हम PDF नहीं बना सके। कृपया फिर कोशिश करें।' : 'We couldn’t create the PDF. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -66,7 +68,7 @@ export default function ReportView() {
   return (
     <View style={styles.root}>
       <ScreenHeader
-        title="Your Report"
+        title={isHindi ? 'आपकी रिपोर्ट' : 'Your Report'}
         onBack={() => router.back()}
         right={
           <Pressable onPress={download} disabled={!report?.html || exporting} style={styles.dlBtn} hitSlop={8}>
@@ -82,23 +84,25 @@ export default function ReportView() {
       ) : report?.status === 'generating' ? (
         <View style={styles.center}>
           <ActivityIndicator color={th.gold} size="large" />
-          <Text style={styles.genTitle}>Preparing your report…</Text>
+          <Text style={styles.genTitle}>{t('reports.generating')}</Text>
           <Text style={styles.msg}>
-            Our astrologer is reading your chart and writing your report. This can take a
-            minute or two — please keep this screen open.
+            {isHindi
+              ? 'हमारे ज्योतिषी आपकी कुंडली पढ़कर आपकी रिपोर्ट लिख रहे हैं। इसमें एक-दो मिनट लग सकते हैं — कृपया यह स्क्रीन खुली रखें।'
+              : 'Our astrologer is reading your chart and writing your report. This can take a minute or two — please keep this screen open.'}
           </Text>
         </View>
       ) : report?.status === 'failed' ? (
         <View style={styles.center}>
-          <Text style={styles.genTitle}>We couldn’t finish this report</Text>
+          <Text style={styles.genTitle}>{isHindi ? 'हम यह रिपोर्ट पूरी नहीं कर सके' : 'We couldn’t finish this report'}</Text>
           <Text style={styles.msg}>
-            Something went wrong while preparing it. Your report credit is safe — please go
-            back to Reports and try generating it again.
+            {isHindi
+              ? 'इसे तैयार करते समय कुछ गड़बड़ हुई। आपका रिपोर्ट क्रेडिट सुरक्षित है — कृपया रिपोर्ट पर वापस जाकर इसे फिर से बनाएं।'
+              : 'Something went wrong while preparing it. Your report credit is safe — please go back to Reports and try generating it again.'}
           </Text>
         </View>
       ) : !report || !report.html ? (
         <View style={styles.center}>
-          <Text style={styles.msg}>This report isn’t available.</Text>
+          <Text style={styles.msg}>{isHindi ? 'यह रिपोर्ट उपलब्ध नहीं है।' : 'This report isn’t available.'}</Text>
         </View>
       ) : (
         <WebView

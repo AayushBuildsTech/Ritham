@@ -16,19 +16,27 @@ import Paywall from '../../components/Paywall';
 import { formatSeconds } from '../../config/pricing';
 import { Colors, Fonts, Spacing, Radius, Accents, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Icon } from '../../components/Icon';
 import { TAB_BAR_HEIGHT } from './_layout';
 
 type Entry = 'loading' | 'need_profile' | 'ready';
 interface Msg { role: 'user' | 'assistant'; content: string }
 
-// Starter questions for an empty chat — weighted to the natural Hindi-English style
-// our users speak, with one plain-English example so the language freedom is obvious.
-const STARTER_CHIPS = [
+// Starter questions for an empty chat. Hindi users get Devanagari starters (so a tap
+// sends Devanagari → a Devanagari reply); English users get the natural Hinglish mix
+// with one plain-English example so the language freedom is obvious.
+const STARTER_CHIPS_EN = [
   'Aaj mera din kaisa rahega?',
   'Meri shaadi kab hogi?',
   'Career mein growth kab aayegi?',
   'Will I get a job this year?',
+];
+const STARTER_CHIPS_HI = [
+  'आज मेरा दिन कैसा रहेगा?',
+  'मेरी शादी कब होगी?',
+  'करियर में तरक्की कब आएगी?',
+  'क्या इस साल मुझे नौकरी मिलेगी?',
 ];
 
 function mmss(sec: number) {
@@ -40,6 +48,8 @@ function mmss(sec: number) {
 export default function ChatScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
+  const STARTER_CHIPS = isHindi ? STARTER_CHIPS_HI : STARTER_CHIPS_EN;
   const router = useRouter();
   const { user } = useAuth();
   const { activeId } = useActiveProfile();
@@ -151,11 +161,11 @@ export default function ChatScreen() {
     if (res.expired) {
       setEnded(true);
       setShowPaywall(true);
-      setBanner('Your session has ended.');
+      setBanner(isHindi ? 'आपका सत्र समाप्त हो गया है।' : 'Your session has ended.');
       return;
     }
     if (res.error) {
-      setMessages((m) => [...m, { role: 'assistant', content: 'Something went wrong. Please try again in a moment.' }]);
+      setMessages((m) => [...m, { role: 'assistant', content: isHindi ? 'कुछ गड़बड़ हो गई। कृपया थोड़ी देर में फिर कोशिश करें।' : 'Something went wrong. Please try again in a moment.' }]);
       scrollDown();
       return;
     }
@@ -201,10 +211,10 @@ export default function ChatScreen() {
     return (
       <View style={styles.center}>
         <View style={styles.emptyIcon}><Icon name="sparkle" size={30} color={Accents.sapphire.color} /></View>
-        <Text style={styles.title}>Ask the astrologer</Text>
-        <Text style={styles.subtitle}>Create your Kundli first so your astrologer can read your chart.</Text>
+        <Text style={styles.title}>{isHindi ? 'ज्योतिषी से पूछें' : 'Ask the astrologer'}</Text>
+        <Text style={styles.subtitle}>{isHindi ? 'पहले अपनी कुंडली बनाएं ताकि आपके ज्योतिषी आपकी कुंडली पढ़ सकें।' : 'Create your Kundli first so your astrologer can read your chart.'}</Text>
         <Pressable style={styles.btn} onPress={() => router.push('/profile')} android_ripple={{ color: th.goldDeep }}>
-          <Text style={styles.btnText}>Set up your Kundli</Text>
+          <Text style={styles.btnText}>{isHindi ? 'अपनी कुंडली बनाएं' : 'Set up your Kundli'}</Text>
           <Icon name="arrowRight" size={16} color={th.goldContrast} />
         </Pressable>
       </View>
@@ -233,7 +243,7 @@ export default function ChatScreen() {
           {sessionKind === 'paid_questions' && !ended && balance && (
             <View style={styles.pill}>
               <Icon name="question" size={14} color={th.goldLight} />
-              <Text style={styles.pillText}>{balance.questions} left</Text>
+              <Text style={styles.pillText}>{balance.questions} {isHindi ? 'शेष' : 'left'}</Text>
             </View>
           )}
           <Pressable
@@ -260,21 +270,21 @@ export default function ChatScreen() {
       >
         {notStarted && !freeUsed && !showPaywall && (
           <View style={styles.introCard}>
-            <Text style={styles.introEyebrow}>YOUR FIRST MINUTE IS FREE</Text>
-            <Text style={styles.introTitle}>A conversation with the stars</Text>
+            <Text style={styles.introEyebrow}>{isHindi ? 'आपका पहला मिनट निःशुल्क है' : 'YOUR FIRST MINUTE IS FREE'}</Text>
+            <Text style={styles.introTitle}>{isHindi ? 'तारों से एक बातचीत' : 'A conversation with the stars'}</Text>
             <Text style={styles.introDisclaimer}>
-              For guidance and reflection — not a substitute for professional advice.
+              {isHindi ? 'मार्गदर्शन और चिंतन के लिए — पेशेवर सलाह का विकल्प नहीं।' : 'For guidance and reflection — not a substitute for professional advice.'}
             </Text>
           </View>
         )}
 
         {notStarted && freeUsed && hasBalance && !showPaywall && (
           <View style={styles.introCard}>
-            <Text style={styles.introTitle}>You’re ready to chat</Text>
+            <Text style={styles.introTitle}>{isHindi ? 'आप बातचीत के लिए तैयार हैं' : 'You’re ready to chat'}</Text>
             <Text style={styles.introText}>
-              {balance!.questions > 0 && `You have ${balance!.questions} question${balance!.questions > 1 ? 's' : ''}. `}
-              {balance!.seconds > 0 && `You have ${formatSeconds(balance!.seconds)} of talk time. `}
-              Send a message to begin.
+              {balance!.questions > 0 && (isHindi ? `आपके पास ${balance!.questions} प्रश्न हैं। ` : `You have ${balance!.questions} question${balance!.questions > 1 ? 's' : ''}. `)}
+              {balance!.seconds > 0 && (isHindi ? `आपके पास ${formatSeconds(balance!.seconds)} का समय है। ` : `You have ${formatSeconds(balance!.seconds)} of talk time. `)}
+              {isHindi ? 'शुरू करने के लिए एक संदेश भेजें।' : 'Send a message to begin.'}
             </Text>
           </View>
         )}
@@ -317,11 +327,11 @@ export default function ChatScreen() {
         {/* Paywall — shown when the free minute / pack is exhausted, or on demand */}
         {(showPaywall || (notStarted && freeUsed && !hasBalance)) && (
           <Paywall
-            title={ended ? 'Your session ended' : 'Continue your reading'}
+            title={ended ? (isHindi ? 'आपका सत्र समाप्त हुआ' : 'Your session ended') : (isHindi ? 'अपनी बातचीत जारी रखें' : 'Continue your reading')}
             subtitle={
               ended
-                ? 'Pick a pack to keep chatting with your astrologer.'
-                : 'Unlock more with a question or time pack.'
+                ? (isHindi ? 'अपने ज्योतिषी से बात जारी रखने के लिए एक पैक चुनें।' : 'Pick a pack to keep chatting with your astrologer.')
+                : (isHindi ? 'प्रश्न या समय पैक से और अधिक अनलॉक करें।' : 'Unlock more with a question or time pack.')
             }
             prefill={{ email: user?.email ?? '', name: profile?.name }}
             onPurchased={handlePurchased}
@@ -333,7 +343,7 @@ export default function ChatScreen() {
         <View style={[styles.inputRow, { paddingBottom: kbVisible ? Spacing.sm : insets.bottom + TAB_BAR_HEIGHT }]}>
           <TextInput
             style={styles.input}
-            placeholder={inputLocked ? 'Session ended' : 'Apna sawaal poochein... (Hindi ya English)'}
+            placeholder={inputLocked ? (isHindi ? 'सत्र समाप्त' : 'Session ended') : (isHindi ? 'अपना सवाल पूछें… (हिंदी या अंग्रेज़ी)' : 'Apna sawaal poochein... (Hindi ya English)')}
             placeholderTextColor={th.textDim}
             value={input}
             onChangeText={setInput}

@@ -6,17 +6,16 @@ import { getHoroscope, HoroscopePeriod } from '../lib/horoscopeService';
 import { track } from '../lib/analytics';
 import { Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 
-const PERIODS: { id: HoroscopePeriod; label: string }[] = [
-  { id: 'daily', label: 'Daily' },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'monthly', label: 'Monthly' },
-];
+const PERIOD_IDS: HoroscopePeriod[] = ['daily', 'weekly', 'monthly'];
 
 export default function HoroscopeScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi, lang } = useLanguage();
+  const periodLabel = (id: HoroscopePeriod) => t('home.' + id);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profileId, moonSign } = useLocalSearchParams<{ profileId: string; moonSign?: string }>();
@@ -33,7 +32,7 @@ export default function HoroscopeScreen() {
     let cancelled = false;
     (async () => {
       setLoadingPeriod(period);
-      const res = await getHoroscope(profileId, period);
+      const res = await getHoroscope(profileId, period, lang);
       if (cancelled) return;
       if (res.body) setTexts((t) => ({ ...t, [period]: res.body! }));
       else setErrors((e) => ({ ...e, [period]: res.error ?? 'request_failed' }));
@@ -50,14 +49,14 @@ export default function HoroscopeScreen() {
   async function shareHoroscope() {
     const body = texts[period];
     if (!body) return;
-    const label = PERIODS.find((p) => p.id === period)?.label ?? 'Horoscope';
+    const label = periodLabel(period);
     const who = moonSign ? ` (${moonSign})` : '';
     const msg = [
-      `${label} Horoscope${who} — Ritham`,
+      isHindi ? `${label} राशिफल${who} — Ritham` : `${label} Horoscope${who} — Ritham`,
       '',
       body,
       '',
-      'Get your personalised Vedic horoscope on Ritham:',
+      isHindi ? 'Ritham पर अपना व्यक्तिगत वैदिक राशिफल पाएं:' : 'Get your personalised Vedic horoscope on Ritham:',
       'https://ritham.netlify.app',
     ].join('\n');
     try {
@@ -78,19 +77,19 @@ export default function HoroscopeScreen() {
           android_ripple={{ color: th.goldFaint, borderless: true, radius: 20 }}
         >
           <Icon name="back" size={20} color={th.gold} />
-          <Text style={styles.backText}>Back</Text>
+          <Text style={styles.backText}>{t('common.back')}</Text>
         </Pressable>
 
-        <Text style={styles.eyebrow}>YOUR HOROSCOPE</Text>
-        <Text style={styles.h1}>The stars, for you</Text>
+        <Text style={styles.eyebrow}>{isHindi ? 'आपका राशिफल' : 'YOUR HOROSCOPE'}</Text>
+        <Text style={styles.h1}>{isHindi ? 'तारे, आपके लिए' : 'The stars, for you'}</Text>
 
         {/* underline segmented control */}
         <View style={styles.segment}>
-          {PERIODS.map((p) => {
-            const active = period === p.id;
+          {PERIOD_IDS.map((id) => {
+            const active = period === id;
             return (
-              <Pressable key={p.id} style={styles.segmentBtn} onPress={() => setPeriod(p.id)}>
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{p.label}</Text>
+              <Pressable key={id} style={styles.segmentBtn} onPress={() => setPeriod(id)}>
+                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{periodLabel(id)}</Text>
                 <View style={[styles.segmentRule, active && styles.segmentRuleActive]} />
               </Pressable>
             );
@@ -101,13 +100,13 @@ export default function HoroscopeScreen() {
           {loadingPeriod === period ? (
             <View style={styles.loadingWrap}>
               <ActivityIndicator color={th.gold} />
-              <Text style={styles.muted}>Reading the stars…</Text>
+              <Text style={styles.muted}>{isHindi ? 'तारे पढ़ रहे हैं…' : 'Reading the stars…'}</Text>
             </View>
           ) : errors[period] ? (
             <View style={styles.loadingWrap}>
-              <Text style={styles.muted}>Couldn’t load your horoscope right now.</Text>
+              <Text style={styles.muted}>{isHindi ? 'अभी आपका राशिफल लोड नहीं हो सका।' : 'Couldn’t load your horoscope right now.'}</Text>
               <Pressable style={styles.retryBtn} onPress={() => retry(period)}>
-                <Text style={styles.retryText}>Try again</Text>
+                <Text style={styles.retryText}>{t('common.retry')}</Text>
               </Pressable>
             </View>
           ) : (
@@ -116,14 +115,14 @@ export default function HoroscopeScreen() {
               <Text style={styles.body}>{texts[period]}</Text>
               <Pressable style={styles.shareRow} onPress={shareHoroscope} android_ripple={{ color: th.goldFaint }}>
                 <Icon name="share" size={15} color={th.goldLight} />
-                <Text style={styles.shareText}>Share</Text>
+                <Text style={styles.shareText}>{isHindi ? 'साझा करें' : 'Share'}</Text>
               </Pressable>
             </>
           )}
         </View>
 
         <Text style={styles.disclaimer}>
-          Horoscopes are for guidance and reflection, not a substitute for professional advice.
+          {isHindi ? 'राशिफल मार्गदर्शन और चिंतन के लिए हैं, यह पेशेवर सलाह का विकल्प नहीं हैं।' : 'Horoscopes are for guidance and reflection, not a substitute for professional advice.'}
         </Text>
         <View style={{ height: Spacing.xxl }} />
       </ScrollView>

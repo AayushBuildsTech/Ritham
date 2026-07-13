@@ -2,19 +2,28 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Fonts, Spacing, Radius, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { TAB_BAR_HEIGHT } from './_layout';
 
-const CATEGORIES: { icon: IconName; accent: AccentName; title: string; desc: string }[] = [
+type Category = { icon: IconName; accent: AccentName; title: string; desc: string };
+const CATEGORIES_EN: Category[] = [
   { icon: 'beads', accent: 'saffron', title: 'Rudraksha', desc: 'Certified, energised beads and malas for daily practice and protection.' },
   { icon: 'diamond', accent: 'sapphire', title: 'Gemstone Bracelets', desc: 'Genuine crystal bracelets, chosen to balance and strengthen your chart.' },
   { icon: 'eye', accent: 'amethyst', title: 'Evil Eye', desc: 'Nazar-suraksha charms and bracelets to guard against negative energy.' },
+];
+const CATEGORIES_HI: Category[] = [
+  { icon: 'beads', accent: 'saffron', title: 'रुद्राक्ष', desc: 'दैनिक साधना और सुरक्षा के लिए प्रमाणित, ऊर्जावान मनके और मालाएं।' },
+  { icon: 'diamond', accent: 'sapphire', title: 'रत्न ब्रेसलेट', desc: 'आपकी कुंडली को संतुलित और सशक्त करने के लिए चुने गए असली क्रिस्टल ब्रेसलेट।' },
+  { icon: 'eye', accent: 'amethyst', title: 'नज़र रक्षा', desc: 'नकारात्मक ऊर्जा से बचाव के लिए नज़र-सुरक्षा चार्म और ब्रेसलेट।' },
 ];
 
 export default function StoreScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
+  const CATEGORIES = isHindi ? CATEGORIES_HI : CATEGORIES_EN;
   const insets = useSafeAreaInsets();
   return (
     <ScrollView
@@ -28,17 +37,18 @@ export default function StoreScreen() {
       <Reveal index={0}>
         <View style={styles.hero}>
           <Text style={styles.brand}>RITHAM</Text>
-          <Text style={styles.title}>The Sacred Store</Text>
-          <View style={styles.pill}><Text style={styles.pillText}>COMING SOON</Text></View>
+          <Text style={styles.title}>{isHindi ? 'पवित्र स्टोर' : 'The Sacred Store'}</Text>
+          <View style={styles.pill}><Text style={styles.pillText}>{isHindi ? 'जल्द आ रहा है' : 'COMING SOON'}</Text></View>
           <Text style={styles.subtitle}>
-            A curated collection of rudraksha, gemstone bracelets and evil-eye charms —
-            authentic, energised and matched to your chart. We’re putting the finishing touches on it.
+            {isHindi
+              ? 'रुद्राक्ष, रत्न ब्रेसलेट और नज़र रक्षा चार्म का चुनिंदा संग्रह — प्रामाणिक, ऊर्जावान और आपकी कुंडली के अनुरूप। हम इसे अंतिम रूप दे रहे हैं।'
+              : 'A curated collection of rudraksha, gemstone bracelets and evil-eye charms — authentic, energised and matched to your chart. We’re putting the finishing touches on it.'}
           </Text>
         </View>
       </Reveal>
 
       <Reveal index={1}>
-        <Text style={styles.previewLabel}>A GLIMPSE OF WHAT’S COMING</Text>
+        <Text style={styles.previewLabel}>{isHindi ? 'आगे क्या आ रहा है — एक झलक' : 'A GLIMPSE OF WHAT’S COMING'}</Text>
       </Reveal>
 
       {CATEGORIES.map((c, i) => (
@@ -57,7 +67,9 @@ export default function StoreScreen() {
 
       <Reveal index={5}>
         <Text style={styles.note}>
-          Until then, explore your Kundli, daily horoscopes and consult our AI astrologer.
+          {isHindi
+            ? 'तब तक, अपनी कुंडली, दैनिक राशिफल देखें और हमारे AI ज्योतिषी से परामर्श करें।'
+            : 'Until then, explore your Kundli, daily horoscopes and consult our AI astrologer.'}
         </Text>
       </Reveal>
       <View style={{ height: Spacing.xxl }} />

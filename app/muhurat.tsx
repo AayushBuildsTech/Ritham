@@ -6,6 +6,8 @@ import { MUHURAT_ACTIVITIES, activityById, FunnelTarget } from '../config/muhura
 import { track } from '../lib/analytics';
 import { Colors, Fonts, Spacing, Radius, Depth, Accents, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { hiNakshatra } from '../lib/astroHindi';
 import { Icon, IconName } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
@@ -24,6 +26,7 @@ const ACTIVITY_ICON: Record<string, IconName> = {
 export default function MuhuratScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi } = useLanguage();
   const router = useRouter();
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
 
@@ -58,14 +61,14 @@ export default function MuhuratScreen() {
   return (
     <View style={styles.root}>
       <ScreenHeader
-        title="Shubh Muhurat"
+        title={t('muhurat.title')}
         onBack={() => (current ? (setActivity(null), setState('idle')) : router.back())}
       />
 
       {/* ── Activity picker ─────────────────────────────────────────────────── */}
       {!current ? (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.lead}>Find auspicious dates for…</Text>
+          <Text style={styles.lead}>{isHindi ? 'शुभ तिथियां खोजें…' : 'Find auspicious dates for…'}</Text>
           {MUHURAT_ACTIVITIES.map((a, i) => (
             <Reveal key={a.id} index={i}>
               <Pressable style={styles.activityRow} android_ripple={{ color: th.goldFaint }} onPress={() => pick(a.id)}>
@@ -80,8 +83,9 @@ export default function MuhuratScreen() {
             </Reveal>
           ))}
           <Text style={styles.disclaimer}>
-            Muhurat suggestions are computed from Panchang for guidance only. For important events,
-            please confirm the timing with your family priest or astrologer.
+            {isHindi
+              ? 'मुहूर्त सुझाव केवल मार्गदर्शन के लिए पंचांग से गणना किए जाते हैं। महत्वपूर्ण अवसरों के लिए, कृपया समय की पुष्टि अपने परिवार के पंडित या ज्योतिषी से करें।'
+              : 'Muhurat suggestions are computed from Panchang for guidance only. For important events, please confirm the timing with your family priest or astrologer.'}
           </Text>
         </ScrollView>
       ) : (
@@ -91,18 +95,18 @@ export default function MuhuratScreen() {
             <Icon name={ACTIVITY_ICON[current.id] ?? 'calendar'} size={20} color={Accents.emerald.color} />
             <Text style={styles.resultTitle}>{current.hindi} <Text style={styles.activityEn}>({current.label})</Text></Text>
           </View>
-          {result?.place ? <Text style={styles.resultSub}>Near {result.place} · next {result?.end && result?.start ? daysLabel(result.start, result.end) : '45 days'}</Text> : null}
+          {result?.place ? <Text style={styles.resultSub}>{isHindi ? `${result.place} के पास · अगले ${result?.end && result?.start ? daysLabel(result.start, result.end, true) : '45 दिन'}` : `Near ${result.place} · next ${result?.end && result?.start ? daysLabel(result.start, result.end) : '45 days'}`}</Text> : null}
 
           {state === 'loading' ? (
             <View style={styles.center}>
               <ActivityIndicator color={th.gold} size="large" />
-              <Text style={styles.loadingText}>Scanning the Panchang…</Text>
+              <Text style={styles.loadingText}>{isHindi ? 'पंचांग खोज रहे हैं…' : 'Scanning the Panchang…'}</Text>
             </View>
           ) : state === 'error' ? (
             <View style={styles.center}>
-              <Text style={styles.errorText}>Couldn’t load muhurats right now.</Text>
+              <Text style={styles.errorText}>{isHindi ? 'अभी मुहूर्त लोड नहीं हो सके।' : 'Couldn’t load muhurats right now.'}</Text>
               <Pressable style={styles.retryBtn} onPress={() => pick(current.id)}>
-                <Text style={styles.retryText}>Try again</Text>
+                <Text style={styles.retryText}>{t('common.retry')}</Text>
               </Pressable>
             </View>
           ) : result && result.results && result.results.length > 0 ? (
@@ -119,7 +123,7 @@ export default function MuhuratScreen() {
                       <Text style={styles.windowText}>{r.window}</Text>
                     </View>
                     <Text style={styles.factors}>
-                      {r.nakshatra} nakshatra · {r.tithi} · {r.yoga} yoga
+                      {isHindi ? `${hiNakshatra(r.nakshatra)} नक्षत्र · ${r.tithi} · ${r.yoga} योग` : `${r.nakshatra} nakshatra · ${r.tithi} · ${r.yoga} yoga`}
                     </Text>
                   </View>
                 </Reveal>
@@ -129,24 +133,25 @@ export default function MuhuratScreen() {
               <View style={styles.hookCard}>
                 <Text style={styles.hookText}>{current.funnel.text}</Text>
                 <Pressable style={styles.hookBtn} onPress={() => goFunnel(current.funnel.target)} android_ripple={{ color: th.goldDeep }}>
-                  <Text style={styles.hookBtnText}>{funnelCta(current.funnel.target)}</Text>
+                  <Text style={styles.hookBtnText}>{funnelCta(current.funnel.target, isHindi)}</Text>
                   <Icon name="arrowRight" size={15} color={th.goldContrast} />
                 </Pressable>
               </View>
             </>
           ) : (
             <View style={styles.center}>
-              <Text style={styles.errorText}>No strongly auspicious dates found in this window.</Text>
-              <Text style={styles.emptyHint}>Try again later, or ask the astrologer for a personalised muhurat.</Text>
+              <Text style={styles.errorText}>{isHindi ? 'इस अवधि में कोई विशेष शुभ तिथि नहीं मिली।' : 'No strongly auspicious dates found in this window.'}</Text>
+              <Text style={styles.emptyHint}>{isHindi ? 'बाद में फिर कोशिश करें, या व्यक्तिगत मुहूर्त के लिए ज्योतिषी से पूछें।' : 'Try again later, or ask the astrologer for a personalised muhurat.'}</Text>
               <Pressable style={styles.retryBtn} onPress={() => goFunnel('chat')}>
-                <Text style={styles.retryText}>Ask the astrologer</Text>
+                <Text style={styles.retryText}>{isHindi ? 'ज्योतिषी से पूछें' : 'Ask the astrologer'}</Text>
               </Pressable>
             </View>
           )}
 
           <Text style={styles.disclaimer}>
-            Computed from Panchang for guidance only. Please confirm important muhurats with a
-            priest or astrologer.
+            {isHindi
+              ? 'केवल मार्गदर्शन के लिए पंचांग से गणना। महत्वपूर्ण मुहूर्त की पुष्टि किसी पंडित या ज्योतिषी से करें।'
+              : 'Computed from Panchang for guidance only. Please confirm important muhurats with a priest or astrologer.'}
           </Text>
         </ScrollView>
       )}
@@ -154,12 +159,15 @@ export default function MuhuratScreen() {
   );
 }
 
-function funnelCta(t: FunnelTarget): string {
+function funnelCta(t: FunnelTarget, isHindi = false): string {
+  if (isHindi) {
+    return t === 'vastu' ? 'वास्तु रिपोर्ट लें' : t === 'matchmaking' ? 'मिलान रिपोर्ट लें' : 'ज्योतिषी से पूछें';
+  }
   return t === 'vastu' ? 'Get a Vastu report' : t === 'matchmaking' ? 'Get a Matchmaking report' : 'Ask the astrologer';
 }
-function daysLabel(start: string, end: string): string {
+function daysLabel(start: string, end: string, isHindi = false): string {
   const n = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000);
-  return `${n} days`;
+  return isHindi ? `${n} दिन` : `${n} days`;
 }
 function fmtDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00Z');

@@ -14,6 +14,8 @@ import { Numerology } from '../../lib/numerology';
 import { track } from '../../lib/analytics';
 import { Fonts, Spacing, Radius, Depth, Accents, AccentName, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
+import { hiSign, hiNakshatra, hiGraha } from '../../lib/astroHindi';
 import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
 import { Icon, IconName } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
@@ -43,6 +45,7 @@ function seededPct(seed: string, min = 52, max = 96): number {
 export default function HomeScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi } = useLanguage();
   const { user } = useAuth();
   const { members, activeId, loading: profilesLoading, setActive } = useActiveProfile();
   const router = useRouter();
@@ -95,10 +98,10 @@ export default function HomeScreen() {
     ...members.map((m) => ({
       label: m.name,
       value: m.id,
-      sublabel: (m.relation === 'self' ? 'You' : RELATION_LABEL[m.relation] ?? 'Family')
-        + (m.moonSign ? ` · Moon in ${m.moonSign}` : ''),
+      sublabel: (m.relation === 'self' ? (isHindi ? 'आप' : 'You') : RELATION_LABEL[m.relation] ?? (isHindi ? 'परिवार' : 'Family'))
+        + (m.moonSign ? ` · ${isHindi ? 'चंद्र' : 'Moon in'} ${m.moonSign}` : ''),
     })),
-    { label: 'Manage family', value: '__manage' },
+    { label: isHindi ? 'परिवार प्रबंधित करें' : 'Manage family', value: '__manage' },
   ];
   function onSwitch(value: string) {
     setSwitcher(false);
@@ -135,110 +138,111 @@ export default function HomeScreen() {
     return <View style={styles.loading}><ActivityIndicator color={th.gold} size="large" /></View>;
   }
 
-  const firstName = profile?.name?.trim().split(/\s+/)[0] || 'Seeker';
+  const firstName = profile?.name?.trim().split(/\s+/)[0] || (isHindi ? 'जिज्ञासु' : 'Seeker');
   const today = new Date();
-  const dateLabel = today.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const dateLabel = today.toLocaleDateString(isHindi ? 'hi-IN' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const dayKey = today.toISOString().slice(0, 10);
   const sign = profile?.moonSign;
 
   const stats: { label: string; icon: IconName; pct: number }[] = sign ? [
-    { label: 'LUCK', icon: 'star', pct: seededPct(`${sign}${dayKey}luck`) },
-    { label: 'LOVE', icon: 'heart', pct: seededPct(`${sign}${dayKey}love`) },
-    { label: 'FOCUS', icon: 'eye', pct: seededPct(`${sign}${dayKey}focus`) },
-    { label: 'CAREER', icon: 'briefcase', pct: seededPct(`${sign}${dayKey}career`) },
+    { label: isHindi ? 'भाग्य' : 'LUCK', icon: 'star', pct: seededPct(`${sign}${dayKey}luck`) },
+    { label: isHindi ? 'प्रेम' : 'LOVE', icon: 'heart', pct: seededPct(`${sign}${dayKey}love`) },
+    { label: isHindi ? 'एकाग्रता' : 'FOCUS', icon: 'eye', pct: seededPct(`${sign}${dayKey}focus`) },
+    { label: isHindi ? 'करियर' : 'CAREER', icon: 'briefcase', pct: seededPct(`${sign}${dayKey}career`) },
   ] : [];
 
   const features: { icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }[] = profile ? [
     {
-      icon: 'panchang', accent: 'saffron', title: 'Panchang',
-      sub: panchang ? `${panchang.tithi} · ${panchang.nakshatra?.split(' (')[0]}` : 'Today’s almanac & timings',
+      icon: 'panchang', accent: 'saffron', title: isHindi ? 'पंचांग' : 'Panchang',
+      sub: panchang ? `${panchang.tithi} · ${isHindi ? hiNakshatra(panchang.nakshatra?.split(' (')[0] ?? '') : panchang.nakshatra?.split(' (')[0]}` : (isHindi ? 'आज का पंचांग और समय' : 'Today’s almanac & timings'),
       onPress: () => router.push({ pathname: '/panchang', params: { profileId: profile.id } }),
     },
     {
-      icon: 'numerology', accent: 'amethyst', title: 'Numerology',
-      sub: numerology ? `Life Path ${numerology.life_path.number} · Expr ${numerology.expression.number}` : 'Your core birth numbers',
+      icon: 'numerology', accent: 'amethyst', title: isHindi ? 'अंक ज्योतिष' : 'Numerology',
+      sub: numerology ? `${isHindi ? 'जीवन पथ' : 'Life Path'} ${numerology.life_path.number} · ${isHindi ? 'भाग्य' : 'Expr'} ${numerology.expression.number}` : (isHindi ? 'आपके मूल जन्मांक' : 'Your core birth numbers'),
       onPress: () => router.push({ pathname: '/numerology', params: { profileId: profile.id } }),
     },
     {
-      icon: 'muhurat', accent: 'emerald', title: 'Shubh Muhurat',
-      sub: 'Auspicious dates for plans',
+      icon: 'muhurat', accent: 'emerald', title: isHindi ? 'शुभ मुहूर्त' : 'Shubh Muhurat',
+      sub: isHindi ? 'योजनाओं के लिए शुभ तिथियां' : 'Auspicious dates for plans',
       onPress: () => router.push({ pathname: '/muhurat', params: { profileId: profile.id } }),
     },
     {
-      icon: 'temple', accent: 'ruby', title: 'Live Darshan',
-      sub: 'Live aarti from temples',
+      icon: 'temple', accent: 'ruby', title: isHindi ? 'लाइव दर्शन' : 'Live Darshan',
+      sub: isHindi ? 'मंदिरों से लाइव आरती' : 'Live aarti from temples',
       onPress: () => router.push('/darshan'),
     },
     {
-      icon: 'activity', accent: 'sapphire', title: 'Vakri',
+      icon: 'activity', accent: 'sapphire', title: isHindi ? 'वक्री' : 'Vakri',
       sub: retro
         ? (retro.current.length
-            ? `${retro.current.map((c) => PLANET_LABEL[c.planet].split(' ')[0]).join(', ')} vakri now`
-            : 'No planets vakri now')
-        : 'Vakri planet tracker',
+            ? `${retro.current.map((c) => { const en = PLANET_LABEL[c.planet].split(' ')[0]; return isHindi ? hiGraha(en) : en; }).join(', ')} ${isHindi ? 'अभी वक्री' : 'vakri now'}`
+            : (isHindi ? 'अभी कोई ग्रह वक्री नहीं' : 'No planets vakri now'))
+        : (isHindi ? 'वक्री ग्रह ट्रैकर' : 'Vakri planet tracker'),
       onPress: () => router.push({ pathname: '/retrograde', params: { profileId: profile.id } }),
     },
     {
-      icon: 'clock', accent: 'turquoise', title: 'Sade Sati',
+      icon: 'clock', accent: 'turquoise', title: isHindi ? 'साढ़े साती' : 'Sade Sati',
       sub: sade
-        ? (sade.active ? `Phase ${sade.phase} of 3 · active` : 'Not in Sade Sati')
-        : 'Your Shani cycle status',
+        ? (sade.active ? `${isHindi ? 'चरण' : 'Phase'} ${sade.phase}/3 · ${isHindi ? 'सक्रिय' : 'active'}` : (isHindi ? 'साढ़े साती में नहीं' : 'Not in Sade Sati'))
+        : (isHindi ? 'आपकी शनि दशा की स्थिति' : 'Your Shani cycle status'),
       onPress: () => router.push({ pathname: '/sadesati', params: { profileId: profile.id } }),
     },
   ] : [];
 
   // ── auto-carousel: chat (unchanged) + every feature ─────────────────────────
+  const B = { free: isHindi ? 'निःशुल्क' : 'FREE', live: isHindi ? 'लाइव' : 'LIVE' };
   const carouselSlides: CarouselSlide[] = profile ? [
     {
-      key: 'chat', icon: 'chat', badge: 'LIVE AI', title: 'Got a question?',
-      sub: 'Chat with your AI Astrologer', cta: 'Chat Now',
+      key: 'chat', icon: 'chat', badge: isHindi ? 'लाइव AI' : 'LIVE AI', title: isHindi ? 'कोई सवाल है?' : 'Got a question?',
+      sub: isHindi ? 'अपने AI ज्योतिषी से बात करें' : 'Chat with your AI Astrologer', cta: isHindi ? 'अभी पूछें' : 'Chat Now',
       image: require('../../assets/promo-astrologer.png'), imageBottom: true, still: true, onPress: goChat,
     },
     {
-      key: 'panchang', icon: 'panchang', badge: 'FREE', title: 'Today’s Panchang',
-      sub: 'Tithi, nakshatra & daily timings', cta: 'View',
+      key: 'panchang', icon: 'panchang', badge: B.free, title: isHindi ? 'आज का पंचांग' : 'Today’s Panchang',
+      sub: isHindi ? 'तिथि, नक्षत्र और दैनिक समय' : 'Tithi, nakshatra & daily timings', cta: isHindi ? 'देखें' : 'View',
       image: require('../../assets/carousel/panchang.png'),
       onPress: () => router.push({ pathname: '/panchang', params: { profileId: profile.id } }),
     },
     {
-      key: 'numerology', icon: 'numerology', badge: 'FREE', title: 'Your Numerology',
-      sub: 'Core numbers from your birth', cta: 'View',
+      key: 'numerology', icon: 'numerology', badge: B.free, title: isHindi ? 'आपका अंक ज्योतिष' : 'Your Numerology',
+      sub: isHindi ? 'आपके जन्म से मूल अंक' : 'Core numbers from your birth', cta: isHindi ? 'देखें' : 'View',
       image: require('../../assets/carousel/numerology.png'),
       onPress: () => router.push({ pathname: '/numerology', params: { profileId: profile.id } }),
     },
     {
-      key: 'muhurat', icon: 'muhurat', badge: 'FREE', title: 'Shubh Muhurat',
-      sub: 'Auspicious dates for your plans', cta: 'Find',
+      key: 'muhurat', icon: 'muhurat', badge: B.free, title: isHindi ? 'शुभ मुहूर्त' : 'Shubh Muhurat',
+      sub: isHindi ? 'आपकी योजनाओं के लिए शुभ तिथियां' : 'Auspicious dates for your plans', cta: isHindi ? 'खोजें' : 'Find',
       image: require('../../assets/carousel/muhurat.png'),
       onPress: () => router.push({ pathname: '/muhurat', params: { profileId: profile.id } }),
     },
     {
-      key: 'darshan', icon: 'temple', badge: 'LIVE', title: 'Live Darshan',
-      sub: 'Aarti from major temples', cta: 'Watch',
+      key: 'darshan', icon: 'temple', badge: B.live, title: isHindi ? 'लाइव दर्शन' : 'Live Darshan',
+      sub: isHindi ? 'प्रमुख मंदिरों से आरती' : 'Aarti from major temples', cta: isHindi ? 'देखें' : 'Watch',
       image: require('../../assets/carousel/darshan.png'),
       onPress: () => router.push('/darshan'),
     },
     {
-      key: 'vakri', icon: 'activity', badge: 'FREE', title: 'Vakri Tracker',
-      sub: 'Which planets are retrograde now', cta: 'View',
+      key: 'vakri', icon: 'activity', badge: B.free, title: isHindi ? 'वक्री ट्रैकर' : 'Vakri Tracker',
+      sub: isHindi ? 'अभी कौन-से ग्रह वक्री हैं' : 'Which planets are retrograde now', cta: isHindi ? 'देखें' : 'View',
       image: require('../../assets/carousel/vakri.png'),
       onPress: () => router.push({ pathname: '/retrograde', params: { profileId: profile.id } }),
     },
     {
-      key: 'sadesati', icon: 'clock', badge: 'FREE', title: 'Sade Sati',
-      sub: 'Where you stand in Shani’s cycle', cta: 'View',
+      key: 'sadesati', icon: 'clock', badge: B.free, title: isHindi ? 'साढ़े साती' : 'Sade Sati',
+      sub: isHindi ? 'शनि की दशा में आप कहाँ हैं' : 'Where you stand in Shani’s cycle', cta: isHindi ? 'देखें' : 'View',
       image: require('../../assets/carousel/sadesati.png'),
       onPress: () => router.push({ pathname: '/sadesati', params: { profileId: profile.id } }),
     },
     {
-      key: 'store', icon: 'store', badge: 'SHOP', title: 'Ritham Store',
-      sub: 'Gemstones, malas & remedies', cta: 'Open',
+      key: 'store', icon: 'store', badge: isHindi ? 'स्टोर' : 'SHOP', title: isHindi ? 'रिदम स्टोर' : 'Ritham Store',
+      sub: isHindi ? 'रत्न, माला और उपाय' : 'Gemstones, malas & remedies', cta: isHindi ? 'खोलें' : 'Open',
       image: require('../../assets/carousel/store.png'),
       onPress: () => router.push('/(tabs)/store'),
     },
     {
-      key: 'reports', icon: 'reports', badge: 'PREMIUM', title: 'Detailed Reports',
-      sub: 'Kundli, matchmaking & Vastu', cta: 'Explore',
+      key: 'reports', icon: 'reports', badge: isHindi ? 'प्रीमियम' : 'PREMIUM', title: isHindi ? 'विस्तृत रिपोर्ट' : 'Detailed Reports',
+      sub: isHindi ? 'कुंडली, मिलान और वास्तु' : 'Kundli, matchmaking & Vastu', cta: isHindi ? 'देखें' : 'Explore',
       image: require('../../assets/carousel/reports.png'),
       onPress: () => router.push('/(tabs)/reports'),
     },
@@ -276,14 +280,14 @@ export default function HomeScreen() {
                 android_ripple={{ color: 'rgba(255,255,255,0.15)' }}
               >
                 <Icon name="moon" size={14} color="#FFFFFF" />
-                <Text style={styles.kundliBtnText}>Kundli</Text>
+                <Text style={styles.kundliBtnText}>{isHindi ? 'कुंडली' : 'Kundli'}</Text>
               </Pressable>
             )}
             <GlassIcon icon="settings" onPress={() => router.push('/settings')} />
           </View>
         </View>
 
-        <Text style={styles.cosmicEyebrow}>TODAY’S COSMIC INSIGHT</Text>
+        <Text style={styles.cosmicEyebrow}>{isHindi ? 'आज की कॉस्मिक अंतर्दृष्टि' : 'TODAY’S COSMIC INSIGHT'}</Text>
         <Text style={styles.dateLine}>{dateLabel}</Text>
         <Pressable
           style={styles.helloRow}
@@ -292,7 +296,7 @@ export default function HomeScreen() {
           android_ripple={{ color: 'rgba(255,255,255,0.12)' }}
         >
           <Text style={styles.hello} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-            Hello, {firstName}
+            {isHindi ? `नमस्ते, ${firstName}` : `Hello, ${firstName}`}
           </Text>
           {members.length > 0 && <Icon name="chevronDown" size={22} color="#FFFFFF" style={{ marginTop: 4 }} />}
         </Pressable>
@@ -302,14 +306,15 @@ export default function HomeScreen() {
         {entry === 'need_kundli' ? (
           <Reveal index={0} style={styles.overlap}>
             <View style={styles.readingCard}>
-              <Text style={styles.readingLabel}>ONE STEP LEFT</Text>
-              <Text style={styles.kundliTitle}>Finish your Kundli</Text>
+              <Text style={styles.readingLabel}>{isHindi ? 'एक कदम शेष' : 'ONE STEP LEFT'}</Text>
+              <Text style={styles.kundliTitle}>{isHindi ? 'अपनी कुंडली पूरी करें' : 'Finish your Kundli'}</Text>
               <Text style={styles.kundliBody}>
-                Your birth chart isn’t ready yet. Complete your Kundli to unlock your daily,
-                weekly, and monthly horoscope.
+                {isHindi
+                  ? 'आपकी जन्म कुंडली अभी तैयार नहीं है। दैनिक, साप्ताहिक और मासिक राशिफल पाने के लिए अपनी कुंडली पूरी करें।'
+                  : 'Your birth chart isn’t ready yet. Complete your Kundli to unlock your daily, weekly, and monthly horoscope.'}
               </Text>
               <Pressable style={styles.ctaBtn} onPress={() => router.push('/profile')}>
-                <Text style={styles.ctaBtnText}>Complete your Kundli</Text>
+                <Text style={styles.ctaBtnText}>{isHindi ? 'अपनी कुंडली पूरी करें' : 'Complete your Kundli'}</Text>
                 <Icon name="arrowRight" size={16} color="#FFFFFF" />
               </Pressable>
             </View>
@@ -318,8 +323,8 @@ export default function HomeScreen() {
           /* ── AI-predicted reading card (overlaps the header) ─────────────────── */
           <Reveal index={0} style={styles.overlap}>
             <View style={styles.readingCard}>
-              <Text style={styles.readingLabel}>Your AI-Predicted Reading</Text>
-              <Text style={styles.readingSign}>{sign ?? '—'}</Text>
+              <Text style={styles.readingLabel}>{isHindi ? 'आपका AI-आधारित राशिफल' : 'Your AI-Predicted Reading'}</Text>
+              <Text style={styles.readingSign}>{sign ? (isHindi ? hiSign(sign) : sign) : '—'}</Text>
 
               <View style={styles.statGrid}>
                 {stats.map((s) => (
@@ -349,7 +354,7 @@ export default function HomeScreen() {
                 onPress={() => router.push({ pathname: '/horoscope', params: { profileId: profile!.id, moonSign: sign ?? '' } })}
                 android_ripple={{ color: th.goldFaint }}
               >
-                <Text style={styles.readFullText}>Read full horoscope</Text>
+                <Text style={styles.readFullText}>{isHindi ? 'पूरा राशिफल पढ़ें' : 'Read full horoscope'}</Text>
                 <Icon name="arrowRight" size={15} color={th.gold} />
               </Pressable>
             </View>
@@ -367,7 +372,7 @@ export default function HomeScreen() {
         {profile && (
           <>
             <Reveal index={2}>
-              <Text style={styles.sectionTitle}>Starsights & Predictions</Text>
+              <Text style={styles.sectionTitle}>{isHindi ? 'ज्योतिष और भविष्यवाणियां' : 'Starsights & Predictions'}</Text>
             </Reveal>
             <View style={styles.grid}>
               {features.map((f, i) => (
@@ -379,8 +384,9 @@ export default function HomeScreen() {
 
         <Reveal index={9}>
           <Text style={styles.disclaimer}>
-            Horoscopes and readings are for guidance and reflection, not a substitute for
-            professional advice.
+            {isHindi
+              ? 'राशिफल और रीडिंग केवल मार्गदर्शन और चिंतन के लिए हैं, यह पेशेवर सलाह का विकल्प नहीं हैं।'
+              : 'Horoscopes and readings are for guidance and reflection, not a substitute for professional advice.'}
           </Text>
         </Reveal>
         <View style={{ height: Spacing.xl }} />
@@ -389,7 +395,7 @@ export default function HomeScreen() {
 
     <SelectModal
       visible={switcher}
-      title="Who is this for?"
+      title={isHindi ? 'यह किसके लिए है?' : 'Who is this for?'}
       options={switcherOpts}
       selectedValue={activeId ?? undefined}
       onSelect={onSwitch}

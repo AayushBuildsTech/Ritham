@@ -4,9 +4,14 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { getSadeSati, SadeSatiStatus, getKundli, ProfileRow } from '../lib/kundliService';
 import { track } from '../lib/analytics';
-import { PHASE_MEANING, PHASE_HOUSE, NOT_IN_SADE_SATI, SADE_SATI_INTRO } from '../config/sadeSatiPhases';
+import {
+  PHASE_MEANING, PHASE_HOUSE, NOT_IN_SADE_SATI, SADE_SATI_INTRO,
+  PHASE_MEANING_HI, PHASE_HOUSE_HI, NOT_IN_SADE_SATI_HI, SADE_SATI_INTRO_HI,
+} from '../config/sadeSatiPhases';
 import { Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { hiSign } from '../lib/astroHindi';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SadeSatiTimeline } from '../components/SadeSatiTimeline';
@@ -17,6 +22,7 @@ const fmtMY = (iso?: string) => { if (!iso) return '—'; const d = new Date(iso
 export default function SadeSatiScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const router = useRouter();
   const { profileId } = useLocalSearchParams<{ profileId?: string }>();
 
@@ -47,64 +53,67 @@ export default function SadeSatiScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Sade Sati Tracker" onBack={() => router.back()} />
+      <ScreenHeader title={isHindi ? 'साढ़े साती ट्रैकर' : 'Sade Sati Tracker'} onBack={() => router.back()} />
 
       {state === 'loading' ? (
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : state === 'error' || !data ? (
-        <View style={styles.center}><Text style={styles.errorText}>We need your Kundli to read this. Please open your chart first, then try again.</Text></View>
+        <View style={styles.center}><Text style={styles.errorText}>{isHindi ? 'इसे पढ़ने के लिए हमें आपकी कुंडली चाहिए। कृपया पहले अपनी कुंडली खोलें, फिर कोशिश करें।' : 'We need your Kundli to read this. Please open your chart first, then try again.'}</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.moonLine}>Chandra (Moon) in {data.moonSign}</Text>
-          <Text style={styles.intro}>{SADE_SATI_INTRO}</Text>
+          <Text style={styles.moonLine}>{isHindi ? `चंद्रमा ${hiSign(data.moonSign)} में` : `Chandra (Moon) in ${data.moonSign}`}</Text>
+          <Text style={styles.intro}>{isHindi ? SADE_SATI_INTRO_HI : SADE_SATI_INTRO}</Text>
 
           {data.active && data.phase ? (
             <>
               <View style={styles.card}>
                 <View style={styles.phaseHead}>
-                  <Text style={styles.phaseNow}>{`Phase ${data.phase} of 3`}</Text>
-                  <Text style={styles.phaseHouse}>{PHASE_HOUSE[data.phase]}</Text>
+                  <Text style={styles.phaseNow}>{isHindi ? `चरण ${data.phase} / 3` : `Phase ${data.phase} of 3`}</Text>
+                  <Text style={styles.phaseHouse}>{(isHindi ? PHASE_HOUSE_HI : PHASE_HOUSE)[data.phase]}</Text>
                 </View>
 
                 <SadeSatiTimeline phase={data.phase} progress={data.progress ?? 0} />
 
                 <View style={styles.dateRow}>
                   <View>
-                    <Text style={styles.dateCap}>THIS PHASE</Text>
+                    <Text style={styles.dateCap}>{isHindi ? 'यह चरण' : 'THIS PHASE'}</Text>
                     <Text style={styles.dateVal}>{fmtMY(data.phaseStart)} – {fmtMY(data.phaseEnd)}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.dateCap}>FULL CYCLE ENDS</Text>
+                    <Text style={styles.dateCap}>{isHindi ? 'पूर्ण चक्र समाप्त' : 'FULL CYCLE ENDS'}</Text>
                     <Text style={styles.dateVal}>{fmtMY(data.fullEnd)}</Text>
                   </View>
                 </View>
               </View>
 
-              <Text style={styles.body}>{PHASE_MEANING[data.phase]}</Text>
+              <Text style={styles.body}>{(isHindi ? PHASE_MEANING_HI : PHASE_MEANING)[data.phase]}</Text>
             </>
           ) : (
             <View style={styles.calmCard}>
               <Icon name="check" size={20} color={th.goldLight} />
-              <Text style={styles.calmText}>{NOT_IN_SADE_SATI}</Text>
+              <Text style={styles.calmText}>{isHindi ? NOT_IN_SADE_SATI_HI : NOT_IN_SADE_SATI}</Text>
               {data.nextStart && (
-                <Text style={styles.nextLine}>Next expected to begin around {fmtMY(data.nextStart)}.</Text>
+                <Text style={styles.nextLine}>{isHindi ? `अगली बार लगभग ${fmtMY(data.nextStart)} में शुरू होने की संभावना।` : `Next expected to begin around ${fmtMY(data.nextStart)}.`}</Text>
               )}
             </View>
           )}
 
           <View style={styles.hookCard}>
             <Text style={styles.hookText}>
-              Want to understand what this means for <Text style={styles.hookEm}>your</Text> situation?
+              {isHindi
+                ? <>समझना चाहते हैं कि इसका <Text style={styles.hookEm}>आपकी</Text> स्थिति के लिए क्या अर्थ है?</>
+                : <>Want to understand what this means for <Text style={styles.hookEm}>your</Text> situation?</>}
             </Text>
             <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: th.goldDeep }}>
-              <Text style={styles.hookBtnText}>Ask your astrologer</Text>
+              <Text style={styles.hookBtnText}>{isHindi ? 'अपने ज्योतिषी से पूछें' : 'Ask your astrologer'}</Text>
               <Icon name="arrowRight" size={15} color={th.goldContrast} />
             </Pressable>
           </View>
 
           <Text style={styles.footnote}>
-            Computed from Shani’s transit around your natal Chandra. A period of change and
-            growth — for guidance and reflection, not professional advice.
+            {isHindi
+              ? 'आपके जन्म के चंद्रमा के चारों ओर शनि के गोचर से गणना। परिवर्तन और विकास की अवधि — मार्गदर्शन और चिंतन के लिए, पेशेवर सलाह नहीं।'
+              : 'Computed from Shani’s transit around your natal Chandra. A period of change and growth — for guidance and reflection, not professional advice.'}
           </Text>
         </ScrollView>
       )}

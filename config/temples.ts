@@ -148,3 +148,40 @@ export const TEMPLES: Temple[] = [
     verified: true,
   },
 ];
+
+// ── Hindi (Devanagari) labels, keyed by temple id ────────────────────────────
+export interface TempleHi { name: string; location: string; deity: string; timings: string }
+export const TEMPLE_HI: Record<string, TempleHi> = {
+  tirupati: {
+    name: 'तिरुमला तिरुपति (श्री वेंकटेश्वर)', location: 'तिरुमला, आंध्र प्रदेश',
+    deity: 'भगवान वेंकटेश्वर (बालाजी)', timings: 'सुप्रभातम ~3:00 पूर्वाह्न · दिन भर दर्शन',
+  },
+  vaishno_devi: {
+    name: 'श्री माता वैष्णो देवी', location: 'कटरा, जम्मू और कश्मीर',
+    deity: 'माता वैष्णो देवी', timings: 'अटका आरती ~ भोर व संध्या · दिन भर दर्शन',
+  },
+  shirdi: {
+    name: 'शिरडी साईं बाबा', location: 'शिरडी, महाराष्ट्र',
+    deity: 'साईं बाबा', timings: 'काकड़ आरती ~4:30 पूर्वाह्न · शेज आरती ~10:30 अपराह्न',
+  },
+  kashi_vishwanath: {
+    name: 'काशी विश्वनाथ', location: 'वाराणसी, उत्तर प्रदेश',
+    deity: 'भगवान शिव', timings: 'मंगला आरती ~3:00 पूर्वाह्न · सप्त ऋषि आरती ~7:00 अपराह्न',
+  },
+  mahakaleshwar: {
+    name: 'महाकालेश्वर ज्योतिर्लिंग', location: 'उज्जैन, मध्य प्रदेश',
+    deity: 'भगवान शिव (महाकाल)', timings: 'भस्म आरती ~4:00 पूर्वाह्न · दिन भर दर्शन',
+  },
+  somnath: {
+    name: 'सोमनाथ ज्योतिर्लिंग', location: 'प्रभास पाटन, गुजरात',
+    deity: 'भगवान शिव (सोमनाथ)', timings: 'आरती ~7:00 पूर्वाह्न, 12:00 अपराह्न व 7:00 अपराह्न',
+  },
+  siddhivinayak: {
+    name: 'श्री सिद्धिविनायक', location: 'प्रभादेवी, मुंबई',
+    deity: 'भगवान गणेश', timings: 'काकड़ आरती ~5:30 पूर्वाह्न · दिन भर दर्शन',
+  },
+  golden_temple: {
+    name: 'स्वर्ण मंदिर (हरमंदिर साहिब)', location: 'अमृतसर, पंजाब',
+    deity: 'श्री गुरु ग्रंथ साहिब', timings: 'सुबह से देर रात तक लाइव कीर्तन',
+  },
+};

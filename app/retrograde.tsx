@@ -5,9 +5,13 @@ import { supabase } from '../lib/supabase';
 import { getRetrograde, RetrogradeStatus } from '../lib/kundliService';
 import { track } from '../lib/analytics';
 import { SIGNS } from '../lib/ephemeris';
-import { RETRO_MEANING, PLANET_LABEL, PLANET_THEME, RetroPlanet } from '../config/retrogradeMeanings';
+import {
+  RETRO_MEANING, PLANET_LABEL, PLANET_THEME, RetroPlanet,
+  RETRO_MEANING_HI, PLANET_LABEL_HI, PLANET_THEME_HI,
+} from '../config/retrogradeMeanings';
 import { Fonts, Spacing, Radius, Accents, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
@@ -26,6 +30,7 @@ const ord = (n: number) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; re
 export default function RetrogradeScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const router = useRouter();
   const { profileId } = useLocalSearchParams<{ profileId?: string }>();
 
@@ -59,20 +64,20 @@ export default function RetrogradeScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Retrograde (Vakri) Tracker" onBack={() => router.back()} />
+      <ScreenHeader title={isHindi ? 'वक्री ग्रह ट्रैकर' : 'Retrograde (Vakri) Tracker'} onBack={() => router.back()} />
 
       {state === 'loading' ? (
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : state === 'error' ? (
-        <View style={styles.center}><Text style={styles.errorText}>Couldn’t read the sky right now. Please try again.</Text></View>
+        <View style={styles.center}><Text style={styles.errorText}>{isHindi ? 'अभी आकाश नहीं पढ़ा जा सका। कृपया फिर कोशिश करें।' : 'Couldn’t read the sky right now. Please try again.'}</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.sectionLabel}>RIGHT NOW</Text>
+          <Text style={styles.sectionLabel}>{isHindi ? 'अभी' : 'RIGHT NOW'}</Text>
 
           {current.length === 0 ? (
             <View style={styles.calmCard}>
               <Icon name="check" size={20} color={Accents.emerald.color} />
-              <Text style={styles.calmText}>No planets are retrograde right now — the skies are moving direct.</Text>
+              <Text style={styles.calmText}>{isHindi ? 'अभी कोई ग्रह वक्री नहीं है — आकाश सीधी गति में है।' : 'No planets are retrograde right now — the skies are moving direct.'}</Text>
             </View>
           ) : (
             current.map((c) => {
@@ -80,17 +85,19 @@ export default function RetrogradeScreen() {
               return (
                 <View key={c.planet} style={styles.retroCard}>
                   <View style={styles.retroHead}>
-                    <Text style={styles.retroTitle}>{PLANET_LABEL[c.planet]}</Text>
-                    <View style={styles.badge}><Text style={styles.badgeText}>Vakri</Text></View>
+                    <Text style={styles.retroTitle}>{(isHindi ? PLANET_LABEL_HI : PLANET_LABEL)[c.planet]}</Text>
+                    <View style={styles.badge}><Text style={styles.badgeText}>{isHindi ? 'वक्री' : 'Vakri'}</Text></View>
                   </View>
                   <Text style={styles.retroDates}>{`${fmt(c.start)} – ${fmt(c.end, true)}`}</Text>
-                  <Text style={styles.retroTheme}>{PLANET_THEME[c.planet]}</Text>
+                  <Text style={styles.retroTheme}>{(isHindi ? PLANET_THEME_HI : PLANET_THEME)[c.planet]}</Text>
                   {house > 0 && (
                     <Text style={styles.personal}>
-                      For you, {c.planet} is retrograde in your <Text style={styles.personalEm}>{ord(house)} house</Text>.
+                      {isHindi
+                        ? <>आपके लिए, {PLANET_LABEL_HI[c.planet]} आपके <Text style={styles.personalEm}>{house}वें भाव</Text> में वक्री है।</>
+                        : <>For you, {c.planet} is retrograde in your <Text style={styles.personalEm}>{ord(house)} house</Text>.</>}
                     </Text>
                   )}
-                  <Text style={styles.retroBody}>{RETRO_MEANING[c.planet]}</Text>
+                  <Text style={styles.retroBody}>{(isHindi ? RETRO_MEANING_HI : RETRO_MEANING)[c.planet]}</Text>
                 </View>
               );
             })
@@ -98,12 +105,12 @@ export default function RetrogradeScreen() {
 
           {data?.upcoming && data.upcoming.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>COMING UP</Text>
+              <Text style={styles.sectionLabel}>{isHindi ? 'आगे' : 'COMING UP'}</Text>
               <View style={styles.group}>
                 {data.upcoming.map((u, i) => (
                   <View key={u.planet} style={[styles.row, i < data.upcoming.length - 1 && styles.rowBorder]}>
-                    <Text style={styles.rowLabel}>{PLANET_LABEL[u.planet as RetroPlanet]}</Text>
-                    <Text style={styles.rowValue}>from {fmt(u.start, true)}</Text>
+                    <Text style={styles.rowLabel}>{(isHindi ? PLANET_LABEL_HI : PLANET_LABEL)[u.planet as RetroPlanet]}</Text>
+                    <Text style={styles.rowValue}>{isHindi ? `${fmt(u.start, true)} से` : `from ${fmt(u.start, true)}`}</Text>
                   </View>
                 ))}
               </View>
@@ -112,17 +119,20 @@ export default function RetrogradeScreen() {
 
           <View style={styles.hookCard}>
             <Text style={styles.hookText}>
-              Curious how this affects <Text style={styles.hookEm}>you</Text> specifically?
+              {isHindi
+                ? <>यह आप पर <Text style={styles.hookEm}>व्यक्तिगत रूप से</Text> कैसे असर डालता है?</>
+                : <>Curious how this affects <Text style={styles.hookEm}>you</Text> specifically?</>}
             </Text>
             <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: th.goldDeep }}>
-              <Text style={styles.hookBtnText}>Ask your astrologer</Text>
+              <Text style={styles.hookBtnText}>{isHindi ? 'अपने ज्योतिषी से पूछें' : 'Ask your astrologer'}</Text>
               <Icon name="arrowRight" size={15} color={th.goldContrast} />
             </Pressable>
           </View>
 
           <Text style={styles.footnote}>
-            Retrograde periods are computed from planetary positions and are the same for
-            everyone. For guidance and reflection, not professional advice.
+            {isHindi
+              ? 'वक्री अवधि ग्रहों की स्थिति से गणना की जाती है और सभी के लिए समान होती है। मार्गदर्शन और चिंतन के लिए, पेशेवर सलाह नहीं।'
+              : 'Retrograde periods are computed from planetary positions and are the same for everyone. For guidance and reflection, not professional advice.'}
           </Text>
         </ScrollView>
       )}

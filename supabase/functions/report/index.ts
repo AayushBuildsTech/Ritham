@@ -15,6 +15,21 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
 const MODEL = 'claude-sonnet-5';
 
+type Lang = 'en' | 'hi';
+
+// Appended to every report system prompt when the app language is Hindi. The
+// COMPUTED facts and the JSON contract stay in English/ASCII; only the
+// human-readable string values become Devanagari Hindi — so a Hindi user's report
+// reads entirely in Hindi while the render pipeline keeps working.
+const HINDI_REPORT_DIRECTIVE =
+  '\n\nIMPORTANT — OUTPUT LANGUAGE: Write ALL human-readable JSON string VALUES ' +
+  '(overview, section headings and bodies, points, assessments, recommendations, ' +
+  'remedies, guidance, verdict, dos, donts, and any other prose) in natural, warm ' +
+  'HINDI in Devanagari script — the way a senior Indian pandit/consultant writes. ' +
+  'Keep the JSON KEYS and overall structure EXACTLY as specified (English/ASCII), and ' +
+  'keep numeric scores numeric. Well-known Sanskrit/astrology terms may stay in ' +
+  'Devanagari. Do NOT write the prose in English or in romanised Hindi.';
+
 
 
 const cors = {
@@ -58,6 +73,8 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const type = body?.type;
     if (type !== 'vastu' && type !== 'matchmaking' && !Chart.isChartType(type)) return json({ error: 'unsupported_type' }, 400);
+    // App language: 'hi' → the report is narrated in Devanagari Hindi.
+    const lang: Lang = body?.lang === 'hi' ? 'hi' : 'en';
 
     // a paid, unconsumed 'report' entitlement of THIS type (plan_id = type)
     const { data: ent } = await admin
@@ -132,18 +149,18 @@ Deno.serve(async (req) => {
         let html: string;
         let score: number | null = null;
         if (type === 'vastu') {
-          const analysis = await generateVastu(admin, body.floorplanPath, body.answers);
+          const analysis = await generateVastu(admin, body.floorplanPath, body.answers, lang);
           html = renderVastuHtml(body.answers, analysis);
           score = analysis.score;
         } else if (type === 'matchmaking') {
           const milan = computeMilan(body.self, body.partner);
-          const analysis = await generateMatch(body.self, body.partner, milan);
+          const analysis = await generateMatch(body.self, body.partner, milan, lang);
           html = renderMatchHtml(body.self, body.partner, milan, analysis, style);
           score = milan.percent;
         } else if (Chart.isChartType(type)) {
           const person = body.self as Chart.ChartPerson;
           const facts = Chart.computeChartFacts(person, type);
-          const analysis = await Chart.narrateChart(type, person, facts, { apiKey: ANTHROPIC_API_KEY, model: MODEL });
+          const analysis = await Chart.narrateChart(type, person, facts, { apiKey: ANTHROPIC_API_KEY, model: MODEL, lang });
           html = Chart.renderChartHtml(type, person, facts, analysis);
           score = facts.score;
         }
@@ -170,10 +187,10 @@ Deno.serve(async (req) => {
 });
 
 // ── Vaastu analysis (Claude vision → structured JSON; mock until key set) ───────
-async function generateVastu(admin: any, floorplanPath: string, answers: any): Promise<VastuAnalysis> {
+async function generateVastu(admin: any, floorplanPath: string, answers: any, lang: Lang = 'en'): Promise<VastuAnalysis> {
   if (!ANTHROPIC_API_KEY) return mockVastu(answers);
   try {
-    return await generateVastuLive(admin, floorplanPath, answers);
+    return await generateVastuLive(admin, floorplanPath, answers, lang);
   } catch (err) {
     // Never hard-fail a paid report: fall back to the structured mock analysis.
     console.error('vastu narration failed, using mock', String((err as Error)?.message ?? err));
@@ -181,7 +198,7 @@ async function generateVastu(admin: any, floorplanPath: string, answers: any): P
   }
 }
 
-async function generateVastuLive(admin: any, floorplanPath: string, answers: any): Promise<VastuAnalysis> {
+async function generateVastuLive(admin: any, floorplanPath: string, answers: any, lang: Lang = 'en'): Promise<VastuAnalysis> {
   const { data: file, error: dErr } = await admin.storage.from('reports').download(floorplanPath);
   if (dErr || !file) throw new Error(`floorplan_download_failed: ${dErr?.message ?? 'no file'}`);
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -219,7 +236,7 @@ async function generateVastuLive(admin: any, floorplanPath: string, answers: any
     `  "remedies": [ string ] — 8 to 12 detailed, actionable remedies,\n` +
     `  "dos": [ string ] — 6 to 8 concise do's,\n` +
     `  "donts": [ string ] — 6 to 8 concise don'ts\n` +
-    `}`;
+    `}` + (lang === 'hi' ? HINDI_REPORT_DIRECTIVE : '');
 
   const userText =
     `Client's Vaastu questionnaire:\n` +
@@ -235,7 +252,8 @@ async function generateVastuLive(admin: any, floorplanPath: string, answers: any
     },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 8000,
+      // Devanagari tokenises heavier — give Hindi extra room so the JSON isn't truncated.
+      max_tokens: lang === 'hi' ? 12000 : 8000,
       thinking: { type: 'disabled' },
       system,
       messages: [{
@@ -735,10 +753,10 @@ function computeMilan(a: Person, b: Person): Milan {
 }
 
 // ── narration (Claude narrates the computed milan; mock until key set) ──────────
-async function generateMatch(a: Person, b: Person, m: Milan): Promise<MatchAnalysis> {
+async function generateMatch(a: Person, b: Person, m: Milan, lang: Lang = 'en'): Promise<MatchAnalysis> {
   if (!ANTHROPIC_API_KEY) return mockMatch(a, b, m);
   try {
-    return await generateMatchLive(a, b, m);
+    return await generateMatchLive(a, b, m, lang);
   } catch (err) {
     // Never hard-fail a paid report: the Guna Milan scores are already computed; fall
     // back to the mock narration around them.
@@ -747,7 +765,7 @@ async function generateMatch(a: Person, b: Person, m: Milan): Promise<MatchAnaly
   }
 }
 
-async function generateMatchLive(a: Person, b: Person, m: Milan): Promise<MatchAnalysis> {
+async function generateMatchLive(a: Person, b: Person, m: Milan, lang: Lang = 'en'): Promise<MatchAnalysis> {
   const table = m.kootas.map((k) => `${k.name}: ${k.got}/${k.max}`).join(', ');
   const system =
     `You are a warm, experienced Vedic astrologer writing a premium marriage-compatibility ` +
@@ -762,7 +780,7 @@ async function generateMatchLive(a: Person, b: Person, m: Milan): Promise<MatchA
     `  "cautions": [string] (3-5 gentle cautions from the low-scoring kootas / doshas),\n` +
     `  "remedies": [string] (5-8 practical remedies — mantras, poojas, gemstones, conduct),\n` +
     `  "verdict": string (one encouraging sentence)\n` +
-    `}`;
+    `}` + (lang === 'hi' ? HINDI_REPORT_DIRECTIVE : '');
   const userText =
     `Partner A: ${a.name}, Moon in ${a.moon_sign}, Nakshatra ${a.nakshatra}, Lagna ${a.lagna}.\n` +
     `Partner B: ${b.name}, Moon in ${b.moon_sign}, Nakshatra ${b.nakshatra}, Lagna ${b.lagna}.\n` +
@@ -773,7 +791,7 @@ async function generateMatchLive(a: Person, b: Person, m: Milan): Promise<MatchA
     method: 'POST',
     headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
     body: JSON.stringify({
-      model: MODEL, max_tokens: 6000, thinking: { type: 'disabled' }, system,
+      model: MODEL, max_tokens: lang === 'hi' ? 9000 : 6000, thinking: { type: 'disabled' }, system,
       messages: [{ role: 'user', content: userText }],
     }),
   });
@@ -1386,9 +1404,10 @@ function computeAntars(m: MahaPeriod): AntarPeriod[] {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function narrateChart(
   type: ChartReportType, p: ChartPerson, facts: ChartFacts,
-  opts: { apiKey?: string; model?: string } = {},
+  opts: { apiKey?: string; model?: string; lang?: 'en' | 'hi' } = {},
 ): Promise<ChartAnalysis> {
   if (!opts.apiKey) return mockChart(type, p, facts);
+  const lang = opts.lang === 'hi' ? 'hi' : 'en';
 
   // The live narration is best-effort: if Claude errors, refuses, times out, or returns
   // truncated/invalid JSON, we fall back to the deterministic mock narration so the report
@@ -1398,13 +1417,16 @@ export async function narrateChart(
   try {
     const model = opts.model ?? 'claude-sonnet-5';
     const factSheet = buildFactSheet(type, p, facts);
-    const system = buildSystem(type);
+    const system = buildSystem(type, lang);
 
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': opts.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
-        model, max_tokens: type === 'life' ? 16000 : 8000, thinking: { type: 'disabled' }, system,
+        // Hindi (Devanagari) tokenises heavier — raise the budget so the JSON, especially
+        // the large `life` report, is not truncated into unparseable output.
+        model, max_tokens: lang === 'hi' ? (type === 'life' ? 24000 : 12000) : (type === 'life' ? 16000 : 8000),
+        thinking: { type: 'disabled' }, system,
         messages: [{ role: 'user', content: factSheet }],
       }),
     });
@@ -1435,7 +1457,7 @@ export async function narrateChart(
   }
 }
 
-function buildSystem(type: ChartReportType): string {
+function buildSystem(type: ChartReportType, lang: 'en' | 'hi' = 'en'): string {
   const common =
     `You are a warm, senior Vedic astrologer writing a PREMIUM, detailed, multi-page consultancy report. ` +
     `Every chart fact, house, planetary placement, yoga, strength score and Mahadasha period is ALREADY COMPUTED ` +
@@ -1475,7 +1497,7 @@ function buildSystem(type: ChartReportType): string {
       `Favourable fields & streams of study, Exam & competition timing (dasha), and Guidance for the student and their parents. ` +
       `Encouraging and practical.`,
   };
-  return common + per[type];
+  return common + per[type] + (lang === 'hi' ? HINDI_REPORT_DIRECTIVE : '');
 }
 
 function buildFactSheet(type: ChartReportType, p: ChartPerson, f: ChartFacts): string {

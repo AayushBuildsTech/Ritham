@@ -7,6 +7,7 @@ import { BlurView } from 'expo-blur';
 import { Icon, IconName } from '../../components/Icon';
 import { Fonts, ThemeColors } from '../../constants/theme';
 import { useColors } from '../../context/ThemeContext';
+import { useT } from '../../context/LanguageContext';
 import { useActiveProfile } from '../../context/ProfileContext';
 import { syncDailyReminders } from '../../lib/notificationsService';
 
@@ -15,12 +16,14 @@ import { syncDailyReminders } from '../../lib/notificationsService';
 // glass bar (which is absolutely positioned so content scrolls under it).
 export const TAB_BAR_HEIGHT = 58;
 
-const TABS: Record<string, { icon: IconName; label: string }> = {
-  index: { icon: 'home', label: 'Home' },
-  chat: { icon: 'chat', label: 'Ask' },
-  call: { icon: 'call', label: 'Call' },
-  reports: { icon: 'reports', label: 'Reports' },
-  store: { icon: 'store', label: 'Store' },
+// label is an i18n key resolved per-render via useT() so the bar re-localises
+// instantly when the app language changes.
+const TABS: Record<string, { icon: IconName; labelKey: string }> = {
+  index: { icon: 'home', labelKey: 'tab.home' },
+  chat: { icon: 'chat', labelKey: 'tab.chat' },
+  call: { icon: 'call', labelKey: 'tab.call' },
+  reports: { icon: 'reports', labelKey: 'tab.reports' },
+  store: { icon: 'store', labelKey: 'tab.store' },
 };
 
 // Glass bar: a real expo-blur BlurView under a faint scrim for contrast, a thin
@@ -29,6 +32,7 @@ const TABS: Record<string, { icon: IconName; label: string }> = {
 function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
   const th = useColors();
   const styles = makeStyles(th);
+  const t = useT();
   const insets = useSafeAreaInsets();
   // Hide the (absolute) glass bar while a keyboard is open so it never overlaps
   // an input (e.g. the chat composer).
@@ -62,7 +66,7 @@ function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
             >
               <View style={[styles.indicator, focused && styles.indicatorActive]} />
               <Icon name={cfg.icon} size={23} color={color} />
-              <Text style={[styles.label, { color }]}>{cfg.label}</Text>
+              <Text style={[styles.label, { color }]}>{t(cfg.labelKey)}</Text>
             </Pressable>
           );
         })}

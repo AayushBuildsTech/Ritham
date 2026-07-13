@@ -8,6 +8,7 @@
 // HOROSCOPE_FUNCTION to match.
 
 import { supabase } from './supabase';
+import type { Lang } from './i18n';
 
 const HOROSCOPE_FUNCTION = 'horoscope';
 
@@ -25,9 +26,10 @@ export interface HoroscopeResult {
 export async function getHoroscope(
   profileId: string,
   period: HoroscopePeriod,
+  lang: Lang = 'en',
 ): Promise<HoroscopeResult> {
   const { data, error } = await supabase.functions.invoke(HOROSCOPE_FUNCTION, {
-    body: { profileId, period },
+    body: { profileId, period, lang },
   });
   if (error) return { error: error.message ?? 'request_failed' };
   return data as HoroscopeResult;

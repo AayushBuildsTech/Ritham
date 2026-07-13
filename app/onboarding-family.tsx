@@ -7,6 +7,7 @@ import {
 } from '../context/ProfileContext';
 import { Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { Reveal } from '../components/Reveal';
 import { SelectModal, Option } from '../components/SelectModal';
@@ -18,6 +19,7 @@ import { SelectModal, Option } from '../components/SelectModal';
 export default function OnboardingFamilyScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { members, refresh } = useActiveProfile();
@@ -46,25 +48,26 @@ export default function OnboardingFamilyScreen() {
       >
         <Reveal index={0}>
           <View style={styles.crest}><Icon name="family" size={28} color={th.gold} /></View>
-          <Text style={styles.eyebrow}>{selfName ? `YOU’RE ALL SET, ${selfName.toUpperCase()}` : 'YOU’RE ALL SET'}</Text>
-          <Text style={styles.h1}>Add your family?</Text>
+          <Text style={styles.eyebrow}>{selfName ? (isHindi ? `आप तैयार हैं, ${selfName}` : `YOU’RE ALL SET, ${selfName.toUpperCase()}`) : (isHindi ? 'आप तैयार हैं' : 'YOU’RE ALL SET')}</Text>
+          <Text style={styles.h1}>{isHindi ? 'अपना परिवार जोड़ें?' : 'Add your family?'}</Text>
           <Text style={styles.sub}>
-            Ritham can guide your whole family. Add loved ones to get their Kundli, daily horoscope,
-            chat and reports — and your question & time packs work for everyone, one shared wallet.
+            {isHindi
+              ? 'रिदम आपके पूरे परिवार का मार्गदर्शन कर सकता है। प्रियजनों को जोड़ें ताकि उन्हें अपनी कुंडली, दैनिक राशिफल, चैट और रिपोर्ट मिलें — और आपके प्रश्न व समय पैक सभी के लिए काम करते हैं, एक साझा वॉलेट।'
+              : 'Ritham can guide your whole family. Add loved ones to get their Kundli, daily horoscope, chat and reports — and your question & time packs work for everyone, one shared wallet.'}
           </Text>
         </Reveal>
 
         {family.length > 0 && (
           <Reveal index={1}>
-            <Text style={styles.addedLabel}>ADDED</Text>
+            <Text style={styles.addedLabel}>{isHindi ? 'जोड़े गए' : 'ADDED'}</Text>
             {family.map((m) => (
               <View key={m.id} style={styles.memberRow}>
                 <View style={styles.avatar}><Icon name="profile" size={18} color={th.gold} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.memberName} numberOfLines={1}>{m.name}</Text>
                   <Text style={styles.memberMeta} numberOfLines={1}>
-                    {RELATION_LABEL[m.relation] ?? 'Family'}
-                    {m.moonSign ? ` · Moon in ${m.moonSign}` : ''}
+                    {RELATION_LABEL[m.relation] ?? (isHindi ? 'परिवार' : 'Family')}
+                    {m.moonSign ? ` · ${isHindi ? 'चंद्र' : 'Moon in'} ${m.moonSign}` : ''}
                   </Text>
                 </View>
                 <Icon name="check" size={18} color={th.gold} />
@@ -81,25 +84,25 @@ export default function OnboardingFamilyScreen() {
           >
             <Icon name="plus" size={18} color={th.goldContrast} />
             <Text style={styles.addText}>
-              {family.length > 0 ? 'Add another family member' : 'Add a family member'}
+              {family.length > 0 ? (isHindi ? 'एक और सदस्य जोड़ें' : 'Add another family member') : (isHindi ? 'परिवार सदस्य जोड़ें' : 'Add a family member')}
             </Text>
           </Pressable>
 
           <Pressable style={styles.skipBtn} onPress={finish} android_ripple={{ color: th.goldFaint }}>
             <Text style={styles.skipText}>
-              {family.length > 0 ? 'Continue to Ritham' : 'Skip for now'}
+              {family.length > 0 ? (isHindi ? 'रिदम पर जारी रखें' : 'Continue to Ritham') : (isHindi ? 'अभी छोड़ें' : 'Skip for now')}
             </Text>
           </Pressable>
         </Reveal>
 
         <Reveal index={3}>
-          <Text style={styles.note}>You can always add or manage family later from Home or Settings.</Text>
+          <Text style={styles.note}>{isHindi ? 'आप बाद में कभी भी होम या सेटिंग्स से परिवार जोड़ या प्रबंधित कर सकते हैं।' : 'You can always add or manage family later from Home or Settings.'}</Text>
         </Reveal>
       </ScrollView>
 
       <SelectModal
         visible={pick}
-        title="Who are you adding?"
+        title={isHindi ? 'आप किसे जोड़ रहे हैं?' : 'Who are you adding?'}
         options={relationOpts}
         onSelect={onAdd}
         onClose={() => setPick(false)}

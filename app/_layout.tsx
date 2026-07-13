@@ -20,6 +20,7 @@ import {
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ProfileProvider } from '../context/ProfileContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { LanguageProvider, useLanguage } from '../context/LanguageContext';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { AnimatedSplash } from '../components/AnimatedSplash';
 
@@ -33,22 +34,32 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 // the root "/" route is mounted.
 function AuthGate() {
   const { session, loading } = useAuth();
+  const { chosen, ready: langReady } = useLanguage();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !langReady) return;
     const inAuthGroup = segments[0] === '(auth)';
     const isPublic = segments[0] === 'legal'; // policy screens are readable signed-out
+    // `language` is a newly added route; the generated router types regenerate on the
+    // next Expo run, so compare/navigate via a plain string until then.
+    const onLanguage = (segments[0] as string) === 'language';
 
-    if (session && inAuthGroup) {
-      // Signed in but still on an auth screen → go to the app
+    // First run: force the language chooser before anything else (even sign-in).
+    if (!chosen) {
+      if (!onLanguage) router.replace('/language' as never);
+      return;
+    }
+
+    if (session && (inAuthGroup || onLanguage)) {
+      // Signed in but still on an auth/language screen → go to the app
       router.replace('/(tabs)');
-    } else if (!session && !inAuthGroup && !isPublic) {
+    } else if (!session && !inAuthGroup && !isPublic && !onLanguage) {
       // Signed out but on a protected screen → go to auth
       router.replace('/(auth)');
     }
-  }, [session, loading, segments, router]);
+  }, [session, loading, chosen, langReady, segments, router]);
 
   if (loading) return <LoadingScreen />;
   // A real Stack (not <Slot />) gives every top-level route proper push/pop
@@ -61,6 +72,7 @@ function AuthGate() {
 
 function RootLayoutInner() {
   const { colors, statusBarStyle, ready } = useThemeBits();
+  const { ready: langReady } = useLanguage();
   const [fontsLoaded] = useFonts({
     Fraunces_500Medium,
     Fraunces_600SemiBold,
@@ -74,10 +86,10 @@ function RootLayoutInner() {
 
   // Hand off from the native splash once fonts + persisted theme are ready.
   const onLayoutReady = useCallback(async () => {
-    if (fontsLoaded && ready) await SplashScreen.hideAsync().catch(() => {});
-  }, [fontsLoaded, ready]);
+    if (fontsLoaded && ready && langReady) await SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, ready, langReady]);
 
-  if (!fontsLoaded || !ready) return null; // native splash still showing
+  if (!fontsLoaded || !ready || !langReady) return null; // native splash still showing
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.canvas }} onLayout={onLayoutReady}>
@@ -102,7 +114,9 @@ export default function RootLayout() {
   return (
     <KeyboardProvider>
       <ThemeProvider>
-        <RootLayoutInner />
+        <LanguageProvider>
+          <RootLayoutInner />
+        </LanguageProvider>
       </ThemeProvider>
     </KeyboardProvider>
   );

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getSessionMessages, ChatMessage } from '../lib/chatService';
 import { Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
@@ -13,6 +14,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 export default function ChatConversationScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id, name } = useLocalSearchParams<{ id: string; name?: string }>();
@@ -26,7 +28,7 @@ export default function ChatConversationScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title={name || 'Conversation'} onBack={() => router.back()} />
+      <ScreenHeader title={name || (isHindi ? 'बातचीत' : 'Conversation')} onBack={() => router.back()} />
 
       {messages === null ? (
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
@@ -37,7 +39,7 @@ export default function ChatConversationScreen() {
         >
           <View style={styles.readonlyChip}>
             <Icon name="history" size={13} color={th.textDim} />
-            <Text style={styles.readonlyText}>Past conversation · read only</Text>
+            <Text style={styles.readonlyText}>{isHindi ? 'पिछली बातचीत · केवल पढ़ने के लिए' : 'Past conversation · read only'}</Text>
           </View>
 
           {messages.map((m, i) => (
@@ -52,7 +54,7 @@ export default function ChatConversationScreen() {
             android_ripple={{ color: th.goldFaint }}
           >
             <Icon name="chat" size={16} color={th.gold} />
-            <Text style={styles.newChatText}>Start a new chat</Text>
+            <Text style={styles.newChatText}>{isHindi ? 'नई बातचीत शुरू करें' : 'Start a new chat'}</Text>
           </Pressable>
         </ScrollView>
       )}

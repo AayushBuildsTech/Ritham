@@ -4,10 +4,11 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { getNumerology } from '../lib/numerologyService';
 import { Numerology, NumerologyNumber } from '../lib/numerology';
-import { meaningFor } from '../constants/numerology';
+import { meaningFor, meaningForHi } from '../constants/numerology';
 import { track } from '../lib/analytics';
 import { Colors, Fonts, Spacing, Radius, Depth, Accents, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
@@ -15,6 +16,7 @@ import { Reveal } from '../components/Reveal';
 export default function NumerologyScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { isHindi } = useLanguage();
   const router = useRouter();
   const { profileId } = useLocalSearchParams<{ profileId: string }>();
 
@@ -46,18 +48,20 @@ export default function NumerologyScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Numerology" onBack={() => router.back()} />
+      <ScreenHeader title={isHindi ? 'अंक ज्योतिष' : 'Numerology'} onBack={() => router.back()} />
 
       {state === 'loading' ? (
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : state === 'error' ? (
         <View style={styles.center}>
-          <Text style={styles.errorText}>Couldn’t load your numerology right now.</Text>
+          <Text style={styles.errorText}>{isHindi ? 'अभी आपका अंक ज्योतिष लोड नहीं हो सका।' : 'Couldn’t load your numerology right now.'}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.intro}>
-            {name?.trim().split(/\s+/)[0]}, your core numbers are drawn from your name and date of birth.
+            {isHindi
+              ? `${name?.trim().split(/\s+/)[0]}, आपके मूल अंक आपके नाम और जन्म तिथि से निकाले गए हैं।`
+              : `${name?.trim().split(/\s+/)[0]}, your core numbers are drawn from your name and date of birth.`}
           </Text>
 
           {data ? <Reveal index={0}><NumberCard kind="Life Path" n={data.life_path} /></Reveal> : null}
@@ -67,18 +71,21 @@ export default function NumerologyScreen() {
           <Reveal index={2}>
             <View style={styles.hookCard}>
               <Text style={styles.hookText}>
-                See how your <Text style={styles.hookEm}>birth chart</Text> shapes all of this.
+                {isHindi
+                  ? <>देखें कि आपकी <Text style={styles.hookEm}>जन्म कुंडली</Text> इस सब को कैसे आकार देती है।</>
+                  : <>See how your <Text style={styles.hookEm}>birth chart</Text> shapes all of this.</>}
               </Text>
               <Pressable style={styles.hookBtn} onPress={openChat} android_ripple={{ color: th.goldDeep }}>
-                <Text style={styles.hookBtnText}>Start a chat</Text>
+                <Text style={styles.hookBtnText}>{isHindi ? 'बातचीत शुरू करें' : 'Start a chat'}</Text>
                 <Icon name="arrowRight" size={15} color={th.goldContrast} />
               </Pressable>
             </View>
           </Reveal>
 
           <Text style={styles.footnote}>
-            Numbers are computed from your name and birth date. For guidance and reflection,
-            not professional advice.
+            {isHindi
+              ? 'अंक आपके नाम और जन्म तिथि से गणना किए जाते हैं। मार्गदर्शन और चिंतन के लिए, पेशेवर सलाह नहीं।'
+              : 'Numbers are computed from your name and birth date. For guidance and reflection, not professional advice.'}
           </Text>
         </ScrollView>
       )}
@@ -89,7 +96,12 @@ export default function NumerologyScreen() {
 function NumberCard({ kind, n }: { kind: 'Life Path' | 'Expression'; n: NumerologyNumber }) {
   const th = useColors();
   const styles = makeStyles(th);
-  const meaning = meaningFor(n.number);
+  const { isHindi } = useLanguage();
+  const meaning = isHindi ? meaningForHi(n.number) : meaningFor(n.number);
+  const kindLabel = isHindi
+    ? (kind === 'Life Path' ? 'जीवन पथ' : 'अभिव्यक्ति')
+    : kind;
+  const masterSuffix = n.is_master ? (isHindi ? ' · मास्टर नंबर' : ' · Master Number') : '';
   return (
     <View style={styles.card}>
       <View style={styles.cardHead}>
@@ -97,7 +109,7 @@ function NumberCard({ kind, n }: { kind: 'Life Path' | 'Expression'; n: Numerolo
           <Text style={styles.badgeNum}>{n.number}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.kind}>{kind}{n.is_master ? ' · Master Number' : ''}</Text>
+          <Text style={styles.kind}>{kindLabel}{masterSuffix}</Text>
           <Text style={styles.cardTitle}>{meaning?.title ?? '—'}</Text>
           {meaning ? <Text style={styles.keyword}>{meaning.keyword}</Text> : null}
         </View>

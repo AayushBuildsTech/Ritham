@@ -9,6 +9,7 @@ import {
 } from '../context/ProfileContext';
 import { Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { Reveal } from '../components/Reveal';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -17,6 +18,7 @@ import { SelectModal, Option } from '../components/SelectModal';
 export default function FamilyScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi } = useLanguage();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { members, activeId, loading, setActive, refresh } = useActiveProfile();
@@ -40,15 +42,15 @@ export default function FamilyScreen() {
 
   function confirmDelete(m: FamilyMember) {
     Alert.alert(
-      `Remove ${m.name}?`,
-      'This deletes their birth details and chart. This cannot be undone.',
+      isHindi ? `${m.name} को हटाएं?` : `Remove ${m.name}?`,
+      isHindi ? 'यह उनका जन्म विवरण और कुंडली हटा देगा। इसे वापस नहीं लाया जा सकता।' : 'This deletes their birth details and chart. This cannot be undone.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: isHindi ? 'रद्द करें' : 'Cancel', style: 'cancel' },
         {
-          text: 'Remove', style: 'destructive',
+          text: isHindi ? 'हटाएं' : 'Remove', style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('profiles').delete().eq('id', m.id);
-            if (error) { Alert.alert('Could not remove', error.message); return; }
+            if (error) { Alert.alert(isHindi ? 'हटाया नहीं जा सका' : 'Could not remove', error.message); return; }
             track('family_member_removed');
             if (activeId === m.id) {
               const self = members.find((x) => x.relation === 'self');
@@ -67,16 +69,17 @@ export default function FamilyScreen() {
 
   return (
     <View style={styles.root}>
-      <ScreenHeader title="Family" onBack={() => router.back()} />
+      <ScreenHeader title={isHindi ? 'परिवार' : 'Family'} onBack={() => router.back()} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
         showsVerticalScrollIndicator={false}
       >
         <Reveal index={0}>
-          <Text style={styles.eyebrow}>ONE ACCOUNT, THE WHOLE FAMILY</Text>
+          <Text style={styles.eyebrow}>{isHindi ? 'एक खाता, पूरा परिवार' : 'ONE ACCOUNT, THE WHOLE FAMILY'}</Text>
           <Text style={styles.sub}>
-            Add the people you care about — each gets their own Kundli, horoscope, chat and
-            reports. Tap a person to make them active across the app.
+            {isHindi
+              ? 'अपने प्रियजनों को जोड़ें — हर किसी को अपनी कुंडली, राशिफल, चैट और रिपोर्ट मिलती है। किसी व्यक्ति को पूरे ऐप में सक्रिय करने के लिए टैप करें।'
+              : 'Add the people you care about — each gets their own Kundli, horoscope, chat and reports. Tap a person to make them active across the app.'}
           </Text>
         </Reveal>
 
@@ -96,11 +99,11 @@ export default function FamilyScreen() {
                 <View style={styles.cardBody}>
                   <View style={styles.nameRow}>
                     <Text style={styles.name} numberOfLines={1}>{m.name}</Text>
-                    {isActive && <Text style={styles.activePill}>ACTIVE</Text>}
+                    {isActive && <Text style={styles.activePill}>{isHindi ? 'सक्रिय' : 'ACTIVE'}</Text>}
                   </View>
                   <Text style={styles.meta} numberOfLines={1}>
-                    {isSelf ? 'You' : RELATION_LABEL[m.relation] ?? 'Family'}
-                    {m.moonSign ? ` · Moon in ${m.moonSign}` : ' · Kundli pending'}
+                    {isSelf ? (isHindi ? 'आप' : 'You') : RELATION_LABEL[m.relation] ?? (isHindi ? 'परिवार' : 'Family')}
+                    {m.moonSign ? ` · ${isHindi ? 'चंद्र' : 'Moon in'} ${m.moonSign}` : (isHindi ? ' · कुंडली लंबित' : ' · Kundli pending')}
                   </Text>
                 </View>
                 <Pressable
@@ -133,21 +136,22 @@ export default function FamilyScreen() {
             android_ripple={{ color: th.goldDeep }}
           >
             <Icon name="plus" size={18} color={th.goldContrast} />
-            <Text style={styles.addText}>Add a family member</Text>
+            <Text style={styles.addText}>{isHindi ? 'परिवार सदस्य जोड़ें' : 'Add a family member'}</Text>
           </Pressable>
         </Reveal>
 
         <Reveal index={members.length + 2}>
           <Text style={styles.note}>
-            Your question and time packs are shared across everyone in your family — one wallet
-            for all their readings.
+            {isHindi
+              ? 'आपके प्रश्न और समय पैक आपके पूरे परिवार में साझा होते हैं — सभी की रीडिंग के लिए एक ही वॉलेट।'
+              : 'Your question and time packs are shared across everyone in your family — one wallet for all their readings.'}
           </Text>
         </Reveal>
       </ScrollView>
 
       <SelectModal
         visible={pickRelation}
-        title="Who are you adding?"
+        title={isHindi ? 'आप किसे जोड़ रहे हैं?' : 'Who are you adding?'}
         options={relationOpts}
         onSelect={onAddRelation}
         onClose={() => setPickRelation(false)}

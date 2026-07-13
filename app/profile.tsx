@@ -18,6 +18,9 @@ import { searchPlaces, GeoPlace } from '../lib/geocoding';
 import { SelectModal, Option } from '../components/SelectModal';
 import { Colors, Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { hiSign, hiGraha, hiNakshatra, hiFlags, hiHouseOrd } from '../lib/astroHindi';
+import { buildLifeAreasHi } from '../config/kundliLifeAreas';
 import { Icon } from '../components/Icon';
 
 const MONTHS = [
@@ -32,11 +35,17 @@ type ModalKind = 'day' | 'month' | 'year' | 'hour' | 'minute' | 'ampm' | 'city' 
 interface SelectedPlace { name: string; lat: number; lon: number; tz: string }
 
 const pad2 = (n: number | string) => String(n).padStart(2, '0');
-const PLACEHOLDERS = ['Day', 'Month', 'Year', 'Hr', 'Min', 'AM/PM', 'Select city'];
+// Both languages' placeholder strings, so Field's "is this a placeholder?" dim check
+// still works whatever the active language.
+const PLACEHOLDERS = [
+  'Day', 'Month', 'Year', 'Hr', 'Min', 'AM/PM', 'Select city',
+  'दिन', 'माह', 'वर्ष', 'घंटा', 'मिनट', 'पूर्वाह्न/अपराह्न', 'शहर चुनें',
+];
 
 function BackHeader({ onBack }: { onBack: () => void }) {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   return (
     <Pressable
@@ -45,7 +54,7 @@ function BackHeader({ onBack }: { onBack: () => void }) {
       android_ripple={{ color: th.goldFaint, borderless: true, radius: 20 }}
     >
       <Icon name="back" size={20} color={th.gold} />
-      <Text style={styles.backText}>Back</Text>
+      <Text style={styles.backText}>{t('common.back')}</Text>
     </Pressable>
   );
 }
@@ -53,6 +62,7 @@ function BackHeader({ onBack }: { onBack: () => void }) {
 export default function ProfileScreen() {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi } = useLanguage();
   const router = useRouter();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ id?: string; new?: string; relation?: string }>();
@@ -168,18 +178,18 @@ export default function ProfileScreen() {
   // ── save ────────────────────────────────────────────────────────────────────
   async function handleSave() {
     setError('');
-    if (!name.trim()) return setError('Please enter a name.');
-    if (!gender) return setError('Please select a gender.');
-    if (!day || !month || !year) return setError('Please select your full date of birth.');
-    if (!hour || !minute || !ampm) return setError('Please select your time of birth.');
-    if (!place) return setError('Please select your birth place.');
+    if (!name.trim()) return setError(isHindi ? 'कृपया नाम दर्ज करें।' : 'Please enter a name.');
+    if (!gender) return setError(isHindi ? 'कृपया लिंग चुनें।' : 'Please select a gender.');
+    if (!day || !month || !year) return setError(isHindi ? 'कृपया अपनी पूरी जन्म तिथि चुनें।' : 'Please select your full date of birth.');
+    if (!hour || !minute || !ampm) return setError(isHindi ? 'कृपया अपना जन्म समय चुनें।' : 'Please select your time of birth.');
+    if (!place) return setError(isHindi ? 'कृपया अपना जन्म स्थान चुनें।' : 'Please select your birth place.');
     const wasNew = !profile; // brand-new profile → onboarding: go to Home after creating
 
     // validate the calendar date is real (e.g. reject 30 February)
     const y = Number(year), m = Number(month), d = Number(day);
     const test = new Date(y, m - 1, d);
     if (test.getFullYear() !== y || test.getMonth() !== m - 1 || test.getDate() !== d) {
-      return setError('That date does not exist. Please check the day and month.');
+      return setError(isHindi ? 'यह तिथि मौजूद नहीं है। कृपया दिन और माह जांचें।' : 'That date does not exist. Please check the day and month.');
     }
 
     // 12h → 24h
@@ -239,7 +249,7 @@ export default function ProfileScreen() {
       setProfile({ ...row, kundli_chart: kundli, kundli_summary: kundli.summary, kundli_source: kundli.source, kundli_computed_at: kundli.computed_at });
       setMode('view');
     } catch (e: any) {
-      setError(e?.message ?? 'Something went wrong. Please try again.');
+      setError(e?.message ?? (isHindi ? 'कुछ गड़बड़ हो गई। कृपया फिर कोशिश करें।' : 'Something went wrong. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -280,31 +290,31 @@ export default function ProfileScreen() {
       >
         <BackHeader onBack={() => router.back()} />
 
-        <Text style={styles.eyebrow}>{isAdding ? 'ADD FAMILY MEMBER' : profile ? 'EDIT BIRTH DETAILS' : 'YOUR KUNDLI'}</Text>
-        <Text style={styles.h1}>{isAdding ? 'Add Family Member' : profile ? 'Edit Birth Details' : 'Create Your Kundli'}</Text>
+        <Text style={styles.eyebrow}>{isAdding ? (isHindi ? 'परिवार सदस्य जोड़ें' : 'ADD FAMILY MEMBER') : profile ? (isHindi ? 'जन्म विवरण संपादित करें' : 'EDIT BIRTH DETAILS') : (isHindi ? 'आपकी कुंडली' : 'YOUR KUNDLI')}</Text>
+        <Text style={styles.h1}>{isAdding ? (isHindi ? 'परिवार सदस्य जोड़ें' : 'Add Family Member') : profile ? (isHindi ? 'जन्म विवरण संपादित करें' : 'Edit Birth Details') : (isHindi ? 'अपनी कुंडली बनाएं' : 'Create Your Kundli')}</Text>
         <Text style={styles.sub}>
           {isFamily
-            ? 'Enter this person’s birth details to generate their Kundli, horoscope and reports. The time of birth matters most.'
-            : 'Your birth details power your chart, horoscopes, and AI consultations. Enter them as accurately as you can — especially the time of birth.'}
+            ? (isHindi ? 'इस व्यक्ति की कुंडली, राशिफल और रिपोर्ट बनाने के लिए उनका जन्म विवरण दर्ज करें। जन्म का समय सबसे महत्वपूर्ण है।' : 'Enter this person’s birth details to generate their Kundli, horoscope and reports. The time of birth matters most.')
+            : (isHindi ? 'आपका जन्म विवरण आपकी कुंडली, राशिफल और AI परामर्श को शक्ति देता है। इसे यथासंभव सटीक दर्ज करें — विशेषकर जन्म का समय।' : 'Your birth details power your chart, horoscopes, and AI consultations. Enter them as accurately as you can — especially the time of birth.')}
         </Text>
 
         {isFamily && (
           <>
-            <Text style={styles.label}>RELATIONSHIP</Text>
-            <Field label={RELATION_LABEL[relation] ?? 'Select'} onPress={() => setModal('relation')} />
+            <Text style={styles.label}>{isHindi ? 'संबंध' : 'RELATIONSHIP'}</Text>
+            <Field label={RELATION_LABEL[relation] ?? (isHindi ? 'चुनें' : 'Select')} onPress={() => setModal('relation')} />
           </>
         )}
 
-        <Text style={styles.label}>FULL NAME</Text>
+        <Text style={styles.label}>{isHindi ? 'पूरा नाम' : 'FULL NAME'}</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. Aarav Sharma"
+          placeholder={isHindi ? 'जैसे आरव शर्मा' : 'e.g. Aarav Sharma'}
           placeholderTextColor={th.textDim}
           value={name}
           onChangeText={setName}
         />
 
-        <Text style={styles.label}>GENDER</Text>
+        <Text style={styles.label}>{isHindi ? 'लिंग' : 'GENDER'}</Text>
         <View style={styles.pillRow}>
           {(['male', 'female', 'other'] as Gender[]).map((g) => (
             <Pressable
@@ -313,28 +323,28 @@ export default function ProfileScreen() {
               onPress={() => setGender(g)}
             >
               <Text style={[styles.pillText, gender === g && styles.pillTextActive]}>
-                {g[0].toUpperCase() + g.slice(1)}
+                {isHindi ? (g === 'male' ? 'पुरुष' : g === 'female' ? 'महिला' : 'अन्य') : g[0].toUpperCase() + g.slice(1)}
               </Text>
             </Pressable>
           ))}
         </View>
 
-        <Text style={styles.label}>DATE OF BIRTH</Text>
+        <Text style={styles.label}>{isHindi ? 'जन्म तिथि' : 'DATE OF BIRTH'}</Text>
         <View style={styles.row3}>
-          <Field flex={1} label={day || 'Day'} onPress={() => setModal('day')} />
-          <Field flex={1.6} label={monthLabel || 'Month'} onPress={() => setModal('month')} />
-          <Field flex={1.2} label={year || 'Year'} onPress={() => setModal('year')} />
+          <Field flex={1} label={day || (isHindi ? 'दिन' : 'Day')} onPress={() => setModal('day')} />
+          <Field flex={1.6} label={monthLabel || (isHindi ? 'माह' : 'Month')} onPress={() => setModal('month')} />
+          <Field flex={1.2} label={year || (isHindi ? 'वर्ष' : 'Year')} onPress={() => setModal('year')} />
         </View>
 
-        <Text style={styles.label}>TIME OF BIRTH</Text>
+        <Text style={styles.label}>{isHindi ? 'जन्म समय' : 'TIME OF BIRTH'}</Text>
         <View style={styles.row3}>
-          <Field flex={1} label={hour || 'Hr'} onPress={() => setModal('hour')} />
-          <Field flex={1} label={minute !== '' ? pad2(Number(minute)) : 'Min'} onPress={() => setModal('minute')} />
-          <Field flex={1} label={ampm || 'AM/PM'} onPress={() => setModal('ampm')} />
+          <Field flex={1} label={hour || (isHindi ? 'घंटा' : 'Hr')} onPress={() => setModal('hour')} />
+          <Field flex={1} label={minute !== '' ? pad2(Number(minute)) : (isHindi ? 'मिनट' : 'Min')} onPress={() => setModal('minute')} />
+          <Field flex={1} label={ampm || (isHindi ? 'पूर्वाह्न/अपराह्न' : 'AM/PM')} onPress={() => setModal('ampm')} />
         </View>
 
-        <Text style={styles.label}>BIRTH PLACE</Text>
-        <Field label={city || 'Select city'} onPress={() => setModal('city')} />
+        <Text style={styles.label}>{isHindi ? 'जन्म स्थान' : 'BIRTH PLACE'}</Text>
+        <Field label={city || (isHindi ? 'शहर चुनें' : 'Select city')} onPress={() => setModal('city')} />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -346,30 +356,30 @@ export default function ProfileScreen() {
         >
           {saving
             ? <ActivityIndicator color={th.goldContrast} />
-            : <Text style={styles.saveText}>{profile ? 'Save & Recompute Kundli' : 'Generate My Kundli'}</Text>}
+            : <Text style={styles.saveText}>{profile ? (isHindi ? 'सहेजें और कुंडली पुनः बनाएं' : 'Save & Recompute Kundli') : (isHindi ? 'मेरी कुंडली बनाएं' : 'Generate My Kundli')}</Text>}
         </Pressable>
 
         <View style={{ height: Spacing.xxl }} />
       </KeyboardAwareScrollView>
 
       {/* pickers */}
-      <SelectModal visible={modal === 'relation'} title="Relationship"
+      <SelectModal visible={modal === 'relation'} title={isHindi ? 'संबंध' : 'Relationship'}
         options={FAMILY_RELATIONS.map((r) => ({ label: RELATION_LABEL[r], value: r }))}
         selectedValue={relation} onSelect={setRelation} onClose={() => setModal(null)} />
-      <SelectModal visible={modal === 'day'} title="Day" options={dayOpts} selectedValue={day}
+      <SelectModal visible={modal === 'day'} title={isHindi ? 'दिन' : 'Day'} options={dayOpts} selectedValue={day}
         onSelect={setDay} onClose={() => setModal(null)} />
-      <SelectModal visible={modal === 'month'} title="Month" options={monthOpts} selectedValue={month}
+      <SelectModal visible={modal === 'month'} title={isHindi ? 'माह' : 'Month'} options={monthOpts} selectedValue={month}
         onSelect={setMonth} onClose={() => setModal(null)} />
-      <SelectModal visible={modal === 'year'} title="Year" options={yearOpts} selectedValue={year}
+      <SelectModal visible={modal === 'year'} title={isHindi ? 'वर्ष' : 'Year'} options={yearOpts} selectedValue={year}
         onSelect={setYear} onClose={() => setModal(null)} />
-      <SelectModal visible={modal === 'hour'} title="Hour" options={hourOpts} selectedValue={hour}
+      <SelectModal visible={modal === 'hour'} title={isHindi ? 'घंटा' : 'Hour'} options={hourOpts} selectedValue={hour}
         onSelect={setHour} onClose={() => setModal(null)} />
-      <SelectModal visible={modal === 'minute'} title="Minute" options={minuteOpts} selectedValue={minute}
+      <SelectModal visible={modal === 'minute'} title={isHindi ? 'मिनट' : 'Minute'} options={minuteOpts} selectedValue={minute}
         onSelect={setMinute} onClose={() => setModal(null)} />
-      <SelectModal visible={modal === 'ampm'} title="AM / PM"
+      <SelectModal visible={modal === 'ampm'} title={isHindi ? 'पूर्वाह्न / अपराह्न' : 'AM / PM'}
         options={[{ label: 'AM', value: 'AM' }, { label: 'PM', value: 'PM' }]} selectedValue={ampm}
         onSelect={setAmpm} onClose={() => setModal(null)} />
-      <SelectModal visible={modal === 'city'} title="Birth Place" options={cityOpts}
+      <SelectModal visible={modal === 'city'} title={isHindi ? 'जन्म स्थान' : 'Birth Place'} options={cityOpts}
         selectedValue={place ? `${place.name}|${place.lat}|${place.lon}` : undefined}
         remoteSearch={cityRemoteSearch} onSelect={onSelectCity} onClose={() => setModal(null)} />
     </View>
@@ -422,6 +432,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
 }) {
   const th = useColors();
   const styles = makeStyles(th);
+  const { t, isHindi } = useLanguage();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [chartStyle, setChartStyle] = useState<ChartVariant>('north');
@@ -451,7 +462,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
   const d10 = cf?.divisional?.d10 ?? null;
   const manglik = doshas.some((d: any) => /Manglik/i.test(d.name) && d.present)
     || yogas.some((y: any) => /Manglik/i.test(y.name));
-  const lifeAreas = buildLifeAreas({ houses: houses as any, grahas: grahas as any, manglik, mahaLord: maha?.lord ?? null });
+  const lifeAreas = (isHindi ? buildLifeAreasHi : buildLifeAreas)({ houses: houses as any, grahas: grahas as any, manglik, mahaLord: maha?.lord ?? null });
 
   // ── visual birth-chart data (D1 always; D9/D10 when the rich chart_facts exist) ──
   const charts = useMemo(() => {
@@ -503,22 +514,37 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
 
   // Share a clean text summary of this Kundli to WhatsApp / anywhere.
   async function handleShare() {
-    const lines = [
-      'My Vedic Kundli — Ritham',
-      '',
-      profile.name,
-      `${dobLabel} · ${tobLabel}`,
-      profile.birth_place,
-      '',
-      `Lagna (Ascendant): ${kundli.lagna}`,
-      `Moon Sign (Rashi): ${kundli.moon_sign}`,
-      `Sun Sign: ${kundli.sun_sign}`,
-      `Nakshatra: ${kundli.nakshatra}${kundli.pada ? ` · Pada ${kundli.pada}` : ''}`,
-    ];
+    const lines = isHindi
+      ? [
+          'मेरी वैदिक कुंडली — Ritham',
+          '',
+          profile.name,
+          `${dobLabel} · ${tobLabel}`,
+          profile.birth_place,
+          '',
+          `लग्न: ${hiSign(kundli.lagna)}`,
+          `चंद्र राशि: ${hiSign(kundli.moon_sign)}`,
+          `सूर्य राशि: ${hiSign(kundli.sun_sign)}`,
+          `नक्षत्र: ${hiNakshatra(kundli.nakshatra)}${kundli.pada ? ` · पाद ${kundli.pada}` : ''}`,
+        ]
+      : [
+          'My Vedic Kundli — Ritham',
+          '',
+          profile.name,
+          `${dobLabel} · ${tobLabel}`,
+          profile.birth_place,
+          '',
+          `Lagna (Ascendant): ${kundli.lagna}`,
+          `Moon Sign (Rashi): ${kundli.moon_sign}`,
+          `Sun Sign: ${kundli.sun_sign}`,
+          `Nakshatra: ${kundli.nakshatra}${kundli.pada ? ` · Pada ${kundli.pada}` : ''}`,
+        ];
     if (maha) {
-      lines.push('', `Currently running: ${maha.lord} Mahadasha${antar ? ` — ${antar.lord} Antardasha` : ''}`);
+      lines.push('', isHindi
+        ? `अभी चल रही: ${hiGraha(maha.lord)} महादशा${antar ? ` — ${hiGraha(antar.lord)} अंतर्दशा` : ''}`
+        : `Currently running: ${maha.lord} Mahadasha${antar ? ` — ${antar.lord} Antardasha` : ''}`);
     }
-    lines.push('', 'Discover your own Kundli, horoscopes & AI astrologer on Ritham:', 'https://ritham.netlify.app');
+    lines.push('', isHindi ? 'Ritham पर अपनी कुंडली, राशिफल और AI ज्योतिषी पाएं:' : 'Discover your own Kundli, horoscopes & AI astrologer on Ritham:', 'https://ritham.netlify.app');
     try {
       await Share.share({ message: lines.join('\n') });
       track('kundli_shared');
@@ -530,11 +556,11 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       <View style={[styles.viewTopBar, { marginTop: insets.top }]}>
         <Pressable style={styles.backInline} onPress={onBack} android_ripple={{ color: th.goldFaint, borderless: true, radius: 20 }}>
           <Icon name="back" size={20} color={th.gold} />
-          <Text style={styles.backText}>Back</Text>
+          <Text style={styles.backText}>{t('common.back')}</Text>
         </Pressable>
         <Pressable style={styles.shareBtn} onPress={handleShare} android_ripple={{ color: th.goldFaint }}>
           <Icon name="share" size={16} color={th.goldLight} />
-          <Text style={styles.shareBtnText}>Share</Text>
+          <Text style={styles.shareBtnText}>{isHindi ? 'साझा करें' : 'Share'}</Text>
         </Pressable>
       </View>
 
@@ -547,28 +573,30 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
 
       {/* Chart overview */}
       <View style={styles.keyGrid}>
-        <KeyCard label="Lagna (Ascendant)" value={kundli.lagna} />
-        <KeyCard label="Moon Sign (Rashi)" value={kundli.moon_sign} />
-        <KeyCard label="Sun Sign" value={kundli.sun_sign} />
-        <KeyCard label="Nakshatra" value={`${kundli.nakshatra}${kundli.pada ? ` · Pada ${kundli.pada}` : ''}`} />
+        <KeyCard label={isHindi ? 'लग्न' : 'Lagna (Ascendant)'} value={isHindi ? hiSign(kundli.lagna) : kundli.lagna} />
+        <KeyCard label={isHindi ? 'चंद्र राशि' : 'Moon Sign (Rashi)'} value={isHindi ? hiSign(kundli.moon_sign) : kundli.moon_sign} />
+        <KeyCard label={isHindi ? 'सूर्य राशि' : 'Sun Sign'} value={isHindi ? hiSign(kundli.sun_sign) : kundli.sun_sign} />
+        <KeyCard label={isHindi ? 'नक्षत्र' : 'Nakshatra'} value={`${isHindi ? hiNakshatra(kundli.nakshatra) : kundli.nakshatra}${kundli.pada ? ` · ${isHindi ? 'पाद' : 'Pada'} ${kundli.pada}` : ''}`} />
       </View>
       {kundli.lagna_lord && (
         <Text style={styles.overviewLine}>
-          Lagna lord {kundli.lagna_lord.graha} in {kundli.lagna_lord.sign} (house {kundli.lagna_lord.house})
+          {isHindi
+            ? `लग्न स्वामी ${hiGraha(kundli.lagna_lord.graha)}, ${hiSign(kundli.lagna_lord.sign)} में (${hiHouseOrd(kundli.lagna_lord.house)} भाव)`
+            : `Lagna lord ${kundli.lagna_lord.graha} in ${kundli.lagna_lord.sign} (house ${kundli.lagna_lord.house})`}
         </Text>
       )}
 
       {/* Visual birth charts (North / South Indian) */}
       {activeChart && (
         <>
-          <Text style={styles.areaHeading}>Kundli Charts</Text>
+          <Text style={styles.areaHeading}>{isHindi ? 'कुंडली चार्ट' : 'Kundli Charts'}</Text>
           <View style={styles.chartControls}>
             <View style={styles.styleToggle}>
               {(['north', 'south'] as ChartVariant[]).map((v) => (
                 <Pressable key={v} onPress={() => setChartStyle(v)}
                   style={[styles.togglePill, chartStyle === v && styles.togglePillOn]}>
                   <Text style={[styles.toggleText, chartStyle === v && styles.toggleTextOn]}>
-                    {v === 'north' ? 'North Indian' : 'South Indian'}
+                    {v === 'north' ? (isHindi ? 'उत्तर भारतीय' : 'North Indian') : (isHindi ? 'दक्षिण भारतीय' : 'South Indian')}
                   </Text>
                 </Pressable>
               ))}
@@ -576,12 +604,17 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
           </View>
           {charts.length > 1 && (
             <View style={styles.vargaRow}>
-              {charts.map((c) => (
-                <Pressable key={c.key} onPress={() => setChartKey(c.key)} style={styles.vargaBtn}>
-                  <Text style={[styles.vargaText, activeChart.key === c.key && styles.vargaTextOn]}>{c.label}</Text>
-                  <View style={[styles.vargaRule, activeChart.key === c.key && styles.vargaRuleOn]} />
-                </Pressable>
-              ))}
+              {charts.map((c) => {
+                const vLabel = isHindi
+                  ? ({ D1: 'लग्न (D1)', D9: 'नवांश (D9)', D10: 'दशांश (D10)' } as Record<string, string>)[c.key] ?? c.label
+                  : c.label;
+                return (
+                  <Pressable key={c.key} onPress={() => setChartKey(c.key)} style={styles.vargaBtn}>
+                    <Text style={[styles.vargaText, activeChart.key === c.key && styles.vargaTextOn]}>{vLabel}</Text>
+                    <View style={[styles.vargaRule, activeChart.key === c.key && styles.vargaRuleOn]} />
+                  </Pressable>
+                );
+              })}
             </View>
           )}
           <View style={styles.chartCard}>
@@ -589,7 +622,9 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
               planets={activeChart.planets} colors={chartClr} />
           </View>
           <Text style={styles.chartLegend}>
-            Su Surya · Mo Chandra · Ma Mangal · Me Budh · Ju Guru · Ve Shukra · Sa Shani · Ra Rahu · Ke Ketu
+            {isHindi
+              ? 'Su सूर्य · Mo चंद्र · Ma मंगल · Me बुध · Ju गुरु · Ve शुक्र · Sa शनि · Ra राहु · Ke केतु'
+              : 'Su Surya · Mo Chandra · Ma Mangal · Me Budh · Ju Guru · Ve Shukra · Sa Shani · Ra Rahu · Ke Ketu'}
           </Text>
         </>
       )}
@@ -597,7 +632,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       {/* Your chart, grouped by life area (easy to read — not a data dump) */}
       {lifeAreas.length > 0 && (
         <>
-          <Text style={styles.areaHeading}>Your Chart at a Glance</Text>
+          <Text style={styles.areaHeading}>{isHindi ? 'एक नज़र में आपकी कुंडली' : 'Your Chart at a Glance'}</Text>
           {lifeAreas.map((a) => (
             <View key={a.key} style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>{a.title}</Text>
@@ -608,13 +643,13 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       )}
 
       {/* Planetary positions (rich when chart_facts present) */}
-      <Text style={styles.tableHeading}>Planetary Positions</Text>
+      <Text style={styles.tableHeading}>{isHindi ? 'ग्रह स्थिति' : 'Planetary Positions'}</Text>
       <View style={styles.table}>
         <View style={[styles.trow, styles.thead]}>
-          <Text style={[styles.th, { flex: 2 }]}>Graha</Text>
-          <Text style={[styles.th, { flex: 2.4 }]}>Sign</Text>
-          <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ho.</Text>
-          <Text style={[styles.th, { flex: 1.6, textAlign: 'right' }]}>State</Text>
+          <Text style={[styles.th, { flex: 2 }]}>{isHindi ? 'ग्रह' : 'Graha'}</Text>
+          <Text style={[styles.th, { flex: 2.4 }]}>{isHindi ? 'राशि' : 'Sign'}</Text>
+          <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>{isHindi ? 'भाव' : 'Ho.'}</Text>
+          <Text style={[styles.th, { flex: 1.6, textAlign: 'right' }]}>{isHindi ? 'स्थिति' : 'State'}</Text>
         </View>
         {(grahas ?? kundli.placements).map((p: any) => {
           const flags = [
@@ -625,10 +660,10 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
           ].filter(Boolean).join(', ');
           return (
             <View key={p.graha} style={styles.trow}>
-              <Text style={[styles.td, { flex: 2 }]}>{p.graha}</Text>
-              <Text style={[styles.td, { flex: 2.4 }]}>{(p.sign || '').split(' (')[0]}{p.sign_degree ? ` ${p.sign_degree.split("'")[0]}'` : ''}</Text>
+              <Text style={[styles.td, { flex: 2 }]}>{isHindi ? hiGraha(p.graha) : p.graha}</Text>
+              <Text style={[styles.td, { flex: 2.4 }]}>{isHindi ? hiSign((p.sign || '').split(' (')[0]) : (p.sign || '').split(' (')[0]}{p.sign_degree ? ` ${p.sign_degree.split("'")[0]}'` : ''}</Text>
               <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{p.house}</Text>
-              <Text style={[styles.tdDim, { flex: 1.6, textAlign: 'right' }]}>{flags || '—'}</Text>
+              <Text style={[styles.tdDim, { flex: 1.6, textAlign: 'right' }]}>{isHindi ? hiFlags(flags || '—') : (flags || '—')}</Text>
             </View>
           );
         })}
@@ -637,18 +672,18 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       {/* House lords */}
       {houses.length > 0 && (
         <>
-          <Text style={styles.tableHeading}>House Lords (Bhava)</Text>
+          <Text style={styles.tableHeading}>{isHindi ? 'भाव स्वामी' : 'House Lords (Bhava)'}</Text>
           <View style={styles.table}>
             <View style={[styles.trow, styles.thead]}>
-              <Text style={[styles.th, { flex: 0.7 }]}>Ho.</Text>
-              <Text style={[styles.th, { flex: 2 }]}>Sign</Text>
-              <Text style={[styles.th, { flex: 2.6, textAlign: 'right' }]}>Lord (sits in)</Text>
+              <Text style={[styles.th, { flex: 0.7 }]}>{isHindi ? 'भाव' : 'Ho.'}</Text>
+              <Text style={[styles.th, { flex: 2 }]}>{isHindi ? 'राशि' : 'Sign'}</Text>
+              <Text style={[styles.th, { flex: 2.6, textAlign: 'right' }]}>{isHindi ? 'स्वामी (स्थित)' : 'Lord (sits in)'}</Text>
             </View>
             {houses.map((h: any) => (
               <View key={h.house} style={styles.trow}>
                 <Text style={[styles.td, { flex: 0.7 }]}>{h.house}</Text>
-                <Text style={[styles.td, { flex: 2 }]}>{(h.sign || '').split(' (')[0]}</Text>
-                <Text style={[styles.tdDim, { flex: 2.6, textAlign: 'right' }]}>{(h.lord || '').split(' (')[0]} · H{h.lord_house}</Text>
+                <Text style={[styles.td, { flex: 2 }]}>{isHindi ? hiSign((h.sign || '').split(' (')[0]) : (h.sign || '').split(' (')[0]}</Text>
+                <Text style={[styles.tdDim, { flex: 2.6, textAlign: 'right' }]}>{isHindi ? hiGraha((h.lord || '').split(' (')[0]) : (h.lord || '').split(' (')[0]} · {isHindi ? 'भाव' : 'H'}{h.lord_house}</Text>
               </View>
             ))}
           </View>
@@ -658,19 +693,19 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       {/* Dasha timeline (current + upcoming; computed from the stored timeline) */}
       {maha && (
         <>
-          <Text style={styles.tableHeading}>Vimshottari Dasha</Text>
+          <Text style={styles.tableHeading}>{isHindi ? 'विंशोत्तरी दशा' : 'Vimshottari Dasha'}</Text>
           <View style={styles.dashaNow}>
-            <Text style={styles.dashaNowLabel}>Running now</Text>
+            <Text style={styles.dashaNowLabel}>{isHindi ? 'अभी चल रही' : 'Running now'}</Text>
             <Text style={styles.dashaNowValue}>
-              {maha.lord} Mahadasha{antar ? ` — ${antar.lord} Antardasha` : ''}
+              {isHindi ? hiGraha(maha.lord) : maha.lord} {isHindi ? 'महादशा' : 'Mahadasha'}{antar ? ` — ${isHindi ? hiGraha(antar.lord) : antar.lord} ${isHindi ? 'अंतर्दशा' : 'Antardasha'}` : ''}
             </Text>
             <Text style={styles.dashaNowDates}>
-              Maha until {monthYear(maha.end)}{antar ? ` · Antar until ${monthYear(antar.end)}` : ''}
+              {isHindi ? `महादशा ${monthYear(maha.end)} तक` : `Maha until ${monthYear(maha.end)}`}{antar ? (isHindi ? ` · अंतर्दशा ${monthYear(antar.end)} तक` : ` · Antar until ${monthYear(antar.end)}`) : ''}
             </Text>
           </View>
           {upcoming.map((p) => (
             <View key={p.start} style={styles.dashaRow}>
-              <Text style={styles.dashaLord}>{p.lord}</Text>
+              <Text style={styles.dashaLord}>{isHindi ? hiGraha(p.lord) : p.lord}</Text>
               <Text style={styles.dashaDates}>{monthYear(p.start)} – {monthYear(p.end)}</Text>
             </View>
           ))}
@@ -680,18 +715,18 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       {/* Divisional charts D9 / D10 */}
       {(d9 || d10) && (
         <>
-          <Text style={styles.tableHeading}>Divisional Charts</Text>
+          <Text style={styles.tableHeading}>{isHindi ? 'वर्ग कुंडलियां' : 'Divisional Charts'}</Text>
           <View style={styles.table}>
             <View style={[styles.trow, styles.thead]}>
-              <Text style={[styles.th, { flex: 2 }]}>Graha</Text>
-              <Text style={[styles.th, { flex: 2, textAlign: 'center' }]}>D9 (Navamsa)</Text>
-              <Text style={[styles.th, { flex: 2, textAlign: 'right' }]}>D10 (Dashamsa)</Text>
+              <Text style={[styles.th, { flex: 2 }]}>{isHindi ? 'ग्रह' : 'Graha'}</Text>
+              <Text style={[styles.th, { flex: 2, textAlign: 'center' }]}>{isHindi ? 'D9 (नवांश)' : 'D9 (Navamsa)'}</Text>
+              <Text style={[styles.th, { flex: 2, textAlign: 'right' }]}>{isHindi ? 'D10 (दशांश)' : 'D10 (Dashamsa)'}</Text>
             </View>
             {Object.keys(d9 ?? d10 ?? {}).map((g) => (
               <View key={g} style={styles.trow}>
-                <Text style={[styles.td, { flex: 2 }]}>{g.split(' (')[0]}</Text>
-                <Text style={[styles.tdDim, { flex: 2, textAlign: 'center' }]}>{(d9?.[g] || '—').split(' (')[0]}</Text>
-                <Text style={[styles.tdDim, { flex: 2, textAlign: 'right' }]}>{(d10?.[g] || '—').split(' (')[0]}</Text>
+                <Text style={[styles.td, { flex: 2 }]}>{isHindi ? hiGraha(g.split(' (')[0]) : g.split(' (')[0]}</Text>
+                <Text style={[styles.tdDim, { flex: 2, textAlign: 'center' }]}>{isHindi ? hiSign((d9?.[g] || '—').split(' (')[0]) : (d9?.[g] || '—').split(' (')[0]}</Text>
+                <Text style={[styles.tdDim, { flex: 2, textAlign: 'right' }]}>{isHindi ? hiSign((d10?.[g] || '—').split(' (')[0]) : (d10?.[g] || '—').split(' (')[0]}</Text>
               </View>
             ))}
           </View>
@@ -701,7 +736,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
       {/* Yogas & Doshas */}
       {(yogas.length > 0 || doshas.length > 0) && (
         <>
-          <Text style={styles.tableHeading}>Yogas & Doshas</Text>
+          <Text style={styles.tableHeading}>{isHindi ? 'योग और दोष' : 'Yogas & Doshas'}</Text>
           <View style={styles.yogaWrap}>
             {yogas.map((y: any, i: number) => (
               <View key={`y${i}`} style={styles.yogaRow}>
@@ -716,7 +751,7 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
               <View key={`d${i}`} style={styles.yogaRow}>
                 <View style={[styles.yogaDot, { backgroundColor: d.present ? th.textDim : th.borderStrong }]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.yogaName}>{d.name} — {d.present ? 'present' : 'absent'}</Text>
+                  <Text style={styles.yogaName}>{d.name} — {d.present ? (isHindi ? 'उपस्थित' : 'present') : (isHindi ? 'अनुपस्थित' : 'absent')}</Text>
                   <Text style={styles.yogaDetail}>{d.detail}</Text>
                 </View>
               </View>
@@ -727,20 +762,21 @@ function KundliView({ profile, kundli, onEdit, onBack, onRefresh }: {
 
       {kundli.source === 'mock' && (
         <Text style={styles.note}>
-          Note: this chart uses placeholder calculations for development. Real astronomical
-          computation will be enabled before launch.
+          {isHindi
+            ? 'नोट: यह चार्ट विकास के लिए प्लेसहोल्डर गणनाओं का उपयोग करता है। वास्तविक खगोलीय गणना लॉन्च से पहले सक्षम की जाएगी।'
+            : 'Note: this chart uses placeholder calculations for development. Real astronomical computation will be enabled before launch.'}
         </Text>
       )}
       {kundli.source === 'lahiri' && (
         <Pressable style={styles.refreshBtn} onPress={doRefresh} disabled={refreshing} android_ripple={{ color: th.goldFaint }}>
           {refreshing ? <ActivityIndicator color={th.goldLight} size="small" />
-            : <><Icon name="moon" size={15} color={th.goldLight} /><Text style={styles.refreshText}>Generate detailed Kundli</Text></>}
+            : <><Icon name="moon" size={15} color={th.goldLight} /><Text style={styles.refreshText}>{t('profile.generateDetailed')}</Text></>}
         </Pressable>
       )}
 
       <Pressable style={styles.editBtn} onPress={onEdit} android_ripple={{ color: th.goldFaint }}>
         <Icon name="edit" size={16} color={th.goldLight} />
-        <Text style={styles.editText}>Edit Birth Details</Text>
+        <Text style={styles.editText}>{isHindi ? 'जन्म विवरण संपादित करें' : 'Edit Birth Details'}</Text>
       </Pressable>
       <View style={{ height: Spacing.xxl }} />
     </ScrollView>

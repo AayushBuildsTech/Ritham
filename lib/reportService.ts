@@ -8,6 +8,7 @@
 
 import { decode } from 'base64-arraybuffer';
 import { supabase } from './supabase';
+import type { Lang } from './i18n';
 
 const REPORT_FUNCTION = 'report';
 
@@ -52,9 +53,10 @@ export async function uploadFloorplan(
 export async function generateVastu(
   answers: Record<string, string>,
   floorplanPath: string,
+  lang: Lang = 'en',
 ): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke<GenerateResult>(REPORT_FUNCTION, {
-    body: { type: 'vastu', answers, floorplanPath },
+    body: { type: 'vastu', answers, floorplanPath, lang },
   });
   if (error) return { error: data?.error ?? error.message ?? 'request_failed' };
   return data ?? { error: 'request_failed' };
@@ -84,9 +86,10 @@ export async function generateMatchmaking(
   self: MatchPerson,
   partner: MatchPerson,
   chartStyle: ChartStyle,
+  lang: Lang = 'en',
 ): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke<GenerateResult>(REPORT_FUNCTION, {
-    body: { type: 'matchmaking', self, partner, chartStyle },
+    body: { type: 'matchmaking', self, partner, chartStyle, lang },
   });
   if (error) return { error: data?.error ?? error.message ?? 'request_failed' };
   return data ?? { error: 'request_failed' };
@@ -99,9 +102,10 @@ export async function generateMatchmaking(
 export async function generateChartReport(
   type: ChartReportType,
   self: MatchPerson,
+  lang: Lang = 'en',
 ): Promise<GenerateResult> {
   const { data, error } = await supabase.functions.invoke<GenerateResult>(REPORT_FUNCTION, {
-    body: { type, self },
+    body: { type, self, lang },
   });
   if (error) return { error: data?.error ?? error.message ?? 'request_failed' };
   return data ?? { error: 'request_failed' };
