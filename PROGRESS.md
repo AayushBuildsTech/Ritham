@@ -4,7 +4,33 @@
 
 ---
 
-## 0. Latest Session (2026-07-14) — Dream Oracle (free) + Home/Settings polish + Vedic rashi symbols
+## 0. Latest Session (2026-07-14, later) — Interactive 9-page reports (v2) + chat timer fairness
+
+Two things this session: (A) a small **chat timer-fairness** feature, and (B) a large rebuild of **paid reports** into interactive, animated **9-page** documents.
+
+### A. Chat timer pauses while the AI computes (fairness)
+On **time-based** chats the countdown now **freezes while the astrologer is generating a reply** and resumes when it lands — the user never loses paid seconds to model latency. Server-authoritative and non-exploitable: `chat/index.ts` measures the real `generateReply` duration and pushes `expires_at` forward by exactly that amount (only real, already-incurred compute time is ever credited). Client (`app/(tabs)/chat.tsx`) freezes the countdown via a `sendingRef` and shows a **pause glyph** on the timer pill (`components/Icon.tsx` new `pause` icon). **Loss check done first (approved):** text-pack margins are ~4–5× the per-message Claude cost, so the ~20–30% extra message density this allows stays well within margin. **Deploy:** redeploy `chat` (slug `chat`); client ships in the JS bundle.
+
+### B. Reports v2 — interactive 9-page reports (Master Prompt)
+Replaced the old **HTML-blob-in-a-WebView** report with **structured JSON per page → a rich interactive renderer** (SVG + CSS + JS) hosted in the same WebView. The LLM emits pure content JSON; the renderer owns ALL animation/SVG/layout. **Chosen architecture: WebView + JSON** (over RN-native) — no new native deps, no app rebuild, reuses the pipeline + `expo-print` PDF export.
+
+- **Language gate** (`app/report-language.tsx`): a real pre-generation step (signature violet→magenta splash + starfield), **remembers the last choice** and pre-selects it (one-tap confirm). Reports tab now routes **card → gate → intake**; all 8 reports generate **natively** in the chosen language (`lib/reportLang.ts` `useReportLang()`, persisted to `ritham.reportLang`).
+- **Accents & chrome:** `constants/reportAccents.ts` (one Royal-Jewel accent per report; matchmaking = ruby+sapphire→gold), `constants/reportChrome.ts` (localized page titles / nav — kept **separate** from AI prose).
+- **Contract + renderer:** `lib/reportSchema.ts` (block-based `ReportContent` — the producer/consumer interface, + `SAMPLE_CAREER` dev sample + `NO_RATING_REPORTS` guard for health/pastlife) and `lib/reportRenderer.ts` (`buildReportHtml(content, accent)` → one self-contained HTML doc: 9-page scroll-snap shell + the component library — **North-Indian Vedic kundli**, count-up score rings, rating badges, draw-on radar, timeline with "you are here", remedy chips, knowledge nuggets, honest note, signature card, **per-report hero animations**, matchmaking compare-charts/dual-score/kuta-bars, Vaastu zone grid, Health gradient bars). Fraunces/Inter + Noto Devanagari on Hindi.
+- **Generation** (`supabase/functions/report/index.ts`, v2 module): `assembleChart`/`assembleMatch`/`assembleVastu` build the 9 pages. **Chart data is authoritative** — the kundli is drawn from real whole-sign house placements, the timeline uses real dasha dates, matchmaking uses the computed guna scores. `enrichChart`/`enrichMatch` get prose + interpretive ratings from **Claude (Sonnet 5)** with the Section-6 rules baked in (native language, nuggets, honest note, ratings only on comparable items, **zero ratings for health/pastlife**). `fallbackEnrich`/`coerceEnrich` guarantee a complete, renderable report **even with no API key or a model hiccup** — a paid report never hard-fails. `generate()` now stores `pages` (jsonb) instead of HTML.
+- **DB + wiring:** migration **`024_report_pages.sql`** adds `reports.pages jsonb`; `lib/reportService.ReportRow` + selects updated; `app/report-view.tsx` renders `pages` (falls back to legacy `html`). `?preview=career` + a `__DEV__`-only "Preview renderer" button on the Reports tab give an instant offline visual.
+
+**Post-test fixes (user feedback on device):** (1) the birth chart is now a **real North-Indian Vedic kundli** (diamond, sign numbers rotate with the Lagna, planets by whole-sign house) — replaced the random-looking circular orbit wheel; matchmaking shows two mini Vedic charts. (2) **Removed all tap-to-reveal** — insight cards and remedies show their content directly (users wouldn't discover a hidden tap); removed the tappable-planet tooltip. (3) Confirmed the real-data path is Claude, not the sample (the dev **preview button is offline SAMPLE data by design**; real reports use Claude once deployed).
+
+**Verification:** app `npx tsc --noEmit` = **0 errors**; the renderer is runtime-verified via esbuild (9 pages, every block, no stray `undefined`); the Edge Function is **syntax-parsed only** (Deno globals → excluded from the app tsc, can't type-check locally). Renderer changes are live on device via **Metro Fast Refresh** (wireless ADB `192.168.1.14:5555`, `adb reverse tcp:8081`).
+
+**⚠️ Deploy needed (nothing shipped this session):** (1) apply **`024_report_pages.sql`** (Supabase SQL editor); (2) **redeploy `report`** (slug `report`, single-file paste — now emits the `vedicChart` block + calls Claude) and **`chat`** (timer fairness). Client changes ride in the JS bundle. **Until 024 + the `report` redeploy, a REAL generation will fail** on the missing `pages` column / old HTML path — but the dev **preview button works regardless** (client-only).
+
+**Deferred nuances:** Vaastu "zone map" is a directional rating grid, not a live overlay on the uploaded floor plan (that needs signed-URL plumbing); **North-Indian** is the default kundli style (South-Indian grid could be added as an option). The legacy HTML report renderers are left in `report/index.ts` as dead code to keep the diff low-risk.
+
+---
+
+## Prior Session (2026-07-14, earlier) — Dream Oracle (free) + Home/Settings polish + Vedic rashi symbols
 
 All **client-only** (ships in the JS bundle — no Edge Function deploy, no native rebuild).
 `npx tsc --noEmit` = 0 errors. Verified live on device over **wireless ADB** (`192.168.1.14:5555`;

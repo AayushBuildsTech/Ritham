@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getReport, ReportRow } from '../lib/reportService';
+import { ReportContent, SAMPLE_CAREER } from '../lib/reportSchema';
+import { buildReportHtml } from '../lib/reportRenderer';
+import { reportAccent } from '../constants/reportAccents';
 import { track } from '../lib/analytics';
 import { Colors, Fonts, Spacing, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
@@ -17,11 +20,29 @@ export default function ReportView() {
   const styles = makeStyles(th);
   const { t, isHindi } = useLanguage();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `preview` renders a bundled sample (no DB) so the renderer is testable before
+  // the Edge Function JSON path exists — e.g. /report-view?preview=career.
+  const { id, preview } = useLocalSearchParams<{ id: string; preview?: string }>();
 
   const [report, setReport] = useState<ReportRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+
+  // v2 structured content: the dev sample (preview) or the report's stored `pages`
+  // (parsed if Supabase handed it back as a JSON string).
+  const content: ReportContent | null = useMemo(() => {
+    if (preview) return SAMPLE_CAREER;
+    const raw = report?.pages;
+    if (!raw) return null;
+    try { return typeof raw === 'string' ? (JSON.parse(raw) as ReportContent) : (raw as ReportContent); }
+    catch { return null; }
+  }, [preview, report?.pages]);
+
+  // Prefer the native-rendered v2 doc; fall back to the legacy HTML blob.
+  const html: string | null = useMemo(
+    () => (content ? buildReportHtml(content, reportAccent(content.type)) : report?.html ?? null),
+    [content, report?.html],
+  );
 
   // The report is generated in the background (long Claude call), so poll the row
   // until it flips from 'generating' to 'ready' / 'failed'.
@@ -48,11 +69,11 @@ export default function ReportView() {
   }, [id]);
 
   async function download() {
-    if (!report?.html || exporting) return;
+    if (!html || exporting) return;
     setExporting(true);
     try {
-      const { uri } = await Print.printToFileAsync({ html: report.html });
-      track('report_downloaded', { type: report.type });
+      const { uri } = await Print.printToFileAsync({ html });
+      track('report_downloaded', { type: content?.type ?? report?.type });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: isHindi ? 'आपकी रिपोर्ट' : 'Your Report' });
       } else {
@@ -71,17 +92,17 @@ export default function ReportView() {
         title={isHindi ? 'आपकी रिपोर्ट' : 'Your Report'}
         onBack={() => router.back()}
         right={
-          <Pressable onPress={download} disabled={!report?.html || exporting} style={styles.dlBtn} hitSlop={8}>
+          <Pressable onPress={download} disabled={!html || exporting} style={styles.dlBtn} hitSlop={8}>
             {exporting
               ? <ActivityIndicator color={th.gold} />
-              : <Icon name="download" size={20} color={report?.html ? th.goldLight : th.textDim} />}
+              : <Icon name="download" size={20} color={html ? th.goldLight : th.textDim} />}
           </Pressable>
         }
       />
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
-      ) : report?.status === 'generating' ? (
+      ) : !html && report?.status === 'generating' ? (
         <View style={styles.center}>
           <ActivityIndicator color={th.gold} size="large" />
           <Text style={styles.genTitle}>{t('reports.generating')}</Text>
@@ -91,7 +112,7 @@ export default function ReportView() {
               : 'Our astrologer is reading your chart and writing your report. This can take a minute or two — please keep this screen open.'}
           </Text>
         </View>
-      ) : report?.status === 'failed' ? (
+      ) : !html && report?.status === 'failed' ? (
         <View style={styles.center}>
           <Text style={styles.genTitle}>{isHindi ? 'हम यह रिपोर्ट पूरी नहीं कर सके' : 'We couldn’t finish this report'}</Text>
           <Text style={styles.msg}>
@@ -100,16 +121,16 @@ export default function ReportView() {
               : 'Something went wrong while preparing it. Your report credit is safe — please go back to Reports and try generating it again.'}
           </Text>
         </View>
-      ) : !report || !report.html ? (
+      ) : !html ? (
         <View style={styles.center}>
           <Text style={styles.msg}>{isHindi ? 'यह रिपोर्ट उपलब्ध नहीं है।' : 'This report isn’t available.'}</Text>
         </View>
       ) : (
         <WebView
           originWhitelist={['*']}
-          source={{ html: report.html }}
+          source={{ html }}
           style={styles.web}
-          showsVerticalScrollIndicator
+          showsVerticalScrollIndicator={false}
         />
       )}
     </View>

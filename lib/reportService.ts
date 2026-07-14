@@ -9,6 +9,7 @@
 import { decode } from 'base64-arraybuffer';
 import { supabase } from './supabase';
 import type { Lang } from './i18n';
+import type { ReportContent } from './reportSchema';
 
 const REPORT_FUNCTION = 'report';
 
@@ -22,6 +23,9 @@ export interface ReportRow {
   type: ReportType;
   status: 'draft' | 'generating' | 'ready' | 'failed';
   html: string | null;
+  // v2 structured content (ReportContent). Rendered natively; supersedes `html`
+  // when present. May arrive as a parsed object or a JSON string from Supabase.
+  pages: ReportContent | string | null;
   score: number | null;
   created_at: string;
 }
@@ -115,7 +119,7 @@ export async function generateChartReport(
 export async function listReports(): Promise<ReportRow[]> {
   const { data } = await supabase
     .from('reports')
-    .select('id, type, status, html, score, created_at')
+    .select('id, type, status, html, pages, score, created_at')
     .order('created_at', { ascending: false });
   return (data as ReportRow[]) ?? [];
 }
@@ -123,7 +127,7 @@ export async function listReports(): Promise<ReportRow[]> {
 export async function getReport(id: string): Promise<ReportRow | null> {
   const { data } = await supabase
     .from('reports')
-    .select('id, type, status, html, score, created_at')
+    .select('id, type, status, html, pages, score, created_at')
     .eq('id', id).maybeSingle();
   return (data as ReportRow) ?? null;
 }

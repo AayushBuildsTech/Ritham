@@ -204,9 +204,22 @@ Deno.serve(async (req) => {
     let recent = (history ?? []).slice(-CHAT_HISTORY_MAX);
     while (recent.length && recent[0].role !== 'user') recent = recent.slice(1);
 
+    const genStart = Date.now();
     const reply = await generateReply(profile, recent, session);
+    const genMs = Date.now() - genStart;
 
     await admin.from('chat_messages').insert({ session_id: session.id, role: 'assistant', content: reply });
+
+    // Fairness: a live time-based session's clock must not tick while the astrologer
+    // is computing a reply. Credit back the exact server-measured generation time by
+    // pushing expires_at forward, so the user never loses paid seconds to model latency.
+    // Applies to the free minute and paid time packs (never question packs). Bounded and
+    // non-exploitable — only real, already-incurred compute time is ever credited back.
+    if (session.expires_at && (session.kind === 'free_minute' || session.kind === 'paid_time')) {
+      const extended = new Date(new Date(session.expires_at).getTime() + genMs).toISOString();
+      await admin.from('chat_sessions').update({ expires_at: extended }).eq('id', session.id);
+      session.expires_at = extended; // so sessionInfo() returns the credited deadline
+    }
 
     // consume one question AFTER a successful reply
     if (questionEnt) {

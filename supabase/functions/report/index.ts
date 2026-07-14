@@ -146,27 +146,30 @@ Deno.serve(async (req) => {
     // was claimed above and is RELEASED again only if generation fails (retry-safe).
     const generate = async () => {
       try {
-        let html: string;
+        // v2: build the structured 9-page ReportContent (stored on reports.pages,
+        // rendered natively by the app). Chart data is authoritative; Claude adds
+        // prose. Each path degrades to a deterministic, fully-renderable fallback.
+        let pages: any;
         let score: number | null = null;
         if (type === 'vastu') {
-          const analysis = await generateVastu(admin, body.floorplanPath, body.answers, lang);
-          html = renderVastuHtml(body.answers, analysis);
-          score = analysis.score;
+          const va = await generateVastu(admin, body.floorplanPath, body.answers, lang); // vision (self-mocks)
+          pages = assembleVastu(body.answers, va, lang);
+          score = va.score;
         } else if (type === 'matchmaking') {
           const milan = computeMilan(body.self, body.partner);
-          const analysis = await generateMatch(body.self, body.partner, milan, lang);
-          html = renderMatchHtml(body.self, body.partner, milan, analysis, style);
+          const e = (await enrichMatch(body.self, body.partner, milan, lang)) ?? coerceEnrich({});
+          pages = assembleMatch(body.self, body.partner, milan, e, lang);
           score = milan.percent;
         } else if (Chart.isChartType(type)) {
           const person = body.self as Chart.ChartPerson;
           const facts = Chart.computeChartFacts(person, type);
-          const analysis = await Chart.narrateChart(type, person, facts, { apiKey: ANTHROPIC_API_KEY, model: MODEL, lang });
-          html = Chart.renderChartHtml(type, person, facts, analysis);
+          const e = (await enrichChart(type, person, facts, lang)) ?? fallbackEnrich(type, person, facts, lang);
+          pages = assembleChart(type, person, facts, e, lang);
           score = facts.score;
         }
 
         await admin.from('reports')
-          .update({ status: 'ready', html: html!, score }).eq('id', report.id);
+          .update({ status: 'ready', pages, html: null, score }).eq('id', report.id);
         // credit was already claimed before generation — nothing to consume here
       } catch (genErr) {
         await admin.from('reports').update({ status: 'failed' }).eq('id', report.id);
@@ -381,6 +384,328 @@ function mockVastu(answers: any): VastuAnalysis {
       'Don’t place the stove and sink directly adjacent.',
     ],
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  v2 INTERACTIVE REPORTS (Master Prompt) — build the structured 9-page JSON
+//  (ReportContent; see app lib/reportSchema.ts) that lib/reportRenderer.ts renders
+//  natively. Chart data is AUTHORITATIVE (injected from computed facts — the wheel,
+//  dasha dates, guna scores); Claude supplies prose + interpretive ratings. A
+//  deterministic fallback assembles a complete, valid report from facts alone, so a
+//  paid report is NEVER left un-renderable (mirrors the mock philosophy above).
+// ═══════════════════════════════════════════════════════════════════════════
+
+const V2_SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+const HOUSE_LABEL = ['Self', 'Wealth', 'Courage', 'Home', 'Creativity', 'Health', 'Partnership', 'Depths', 'Fortune', 'Career', 'Gains', 'Liberation'];
+const tt = (lang: Lang, en: string, hi: string) => (lang === 'hi' ? hi : en);
+const v2num = (v: any, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+const clamp10 = (n: number) => Math.max(0, Math.min(10, Math.round(n * 10) / 10));
+const planetNm = (g: string) => String(g ?? '').split('(')[0].trim();
+function v2SignIdx(s: string): number { const b = String(s ?? '').split('(')[0].trim(); const i = V2_SIGNS.indexOf(b); return i >= 0 ? i : 0; }
+function ord(n: number): string { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+const birthLine = (p: any) => [p.dob, p.tob, p.birth_place].filter(Boolean).join(' · ');
+
+// authoritative planet placements (whole-sign house) for the Vedic birth chart
+function planetsByHouse(facts: any): any[] {
+  return Object.values(facts.planets || {}).map((p: any) => ({ name: planetNm(p.name), house: p.house }));
+}
+function placementsToPlanets(pl: any[]): any[] {
+  return (pl || []).map((p: any) => ({ name: planetNm(p.graha ?? p.name), house: v2num(p.house, 1) }));
+}
+// dasha windows with REAL dates; labels/notes from enrichment when present
+function dashaTimeline(facts: any, lang: Lang, notes?: any[]): any[] {
+  const d = facts.dasha; const now = Date.now();
+  const fmt = (dt: any) => new Date(dt).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { year: 'numeric', month: 'short' });
+  const list = [d.current, ...(d.upcoming || [])].slice(0, 3);
+  return list.map((m: any, i: number) => ({
+    label: notes?.[i]?.label ?? tt(lang, `${planetNm(m.lord)} period`, `${planetNm(m.lord)} काल`),
+    period: `${fmt(m.start)} – ${fmt(m.end)}`,
+    note: notes?.[i]?.note ?? '',
+    current: new Date(m.start).getTime() <= now && now < new Date(m.end).getTime(),
+  }));
+}
+
+// per-report snapshot rings + which comparable items get Rating Badges (§5)
+const CHART_FOCUS: Record<string, { rings?: string[]; bars?: boolean; rated?: 'fields' | 'subjects' | 'houses' | null; radar?: boolean; focus: string }> = {
+  life: { rings: ['Career', 'Love', 'Health', 'Finance'], rated: 'houses', radar: true, focus: 'a complete life reading across every domain — houses, planets, yogas, dasha timing and remedies' },
+  career: { rings: ['Career Momentum', 'Wealth Yoga', 'Timing Now'], rated: 'fields', radar: true, focus: 'career direction, most suitable fields, job-vs-business, wealth potential and favourable timing' },
+  love: { rings: ['Relationship Readiness'], rated: null, radar: true, focus: 'relationship patterns (5th & 7th house), what to seek in a partner, timing and harmony — NO scores on any specific relationship' },
+  health: { bars: true, rated: null, radar: false, focus: 'constitutional tendencies and gentle lifestyle guidance framed as areas to nurture — NEVER a diagnosis, NEVER a numeric health score' },
+  education: { rings: ['Academic Momentum'], rated: 'subjects', radar: true, focus: 'academic strengths, favourable subjects/streams and exam timing — for a student and their parents' },
+  pastlife: { rated: null, radar: false, focus: 'karmic patterns, soul lessons and poorva-punya, and how the karmic pattern shows up across current life stages — evocative narrative, NO numeric scores' },
+};
+
+// ── Claude call → flat enrichment JSON (prose + interpretive ratings) ──────────
+function reportSystem(lang: Lang, focusText: string, ratedKind: string): string {
+  return (
+    `You are "Ritham", a warm, wise Vedic astrologer writing a premium, insightful report. ` +
+    `Focus: ${focusText}.\n\n` +
+    `Return ONLY valid JSON (no prose, no markdown, no code fences) with these keys — omit a key only if the rule says so:\n` +
+    `{\n` +
+    `  "headline": string (ONE vivid, specific cover line grounded in the chart),\n` +
+    `  "snapshot": string (2-3 sentences orienting the reader),\n` +
+    (ratedKind !== 'none'
+      ? `  "ratings": [ { "label": string, "score": number 0-10, "note": string (one line) } ] — 4 to 6 ${ratedKind} the reader is CHOOSING BETWEEN (this is the only place a /10 is allowed),\n`
+      : `  (NO "ratings" — this report must contain ZERO numeric ratings),\n`) +
+    `  "radar": [ { "label": string, "value": number 0-10 } ] — 5 to 6 interpretive traits (omit if not helpful),\n` +
+    `  "insights": [ { "title": string, "teaser": string (one line), "body": string (3-5 sentences) } ] — 3 to 4,\n` +
+    `  "nuggets": [ string ] — 5 to 6 genuine "Did you know / In Vedic astrology" explanations of a real concept (one per content page),\n` +
+    `  "honest": string (ONE candid, non-flattering but constructive insight),\n` +
+    `  "strengths": [ string ] — 3, "challenges": [ string ] — 3,\n` +
+    `  "timing": [ { "label": string, "note": string } ] — 3 windows (labels/notes only; dates are computed),\n` +
+    `  "remedies": [ { "kind": "mantra"|"gem"|"ritual"|"direction"|"color"|"daan"|"practice", "title": string, "detail": string (specific & actionable) } ] — 4 to 5,\n` +
+    `  "signature": [ string ] — exactly 3 crisp takeaways\n` +
+    `}\n` +
+    `Ground every claim in the supplied chart facts; never invent placements or dates. ` +
+    `Speak with calm authority, be specific, and stay probabilistic (no absolute predictions).` +
+    (lang === 'hi' ? HINDI_REPORT_DIRECTIVE : '')
+  );
+}
+
+async function callClaudeJson(system: string, userContent: any, lang: Lang): Promise<any> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+    body: JSON.stringify({ model: MODEL, max_tokens: lang === 'hi' ? 9000 : 6000, thinking: { type: 'disabled' }, system, messages: [{ role: 'user', content: userContent }] }),
+  });
+  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  const text = (data.content ?? []).find((b: any) => b.type === 'text')?.text ?? '';
+  return parseJsonReply(text);
+}
+
+function coerceEnrich(o: any): any {
+  const S = (v: any) => String(v ?? '');
+  const arr = (v: any) => (Array.isArray(v) ? v : []);
+  return {
+    headline: S(o.headline), snapshot: S(o.snapshot),
+    ratings: arr(o.ratings).slice(0, 6).map((r: any) => ({ label: S(r.label), score: clamp10(v2num(r.score, 6)), note: S(r.note) })),
+    radar: arr(o.radar).slice(0, 6).map((r: any) => ({ label: S(r.label), value: clamp10(v2num(r.value, 5)) })),
+    insights: arr(o.insights).slice(0, 4).map((c: any) => ({ title: S(c.title), teaser: S(c.teaser), body: S(c.body) })),
+    nuggets: arr(o.nuggets).map(S).slice(0, 8),
+    honest: S(o.honest),
+    strengths: arr(o.strengths).map(S).slice(0, 4), challenges: arr(o.challenges).map(S).slice(0, 4),
+    timing: arr(o.timing).slice(0, 3).map((t: any) => ({ label: S(t.label), note: S(t.note) })),
+    remedies: arr(o.remedies).slice(0, 6).map((r: any) => ({ kind: S(r.kind) || 'practice', title: S(r.title), detail: S(r.detail) })),
+    signature: arr(o.signature).map(S).slice(0, 3),
+  };
+}
+
+function chartFactsSummary(p: any, facts: any): string {
+  const planets = Object.values(facts.planets || {}).map((x: any) => `${planetNm(x.name)} in ${x.sign} (house ${x.house}${x.dignity && x.dignity !== 'Neutral' ? `, ${x.dignity}` : ''})`).join('; ');
+  const houses = (facts.houses || []).map((h: any) => `${ord(h.house)} (${HOUSE_LABEL[h.house - 1]}) strength ${h.strength}/100`).join('; ');
+  const yogas = (facts.yogas || []).map((y: any) => `${y.name}: ${y.detail}`).join(' | ') || 'none prominent';
+  const d = facts.dasha;
+  const fmt = (dt: any) => new Date(dt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
+  return (
+    `Name: ${p.name}; Lagna: ${p.lagna}; Moon: ${p.moon_sign}; Sun: ${p.sun_sign}; Nakshatra: ${p.nakshatra}\n` +
+    `Placements: ${planets}\n` +
+    `House strengths: ${houses}\n` +
+    `Yogas: ${yogas}\n` +
+    `Current Mahadasha: ${planetNm(d.current.lord)} (${fmt(d.current.start)}–${fmt(d.current.end)}); ` +
+    `Antardasha: ${planetNm(d.currentAntar.lord)}; Upcoming: ${(d.upcoming || []).map((m: any) => `${planetNm(m.lord)} ${fmt(m.start)}`).join(', ')}`
+  );
+}
+
+async function enrichChart(type: string, person: any, facts: any, lang: Lang): Promise<any | null> {
+  if (!ANTHROPIC_API_KEY) return null;
+  const f = CHART_FOCUS[type];
+  const ratedKind = f.rated === 'fields' ? 'career fields' : f.rated === 'subjects' ? 'academic subjects' : 'none';
+  try {
+    const sys = reportSystem(lang, f.focus, ratedKind);
+    const user = `COMPUTED CHART FACTS (authoritative — narrate ONLY from these):\n${chartFactsSummary(person, facts)}\n\nReturn the JSON report now.`;
+    return coerceEnrich(await callClaudeJson(sys, user, lang));
+  } catch (e) { console.error('enrichChart failed', String((e as Error)?.message ?? e)); return null; }
+}
+
+// deterministic prose fallback (used when the model is unavailable/misbehaves)
+function fallbackEnrich(type: string, person: any, facts: any, lang: Lang): any {
+  const f = CHART_FOCUS[type];
+  const dl = planetNm(facts.dasha.current.lord);
+  const strongHouses = [...(facts.houses || [])].sort((a: any, b: any) => b.strength - a.strength).slice(0, 3);
+  const previewNote = tt(lang, '(Preview — the full personalised reading activates once the astrologer’s AI is connected.)', '(पूर्वावलोकन — पूर्ण व्यक्तिगत पठन ज्योतिषी AI जुड़ने पर सक्रिय होगा।)');
+  return {
+    headline: tt(lang, `${person.moon_sign} Moon with ${person.lagna} rising — your ${dl} period sets the tone now.`, `${person.moon_sign} राशि, ${person.lagna} लग्न — अभी ${dl} की महादशा प्रमुख है।`),
+    snapshot: `${previewNote} ${tt(lang, `With ${person.lagna} rising and the Moon in ${person.moon_sign}, your chart’s strengths cluster in the ${strongHouses.map((h: any) => ord(h.house)).join(', ')} houses.`, `${person.lagna} लग्न और ${person.moon_sign} चंद्रमा के साथ, आपकी कुंडली की शक्ति ${strongHouses.map((h: any) => ord(h.house)).join(', ')} भावों में केंद्रित है।`)}`,
+    ratings: [], radar: [],
+    insights: [
+      { title: tt(lang, `${person.lagna} rising`, `${person.lagna} लग्न`), teaser: tt(lang, 'Your core temperament', 'आपका मूल स्वभाव'), body: tt(lang, `With ${person.lagna} as your Lagna and the Moon in ${person.moon_sign}, you meet life through a distinctive blend of drive and feeling that shapes how every other placement expresses itself.`, `${person.lagna} लग्न और ${person.moon_sign} चंद्रमा के साथ, आप जीवन को एक विशिष्ट ऊर्जा और भावना के मेल से देखते हैं जो हर ग्रह की अभिव्यक्ति को आकार देता है।`) },
+      { title: tt(lang, `${planetNm(facts.dasha.current.lord)} Mahadasha`, `${planetNm(facts.dasha.current.lord)} महादशा`), teaser: tt(lang, 'The theme of now', 'अभी का विषय'), body: tt(lang, `You are running the ${planetNm(facts.dasha.current.lord)} period — its natural significations are the arena where your growth is concentrated in this span of life.`, `आप ${planetNm(facts.dasha.current.lord)} की दशा में हैं — इसके गुण ही इस अवधि में आपके विकास का क्षेत्र हैं।`) },
+      ...(facts.yogas || []).slice(0, 2).map((y: any) => ({ title: y.name, teaser: y.nature === 'benefic' ? tt(lang, 'A supportive combination', 'एक सहायक योग') : tt(lang, 'A pattern to work with', 'ध्यान देने योग्य योग'), body: y.detail })),
+    ],
+    nuggets: [
+      tt(lang, 'The Lagna (Ascendant) is the lens through which the whole chart is read — it sets the house framework for every planet.', 'लग्न वह दृष्टि है जिससे पूरी कुंडली पढ़ी जाती है — यह हर ग्रह के लिए भाव ढाँचा तय करता है।'),
+      tt(lang, 'Vimshottari Mahadasha divides life into planetary periods; the ruling planet colours the themes you meet in that span.', 'विंशोत्तरी महादशा जीवन को ग्रह-कालों में बाँटती है; शासक ग्रह उस अवधि के विषयों को रंग देता है।'),
+      tt(lang, 'A planet’s dignity (exalted, own sign, debilitated) tunes how freely it can express its natural significations.', 'ग्रह की स्थिति (उच्च, स्व-राशि, नीच) तय करती है कि वह अपने गुण कितनी सहजता से व्यक्त कर सकता है।'),
+      tt(lang, 'House strength blends the sign, its lord’s placement, and the planets sitting in it — a fuller picture than any single factor.', 'भाव-बल राशि, उसके स्वामी की स्थिति और उसमें बैठे ग्रहों को मिलाकर बनता है।'),
+      tt(lang, 'Transits (gochar) trigger what the birth chart promises — timing comes from the dance between dasha and transit.', 'गोचर वही जगाते हैं जो जन्म-कुंडली में वादा है — समय दशा और गोचर के मेल से आता है।'),
+    ],
+    honest: tt(lang, 'Every chart carries a growth edge as well as a gift; the periods that ask the most of you are usually the ones that build your defining strengths.', 'हर कुंडली में उपहार के साथ एक चुनौती भी होती है; जो काल सबसे अधिक माँगते हैं, वही आपकी असली शक्ति गढ़ते हैं।'),
+    strengths: strongHouses.map((h: any) => tt(lang, `Strong ${ord(h.house)} house — ${HOUSE_LABEL[h.house - 1]}`, `मज़बूत ${ord(h.house)} भाव — ${HOUSE_LABEL[h.house - 1]}`)),
+    challenges: [tt(lang, 'A tendency to under-claim your progress', 'अपनी प्रगति को कम आँकने की प्रवृत्ति'), tt(lang, 'Timing patience during slower periods', 'धीमे कालों में धैर्य'), tt(lang, 'Balancing effort with self-care', 'परिश्रम और आत्म-देखभाल में संतुलन')],
+    timing: [],
+    remedies: [
+      { kind: 'mantra', title: tt(lang, `${dl} mantra`, `${dl} मंत्र`), detail: tt(lang, `Honour your current dasha lord ${dl} with its traditional mantra to align with this period’s energy.`, `अपनी वर्तमान दशा के स्वामी ${dl} का पारंपरिक मंत्र जपें ताकि इस काल की ऊर्जा से तालमेल बने।`) },
+      { kind: 'daan', title: tt(lang, 'Weekly daan', 'साप्ताहिक दान'), detail: tt(lang, 'Offer a simple, non-branded charity on the weekday of your dasha lord to ease its influence.', 'अपनी दशा के स्वामी के वार पर एक सरल दान करें।') },
+      { kind: 'practice', title: tt(lang, 'Name your progress', 'अपनी प्रगति कहें'), detail: tt(lang, 'Once a week, note one real thing you accomplished — a direct answer to the chart’s growth edge.', 'सप्ताह में एक बार अपनी एक वास्तविक उपलब्धि लिखें।') },
+    ],
+    signature: [
+      tt(lang, `${person.lagna} rising, ${person.moon_sign} Moon — a chart of ${dl}-led focus.`, `${person.lagna} लग्न, ${person.moon_sign} चंद्रमा — ${dl}-प्रधान कुंडली।`),
+      tt(lang, `Strongest in the ${strongHouses.map((h: any) => ord(h.house)).join(', ')} houses.`, `सबसे मज़बूत ${strongHouses.map((h: any) => ord(h.house)).join(', ')} भावों में।`),
+      tt(lang, 'Lead with patience; claim your wins.', 'धैर्य से चलें; अपनी जीत कहें।'),
+    ],
+  };
+}
+
+// localized 9-page skeleton titles
+function pageTitles(lang: Lang, type: string): Record<string, string> {
+  const timing = type === 'pastlife' ? tt(lang, 'Across Life Stages', 'जीवन के चरणों में') : tt(lang, 'Timing', 'समय');
+  return {
+    snapshot: tt(lang, 'Snapshot', 'एक नज़र में'),
+    chart: tt(lang, 'Core Chart', 'मुख्य कुंडली'),
+    deepdive1: tt(lang, 'Deep Dive', 'गहराई से'),
+    deepdive2: tt(lang, 'Deep Dive II', 'और गहराई से'),
+    timing,
+    strengths: tt(lang, 'Strengths & Challenges', 'शक्तियाँ और चुनौतियाँ'),
+    remedies: tt(lang, 'Remedies', 'उपाय'),
+    summary: tt(lang, 'Summary', 'सारांश'),
+  };
+}
+
+function assembleChart(type: string, person: any, facts: any, e: any, lang: Lang): any {
+  const f = CHART_FOCUS[type];
+  const T = pageTitles(lang, type);
+  const meta = (Chart.CHART_META as any)[type];
+  const title = tt(lang, meta.title, meta.title); // title stays as the report name
+  const nug = (i: number) => (e.nuggets && e.nuggets[i] ? [{ type: 'nugget', nugget: { body: e.nuggets[i] } }] : []);
+  const disclaimer = type === 'health'
+    ? tt(lang, 'A gentle wellbeing reading — not medical advice, diagnosis, or treatment.', 'एक कोमल स्वास्थ्य पठन — यह चिकित्सा सलाह, निदान या उपचार नहीं है।')
+    : tt(lang, 'For guidance and reflection — not a substitute for professional advice.', 'मार्गदर्शन और चिंतन के लिए — पेशेवर सलाह का विकल्प नहीं।');
+
+  // p2 snapshot: rings / gradient bars / plain summary — per §5
+  const snapBlocks: any[] = [];
+  if (f.bars) { // health — qualitative, no scores
+    snapBlocks.push({ type: 'gradientBars', items: (facts.houses || []).filter((h: any) => f.rated !== 'houses').slice(0, 4).map((h: any) => ({ label: HOUSE_LABEL[h.house - 1], level: clamp10(h.strength / 10) / 10, note: '' })) });
+    snapBlocks.push({ type: 'paragraph', text: disclaimer });
+  } else if (f.rings) {
+    const ringScores = (e.ratings && e.ratings.length >= f.rings.length)
+      ? e.ratings.slice(0, f.rings.length).map((r: any) => r.score)
+      : f.rings.map((_, i) => clamp10(((facts.houses || [])[i]?.strength ?? facts.score ?? 60) / 10));
+    snapBlocks.push({ type: 'rings', items: f.rings.map((label, i) => ({ label, score: ringScores[i] ?? 6 })) });
+  }
+  snapBlocks.push({ type: 'paragraph', text: e.snapshot });
+
+  // p4 deep dive I — comparable ratings where apt, else insight cards
+  const dd1: any[] = [];
+  if (f.rated === 'houses') {
+    dd1.push({ type: 'ratings', items: (facts.houses || []).slice(0, 6).map((h: any) => ({ label: `${ord(h.house)} · ${HOUSE_LABEL[h.house - 1]}`, score: clamp10(h.strength / 10), note: '' })) });
+  } else if ((f.rated === 'fields' || f.rated === 'subjects') && e.ratings.length) {
+    dd1.push({ type: 'ratings', items: e.ratings });
+  } else {
+    dd1.push({ type: 'insights', cards: e.insights.slice(0, 2) });
+  }
+  dd1.push(...nug(1));
+
+  // p5 deep dive II — radar (interpretive or 12-house) + insights
+  const dd2: any[] = [];
+  if (f.rated === 'houses') {
+    dd2.push({ type: 'radar', caption: tt(lang, 'House strengths', 'भाव-बल'), axes: (facts.houses || []).map((h: any) => ({ label: ord(h.house), value: clamp10(h.strength / 10) })) });
+  } else if (f.radar && e.radar.length) {
+    dd2.push({ type: 'radar', axes: e.radar });
+  }
+  dd2.push({ type: 'insights', cards: e.insights.slice(f.rated === 'fields' || f.rated === 'subjects' ? 0 : 2, 4) });
+  dd2.push(...nug(2));
+
+  // p6 timing — real dasha dates (or life-stage reframe for pastlife)
+  const timingBlocks: any[] = [];
+  if (type === 'pastlife') {
+    timingBlocks.push({ type: 'timeline', windows: (e.timing.length ? e.timing : [{ label: tt(lang, 'Early life', 'आरंभिक जीवन'), note: '' }, { label: tt(lang, 'Mid life', 'मध्य जीवन'), note: '' }, { label: tt(lang, 'Maturity', 'परिपक्वता'), note: '' }]).map((t: any, i: number) => ({ label: t.label, period: tt(lang, `Stage ${i + 1}`, `चरण ${i + 1}`), note: t.note, current: i === 1 })) });
+  } else {
+    timingBlocks.push({ type: 'timeline', windows: dashaTimeline(facts, lang, e.timing) });
+  }
+  timingBlocks.push(...nug(3));
+
+  const pages = [
+    { key: 'cover', title, hero: true, lead: e.headline, blocks: [] },
+    { key: 'snapshot', title: T.snapshot, lead: tt(lang, 'Where you stand, at a glance.', 'एक नज़र में आपकी स्थिति।'), blocks: snapBlocks },
+    { key: 'chart', title: T.chart, lead: tt(lang, 'Your Vedic birth chart (Lagna Kundli).', 'आपकी लग्न कुंडली।'), blocks: [{ type: 'vedicChart', lagnaSign: facts.lagnaIdx, planets: planetsByHouse(facts) }, ...nug(0)] },
+    { key: 'deepdive1', title: T.deepdive1, blocks: dd1 },
+    { key: 'deepdive2', title: T.deepdive2, blocks: dd2 },
+    { key: 'timing', title: T.timing, blocks: timingBlocks },
+    { key: 'strengths', title: T.strengths, lead: tt(lang, 'A balanced, honest read.', 'एक संतुलित, सच्चा पठन।'), blocks: [{ type: 'strengthsChallenges', strengths: e.strengths, challenges: e.challenges }, ...(e.honest ? [{ type: 'honest', text: e.honest }] : []), ...nug(4)] },
+    { key: 'remedies', title: T.remedies, lead: tt(lang, 'Specific, doable — prioritised.', 'विशिष्ट, सरल — प्राथमिकता अनुसार।'), blocks: [{ type: 'remedies', items: e.remedies }] },
+    { key: 'summary', title: T.summary, lead: tt(lang, 'Made to keep and share.', 'सहेजने और साझा करने योग्य।'), blocks: [{ type: 'signature', lines: e.signature }, { type: 'paragraph', text: disclaimer }] },
+  ];
+  return { type, lang, person: { name: person.name, birthLine: birthLine(person) }, headline: e.headline, pages };
+}
+
+// ── matchmaking ───────────────────────────────────────────────────────────────
+async function enrichMatch(a: any, b: any, m: any, lang: Lang): Promise<any | null> {
+  if (!ANTHROPIC_API_KEY) return null;
+  try {
+    const sys = reportSystem(lang, 'compatibility between two people via Ashtakoot Guna Milan — strengths, honest friction points, doshas with remedies', 'none');
+    const kootas = m.kootas.map((k: any) => `${k.name} ${k.got}/${k.max} (${k.note})`).join('; ');
+    const user = `COMPUTED MATCH FACTS (authoritative):\n${a.name} (Moon ${a.moon_sign}, ${a.nakshatra}) & ${b.name} (Moon ${b.moon_sign}, ${b.nakshatra})\nAshtakoot: ${m.total}/${m.max} (${m.percent}% · ${m.band}); Kutas: ${kootas}; Mangal: ${m.mangal.note}; Nadi dosha: ${m.nadiDosha}; Bhakoot dosha: ${m.bhakootDosha}\n\nReturn the JSON now (no "ratings").`;
+    return coerceEnrich(await callClaudeJson(sys, user, lang));
+  } catch (e) { console.error('enrichMatch failed', String((e as Error)?.message ?? e)); return null; }
+}
+
+function assembleMatch(a: any, b: any, m: any, e: any, lang: Lang): any {
+  const T = pageTitles(lang, 'matchmaking');
+  const nug = (i: number) => (e.nuggets && e.nuggets[i] ? [{ type: 'nugget', nugget: { body: e.nuggets[i] } }] : []);
+  const doshaCards: any[] = [];
+  if (m.mangal.selfManglik || m.mangal.partnerManglik) doshaCards.push({ title: tt(lang, 'Mangal Dosha', 'मंगल दोष'), teaser: tt(lang, 'Present — read the nuance', 'उपस्थित — विवरण देखें'), body: m.mangal.note });
+  if (m.nadiDosha) doshaCards.push({ title: tt(lang, 'Nadi Dosha', 'नाड़ी दोष'), teaser: tt(lang, 'Flagged in the kutas', 'कूटों में चिह्नित'), body: tt(lang, 'Same Nadi can affect health/progeny in classical texts — often mitigated by other strong kutas and remedies.', 'समान नाड़ी शास्त्रों में स्वास्थ्य/संतान को प्रभावित कर सकती है — अन्य मज़बूत कूट और उपाय इसे कम करते हैं।') });
+  if (m.bhakootDosha) doshaCards.push({ title: tt(lang, 'Bhakoot Dosha', 'भकूट दोष'), teaser: tt(lang, 'Moon-sign axis', 'चंद्र-राशि अक्ष'), body: tt(lang, 'A Rashi-axis mismatch that some traditions caution on — weigh it against the overall score and remedies.', 'कुछ परंपराएँ इस पर सावधानी देती हैं — इसे कुल अंक और उपायों के साथ तौलें।') });
+  if (!doshaCards.length) doshaCards.push({ title: tt(lang, 'No major dosha', 'कोई बड़ा दोष नहीं'), teaser: tt(lang, 'A clean match', 'एक स्वच्छ मिलान'), body: tt(lang, 'No significant Mangal, Nadi, or Bhakoot dosha was flagged — a supportive foundation.', 'कोई महत्वपूर्ण मंगल, नाड़ी या भकूट दोष नहीं मिला — एक सहायक आधार।') });
+
+  const pages = [
+    { key: 'cover', title: tt(lang, 'Matchmaking Report', 'मिलान रिपोर्ट'), hero: true, lead: e.headline || tt(lang, `${a.name} & ${b.name} — ${m.percent}% guna match.`, `${a.name} और ${b.name} — ${m.percent}% गुण मिलान।`), blocks: [] },
+    { key: 'snapshot', title: T.snapshot, lead: `${a.name} · ${b.name}`, blocks: [{ type: 'paragraph', text: e.snapshot || tt(lang, `An Ashtakoot score of ${m.total}/${m.max} (${m.band}).`, `${m.total}/${m.max} का अष्टकूट अंक (${m.band})।`) }] },
+    { key: 'chart', title: tt(lang, 'Two Charts', 'दो कुंडलियाँ'), lead: tt(lang, 'Where your charts meet.', 'जहाँ आपकी कुंडलियाँ मिलती हैं।'), blocks: [{ type: 'compareCharts', a: { name: a.name, lagnaSign: v2SignIdx(a.lagna), planets: placementsToPlanets(a.placements) }, b: { name: b.name, lagnaSign: v2SignIdx(b.lagna), planets: placementsToPlanets(b.placements) }, scoreLabel: tt(lang, 'guna', 'गुण'), score: m.percent }, ...nug(0)] },
+    { key: 'deepdive1', title: tt(lang, 'Compatibility', 'अनुकूलता'), blocks: [{ type: 'dualScore', technicalLabel: tt(lang, 'Ashtakoot Guna Milan', 'अष्टकूट गुण मिलान'), technicalValue: m.total, technicalMax: m.max, outOf10: clamp10(m.percent / 10), note: e.snapshot }, ...nug(1)] },
+    { key: 'deepdive2', title: tt(lang, 'The Eight Kutas', 'आठ कूट'), lead: tt(lang, 'Each on its own scale.', 'प्रत्येक अपने पैमाने पर।'), blocks: [{ type: 'kutaBars', items: m.kootas.map((k: any) => ({ label: k.name, got: k.got, max: k.max, note: k.note })) }, ...nug(2)] },
+    { key: 'timing', title: tt(lang, 'Dosha Check', 'दोष जाँच'), lead: tt(lang, 'Read calmly — most have remedies.', 'शांति से पढ़ें — अधिकांश के उपाय हैं।'), blocks: [{ type: 'insights', cards: doshaCards }, ...nug(3)] },
+    { key: 'strengths', title: T.strengths, blocks: [{ type: 'strengthsChallenges', strengths: e.strengths.length ? e.strengths : [tt(lang, 'A supportive guna base', 'एक सहायक गुण आधार')], challenges: e.challenges.length ? e.challenges : [tt(lang, 'Communicate through differences', 'मतभेदों में संवाद बनाए रखें')] }, ...(e.honest ? [{ type: 'honest', text: e.honest }] : []), ...nug(4)] },
+    { key: 'remedies', title: T.remedies, blocks: [{ type: 'remedies', items: e.remedies.length ? e.remedies : [{ kind: 'ritual', title: tt(lang, 'Joint puja', 'संयुक्त पूजा'), detail: tt(lang, 'A simple shared prayer strengthens harmony where a dosha is flagged.', 'जहाँ दोष हो वहाँ एक सरल संयुक्त प्रार्थना सामंजस्य बढ़ाती है।') }] }] },
+    { key: 'summary', title: T.summary, lead: tt(lang, 'Made to share with family.', 'परिवार के साथ साझा करने योग्य।'), blocks: [{ type: 'signature', lines: e.signature.length ? e.signature : [tt(lang, `${a.name} & ${b.name}: ${m.percent}% guna match.`, `${a.name} और ${b.name}: ${m.percent}% गुण मिलान।`), tt(lang, `Ashtakoot ${m.total}/${m.max} — ${m.band}.`, `अष्टकूट ${m.total}/${m.max} — ${m.band}।`), tt(lang, 'Weigh the score with heart and remedies.', 'अंक को हृदय और उपायों के साथ तौलें।')] }, { type: 'paragraph', text: tt(lang, 'For guidance and reflection — not a substitute for family judgement.', 'मार्गदर्शन के लिए — पारिवारिक निर्णय का विकल्प नहीं।') }] },
+  ];
+  return { type: 'matchmaking', lang, person: { name: `${a.name} · ${b.name}`, birthLine: `${a.moon_sign} · ${b.moon_sign}` }, headline: pages[0].lead as string, pages };
+}
+
+// ── vaastu (from the existing vision analysis; per-zone scores derived) ─────────
+function vastuZoneScore(name: string, va: any): number {
+  let s = Math.round((va.score ?? 70) / 10);
+  const flagged = (va.doshas || []).some((d: any) => String(d.issue ?? '').toLowerCase().includes(String(name ?? '').toLowerCase().split(' ')[0]));
+  if (flagged) s -= 2;
+  return Math.max(1, Math.min(10, s));
+}
+function shortTitle(s: string): string { const w = String(s ?? '').split(/[.,—-]/)[0].trim(); return w.length > 42 ? w.slice(0, 40) + '…' : w; }
+
+function assembleVastu(answers: any, va: any, lang: Lang): any {
+  const T = pageTitles(lang, 'vastu');
+  const name = answers.name ?? answers.owner ?? tt(lang, 'Your Home', 'आपका घर');
+  const nuggets = [
+    tt(lang, 'Vaastu reads a home through the eight directions, each with a ruling element and deity — the North-East (Ishanya) is the most sacred, kept light and open.', 'वास्तु घर को आठ दिशाओं से पढ़ता है, प्रत्येक का एक तत्व और देवता — ईशान कोण सबसे पवित्र, हल्का और खुला रखा जाता है।'),
+    tt(lang, 'The Brahmasthan — the centre of the home — is its energetic core and is kept open so prana can radiate freely.', 'ब्रह्मस्थान — घर का केंद्र — इसकी ऊर्जा का हृदय है, इसे खुला रखा जाता है ताकि प्राण मुक्त रूप से फैले।'),
+    tt(lang, 'Fire (Agni) belongs in the South-East and water in the North-East; keeping the two elements apart preserves balance.', 'अग्नि दक्षिण-पूर्व में और जल उत्तर-पूर्व में; दोनों तत्वों को अलग रखना संतुलन बनाए रखता है।'),
+  ];
+  const nug = (i: number) => [{ type: 'nugget', nugget: { body: nuggets[i % nuggets.length] } }];
+  const directions = (va.directions || []).slice(0, 8).map((d: any) => ({ label: d.direction, score: vastuZoneScore(d.direction, va), note: d.assessment }));
+  const rooms = (va.zones || []).slice(0, 8).map((z: any) => ({ label: z.area, score: vastuZoneScore(z.area, va), note: z.recommendation }));
+
+  const pages = [
+    { key: 'cover', title: tt(lang, 'Vaastu Report', 'वास्तु रिपोर्ट'), hero: true, lead: va.verdict || tt(lang, `A Vaastu reading of ${name}.`, `${name} का वास्तु पठन।`), blocks: [] },
+    { key: 'snapshot', title: T.snapshot, lead: tt(lang, 'Your home’s overall Vaastu.', 'आपके घर का समग्र वास्तु।'), blocks: [{ type: 'rings', items: [{ label: tt(lang, 'Vaastu Score', 'वास्तु अंक'), score: clamp10((va.score ?? 70) / 10) }] }, { type: 'paragraph', text: (va.overview || '').split(/\n\s*\n/)[0] || va.verdict }] },
+    { key: 'chart', title: tt(lang, 'Directional Zones', 'दिशा क्षेत्र'), lead: tt(lang, 'Each direction, rated.', 'प्रत्येक दिशा, आँकी गई।'), blocks: [{ type: 'zoneGrid', zones: directions }, ...nug(0)] },
+    { key: 'deepdive1', title: tt(lang, 'Room by Room', 'कमरा दर कमरा'), lead: tt(lang, 'Prioritise by score.', 'अंक के अनुसार प्राथमिकता दें।'), blocks: [{ type: 'ratings', items: rooms }, ...nug(1)] },
+    { key: 'deepdive2', title: tt(lang, 'The Eight Directions', 'आठ दिशाएँ'), blocks: [{ type: 'insights', cards: (va.directions || []).slice(0, 4).map((d: any) => ({ title: d.direction, teaser: d.element, body: d.assessment })) }, ...nug(2)] },
+    { key: 'timing', title: tt(lang, 'Fix This First', 'पहले यह ठीक करें'), lead: tt(lang, 'A priority sequence.', 'एक प्राथमिकता क्रम।'), blocks: [{ type: 'timeline', windows: (va.doshas || []).slice(0, 3).map((d: any, i: number) => ({ label: shortTitle(d.issue), period: tt(lang, `Priority ${i + 1}`, `प्राथमिकता ${i + 1}`), note: d.remedy, current: i === 0 })) }] },
+    { key: 'strengths', title: T.strengths, blocks: [{ type: 'strengthsChallenges', strengths: (va.dos || []).slice(0, 4), challenges: (va.donts || []).slice(0, 4) }, ...(va.doshas && va.doshas[0] ? [{ type: 'honest', text: `${va.doshas[0].issue} — ${va.doshas[0].impact}` }] : [])] },
+    { key: 'remedies', title: T.remedies, blocks: [{ type: 'remedies', items: (va.remedies || []).slice(0, 5).map((r: string) => ({ kind: 'ritual', title: shortTitle(r), detail: r })) }] },
+    { key: 'summary', title: T.summary, blocks: [{ type: 'signature', lines: [va.verdict, tt(lang, `Vaastu score: ${va.score}/100.`, `वास्तु अंक: ${va.score}/100।`), (va.remedies || [])[0] || tt(lang, 'Keep the North-East light and open.', 'ईशान कोण को हल्का और खुला रखें।')].filter(Boolean) }, { type: 'paragraph', text: tt(lang, 'For guidance and reflection — not a structural or safety assessment.', 'मार्गदर्शन के लिए — संरचनात्मक या सुरक्षा आकलन नहीं।') }] },
+  ];
+  return { type: 'vastu', lang, person: { name: String(name), birthLine: String(answers.facing ?? '') }, headline: pages[0].lead as string, pages };
 }
 
 // ── branded HTML (premium & minimal — indigo/gold/serif; print-friendly) ───────

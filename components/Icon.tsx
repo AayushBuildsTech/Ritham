@@ -50,6 +50,7 @@ const MAP = {
   check: ['feather', 'check'],
   send: ['feather', 'send'],
   clock: ['mci', 'clock-time-four-outline'],
+  pause: ['mci', 'pause-circle-outline'],
   history: ['mci', 'history'],
   question: ['feather', 'help-circle'],
   lock: ['feather', 'lock'],

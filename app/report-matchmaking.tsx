@@ -9,7 +9,7 @@ import { useActiveProfile } from '../context/ProfileContext';
 import { supabase } from '../lib/supabase';
 import { computeKundli, ProfileRow, BirthProfile } from '../lib/kundliService';
 import { generateMatchmaking, reportCredits, MatchPerson, ChartStyle } from '../lib/reportService';
-import { useLanguage } from '../context/LanguageContext';
+import { useReportLang } from '../lib/reportLang';
 import { purchasePack } from '../lib/paymentService';
 import { track } from '../lib/analytics';
 import { REPORT_PRICES, paiseTo } from '../config/pricing';
@@ -45,7 +45,7 @@ function personFromProfile(p: ProfileRow): MatchPerson | null {
 
 export default function MatchmakingIntake() {
   const th = useColors();
-  const { lang } = useLanguage();
+  const reportLang = useReportLang();
   const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
@@ -164,7 +164,7 @@ export default function MatchmakingIntake() {
         lagna: k.lagna, moon_sign: k.moon_sign, sun_sign: k.sun_sign, nakshatra: k.nakshatra,
         placements: k.placements,
       };
-      const res = await generateMatchmaking(self, partner, chartStyle, lang);
+      const res = await generateMatchmaking(self, partner, chartStyle, reportLang);
       setGenerating(false);
 
       if (res.report_id) {

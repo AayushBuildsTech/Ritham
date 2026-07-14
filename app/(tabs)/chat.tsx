@@ -78,6 +78,12 @@ export default function ChatScreen() {
 
   const scrollRef = useRef<ScrollView>(null);
 
+  // Mirror `sending` into a ref so the countdown interval can read it without
+  // re-subscribing on every keystroke/turn. Used to freeze the clock while the
+  // astrologer computes (the server credits the same compute time back to expires_at).
+  const sendingRef = useRef(false);
+  useEffect(() => { sendingRef.current = sending; }, [sending]);
+
   const hasBalance = !!balance && (balance.questions > 0 || balance.seconds > 0);
 
   // ── load the ACTIVE person + free-minute status + entitlement balance ─────────
@@ -118,6 +124,10 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!expiresAt) return;
     const tick = () => {
+      // Pause the countdown while a reply is generating — the server pushes expires_at
+      // forward by the compute time, so on the next tick the clock resumes from where
+      // it froze rather than having bled seconds during the wait.
+      if (sendingRef.current) return;
       const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
       setRemaining(left);
       if (left <= 0) { setEnded(true); setShowPaywall(true); }
@@ -235,8 +245,10 @@ export default function ChatScreen() {
         <Text style={styles.headerTitle}>Ritham</Text>
         <View style={styles.headerRight}>
           {timed && remaining !== null && !ended && (
-            <View style={styles.pill}>
-              <Icon name="clock" size={14} color={th.goldLight} />
+            <View style={[styles.pill, sending && styles.pillPaused]}>
+              {/* While the astrologer computes, the clock is frozen (the server credits
+                  the compute time back) — show a pause glyph so the hold reads as intentional. */}
+              <Icon name={sending ? 'pause' : 'clock'} size={14} color={th.goldLight} />
               <Text style={styles.pillText}>{mmss(remaining)}</Text>
             </View>
           )}
@@ -395,6 +407,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     backgroundColor: th.surface, borderRadius: Radius.pill, paddingVertical: 5, paddingHorizontal: Spacing.md,
     borderWidth: 1, borderColor: th.borderStrong,
   },
+  pillPaused: { backgroundColor: th.goldFaint, borderColor: th.gold },
   pillText: { fontFamily: Fonts.bodySemibold, color: th.goldLight, fontSize: Fonts.size.sm },
 
   scroll: { flex: 1 },

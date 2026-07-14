@@ -8,7 +8,7 @@ import { useActiveProfile } from '../context/ProfileContext';
 import { supabase } from '../lib/supabase';
 import { ProfileRow } from '../lib/kundliService';
 import { generateChartReport, reportCredits, MatchPerson } from '../lib/reportService';
-import { useLanguage } from '../context/LanguageContext';
+import { useReportLang } from '../lib/reportLang';
 import { purchasePack } from '../lib/paymentService';
 import { track } from '../lib/analytics';
 import { REPORT_PRICES, REPORT_META, paiseTo, isChartReport, ChartReportType } from '../config/pricing';
@@ -76,7 +76,7 @@ function personFromProfile(p: ProfileRow): MatchPerson | null {
 
 export default function ChartReportIntake() {
   const th = useColors();
-  const { lang } = useLanguage();
+  const reportLang = useReportLang();
   const styles = makeStyles(th);
   const router = useRouter();
   const { user } = useAuth();
@@ -125,7 +125,7 @@ export default function ChartReportIntake() {
 
       setBusy(false);
       setGenerating(true);
-      const res = await generateChartReport(type, self, lang);
+      const res = await generateChartReport(type, self, reportLang);
       setGenerating(false);
 
       if (res.report_id) {

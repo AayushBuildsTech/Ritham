@@ -164,7 +164,7 @@ export default function ReportsScreen() {
 
                   <Pressable
                     style={[styles.primaryBtn, flagship && styles.primaryBtnFlagship]}
-                    onPress={() => router.push({ pathname: meta.route as any, params: { type: meta.type } })}
+                    onPress={() => router.push({ pathname: '/report-language' as any, params: { type: meta.type, next: meta.route } })}
                     android_ripple={{ color: th.goldDeep }}
                   >
                     <Text style={styles.primaryBtnText}>
@@ -197,6 +197,17 @@ export default function ReportsScreen() {
           <Text style={styles.secureNote}>{isHindi ? 'रिपोर्ट निजी रूप से बनाई जाती हैं और असीमित पुनः-डाउनलोड के लिए सहेजी जाती हैं।' : 'Reports are generated privately and stored for unlimited re-download.'}</Text>
         </View>
       </Reveal>
+
+      {/* Dev-only: preview the v2 interactive renderer with sample data (never ships). */}
+      {__DEV__ && (
+        <Pressable
+          onPress={() => router.push('/report-view?preview=career' as any)}
+          style={{ marginTop: Spacing.md, alignSelf: 'center', padding: Spacing.sm }}
+        >
+          <Text style={{ color: th.textDim, fontSize: 12, fontFamily: Fonts.body }}>Preview renderer · Career (dev)</Text>
+        </Pressable>
+      )}
+
       <View style={{ height: Spacing.xl }} />
     </ScrollView>
   );
