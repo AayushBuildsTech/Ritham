@@ -42,6 +42,33 @@ function seededPct(seed: string, min = 52, max = 96): number {
   return Math.round(min + r * (max - min));
 }
 
+// English sign → rashi asset key (base word before the Sanskrit paren).
+const RASHI_KEY: Record<string, string> = {
+  Aries: 'mesha', Taurus: 'vrishabha', Gemini: 'mithuna', Cancer: 'karka',
+  Leo: 'simha', Virgo: 'kanya', Libra: 'tula', Scorpio: 'vrishchika',
+  Sagittarius: 'dhanu', Capricorn: 'makara', Aquarius: 'kumbha', Pisces: 'meena',
+};
+const rashiKey = (sign: string) => RASHI_KEY[sign.split(' (')[0].trim()] ?? '';
+
+// Pictorial Vedic rashi symbols. Drop 512×512 transparent silhouettes into
+// assets/rashi/<key>.png and uncomment the matching line — the reading-card
+// watermark then shows the image (tinted + faded); until then it falls back to
+// the Devanagari rashi name. Keys must match RASHI_KEY above.
+const RASHI_IMAGE: Record<string, any> = {
+  mesha: require('../../assets/rashi/mesha.png'),
+  vrishabha: require('../../assets/rashi/vrishabha.png'),
+  mithuna: require('../../assets/rashi/mithuna.png'),
+  karka: require('../../assets/rashi/karka.png'),
+  simha: require('../../assets/rashi/simha.png'),
+  kanya: require('../../assets/rashi/kanya.png'),
+  tula: require('../../assets/rashi/tula.png'),
+  vrishchika: require('../../assets/rashi/vrishchika.png'),
+  dhanu: require('../../assets/rashi/dhanu.png'),
+  makara: require('../../assets/rashi/makara.png'),
+  kumbha: require('../../assets/rashi/kumbha.png'),
+  meena: require('../../assets/rashi/meena.png'),
+};
+
 export default function HomeScreen() {
   const th = useColors();
   const styles = makeStyles(th);
@@ -188,6 +215,11 @@ export default function HomeScreen() {
         : (isHindi ? 'आपकी शनि दशा की स्थिति' : 'Your Shani cycle status'),
       onPress: () => router.push({ pathname: '/sadesati', params: { profileId: profile.id } }),
     },
+    {
+      icon: 'dream', accent: 'amethyst', title: isHindi ? 'स्वप्न फल' : 'Dream Oracle',
+      sub: isHindi ? 'अपने सपने का अर्थ जानें' : 'Decode what your dream means',
+      onPress: () => router.push({ pathname: '/dream', params: { profileId: profile.id } }),
+    },
   ] : [];
 
   // ── auto-carousel: chat (unchanged) + every feature ─────────────────────────
@@ -233,6 +265,12 @@ export default function HomeScreen() {
       sub: isHindi ? 'शनि की दशा में आप कहाँ हैं' : 'Where you stand in Shani’s cycle', cta: isHindi ? 'देखें' : 'View',
       image: require('../../assets/carousel/sadesati.png'),
       onPress: () => router.push({ pathname: '/sadesati', params: { profileId: profile.id } }),
+    },
+    {
+      key: 'dream', icon: 'dream', badge: B.free, title: isHindi ? 'स्वप्न फल' : 'Dream Oracle',
+      sub: isHindi ? 'अपने सपने का अर्थ जानें' : 'Decode what your dream means', cta: isHindi ? 'देखें' : 'Read',
+      image: require('../../assets/carousel/dream.png'),
+      onPress: () => router.push({ pathname: '/dream', params: { profileId: profile.id } }),
     },
     {
       key: 'store', icon: 'store', badge: isHindi ? 'स्टोर' : 'SHOP', title: isHindi ? 'रिदम स्टोर' : 'Ritham Store',
@@ -323,7 +361,16 @@ export default function HomeScreen() {
           /* ── AI-predicted reading card (overlaps the header) ─────────────────── */
           <Reveal index={0} style={styles.overlap}>
             <View style={styles.readingCard}>
-              <Text style={styles.readingLabel}>{isHindi ? 'आपका AI-आधारित राशिफल' : 'Your AI-Predicted Reading'}</Text>
+              {sign && (
+                <View style={styles.signWatermark} pointerEvents="none">
+                  {RASHI_IMAGE[rashiKey(sign)] ? (
+                    <Image source={RASHI_IMAGE[rashiKey(sign)]} style={styles.signWatermarkImg} />
+                  ) : (
+                    <Text style={styles.signWatermarkText} numberOfLines={1}>{hiSign(sign)}</Text>
+                  )}
+                </View>
+              )}
+              <Text style={styles.readingLabel}>{isHindi ? 'आपका राशिफल' : 'Your Reading'}</Text>
               <Text style={styles.readingSign}>{sign ? (isHindi ? hiSign(sign) : sign) : '—'}</Text>
 
               <View style={styles.statGrid}>
@@ -496,6 +543,16 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   },
   readingLabel: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.textMuted, letterSpacing: 0.3 },
   readingSign: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.gold, marginTop: 2, marginBottom: Spacing.md },
+  // Large, faint Devanagari rashi name bleeding off the right edge — the Vedic
+  // counterpart of the earlier zodiac-glyph backdrop.
+  signWatermark: {
+    position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
+    borderRadius: Radius.xl, overflow: 'hidden',
+    alignItems: 'flex-end', justifyContent: 'center',
+    paddingRight: Spacing.md, opacity: th.isDark ? 0.22 : 0.14,
+  },
+  signWatermarkText: { fontFamily: Fonts.displayBold, fontSize: 132, color: th.goldLight, includeFontPadding: false, marginRight: -14 },
+  signWatermarkImg: { width: 190, height: 190, resizeMode: 'contain' },
 
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: Spacing.md, rowGap: Spacing.md },
   statCell: { flexDirection: 'row', alignItems: 'center', gap: 8, width: (CARD_W - Spacing.lg) - 4 },

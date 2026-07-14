@@ -4,7 +4,54 @@
 
 ---
 
-## 0. Latest Session (2026-07-13, evening) — NEW "Past Life Predictions" report + fixed report purchases (all types)
+## 0. Latest Session (2026-07-14) — Dream Oracle (free) + Home/Settings polish + Vedic rashi symbols
+
+All **client-only** (ships in the JS bundle — no Edge Function deploy, no native rebuild).
+`npx tsc --noEmit` = 0 errors. Verified live on device over **wireless ADB** (`192.168.1.14:5555`;
+`adb reverse tcp:8081 tcp:8081` → relaunch `com.ritham.app` on the running Metro dev server).
+
+**1. New FREE feature — Dream Oracle (Swapna Shastra), zero extra cost.** A rule-based dream
+interpreter on Home (feature-grid card + carousel slide, badged FREE). **Deliberately NOT AI** so it
+costs ₹0 beyond the VedAstro engine already paid for — VedAstro does not interpret dreams, so the
+*omen* comes from a bundled traditional dictionary and the *timing* from the **prahar** (quarter of
+night) + today's already-cached **Panchang** (paksha/nakshatra overlay; degrades gracefully if the
+almanac isn't loaded). Matches the existing "computed + cached, never AI" free features.
+- `constants/dreams.ts` — 35 bilingual (EN/HI) dream symbols (`nature` auspicious/caution/neutral,
+  one-line omen + fuller reading), 5 prahar timing rules, and 6 themed categories (`DREAM_CATEGORIES`)
+  for the picker. Static data, no AI (same pattern as `constants/numerology.ts`).
+- `lib/dreamOracle.ts` — pure compose (symbol + prahar + optional Panchang → reading); no network.
+- `app/dream.tsx` — UX: search box → 6 theme cards → short scannable rich rows (name + one-line meaning
+  + colour-coded nature) → picking one collapses the picker and shows the reading (omen, prahar timing,
+  a "today's sky" Panchang line, soft chat hook). Fetches the day's Panchang best-effort via
+  `getPanchang(profileId)`.
+- Home wiring in `app/(tabs)/index.tsx` (grid + carousel), new `dream` icon in `components/Icon.tsx`,
+  analytics `dream_viewed` / `dream_symbol_picked`.
+- Carousel art `assets/carousel/dream.png` (Gemini render; **auto-trimmed** transparent margins
+  432×578→384×398 with `pngjs` so the subject fills the card like the other slides).
+
+**2. Home "Your Reading" card — pictorial Vedic rashi watermark.**
+- Renamed the label **"Your AI-Predicted Reading" → "Your Reading"** (EN + HI `आपका राशिफल`).
+- Added a large faint **rashi symbol** watermark bleeding into the card, keyed to the person's moon
+  sign. Shows the **pictorial image** if present (`assets/rashi/<key>.png`), else falls back to the
+  **Devanagari rashi name** (`hiSign`). (Western zodiac glyphs ♈… were rejected as non-Vedic; note the
+  sign names/positions were already Vedic — Lahiri sidereal — only the decorative glyph was Western.)
+- The 12 pictorial symbols were **sliced from `Detailings/zodiac sign.png`** (a 500×500 transparent
+  sheet, 4×3 grid, Western order) with a pngjs **projection-segmentation** script (detect 3 row gaps →
+  4 column gaps within each → tight-trim) into
+  `assets/rashi/{mesha,vrishabha,mithuna,karka,simha,kanya,tula,vrishchika,dhanu,makara,kumbha,meena}.png`.
+  Symbols are already brand-pink so no tint; theme-aware opacity (22% dark / 14% light).
+  `RASHI_KEY` + `RASHI_IMAGE` maps + `rashiKey()` live in `app/(tabs)/index.tsx`.
+
+**3. Settings — segmented "choose-between" controls.** Language, Theme, and Daily-guidance
+(notifications) changed from tap rows to a single button split by a vertical divider (`SegmentedRow` in
+`app/settings.tsx`): `English│हिन्दी`, `Light│Dark`, `On│Off` (active half filled magenta). The
+navigation rows (Kundli, Profiles, Legal, Contact) intentionally stay as tap rows.
+
+**Nothing to deploy** — all JS. New assets under `assets/rashi/` + `assets/carousel/dream.png`.
+
+---
+
+## Prior Session (2026-07-13, evening) — NEW "Past Life Predictions" report + fixed report purchases (all types)
 
 Added a new premium report **Past Life Predictions** (`type: 'pastlife'`, ₹149) in a new **"Karmic &
 Spiritual"** section on the Reports tab. It reuses the existing single-person chart pipeline (same as

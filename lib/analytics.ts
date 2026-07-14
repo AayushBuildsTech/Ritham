@@ -31,6 +31,8 @@ export type EventName =
   | 'muhurat_funnel_clicked'
   | 'darshan_opened'
   | 'darshan_temple_clicked'
+  | 'dream_viewed'
+  | 'dream_symbol_picked'
   | 'family_member_added'
   | 'family_member_removed'
   | 'active_profile_switched'

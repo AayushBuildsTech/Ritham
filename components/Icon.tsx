@@ -25,6 +25,22 @@ const MAP = {
   numerology: ['mci', 'numeric'],
   muhurat: ['mci', 'calendar-star'],
   temple: ['mci', 'temple-hindu'],
+  dream: ['mci', 'weather-night'],
+  leaf: ['mci', 'leaf'],
+  paw: ['mci', 'paw'],
+  // ── zodiac (rashi) glyphs ──
+  zodiacAries: ['mci', 'zodiac-aries'],
+  zodiacTaurus: ['mci', 'zodiac-taurus'],
+  zodiacGemini: ['mci', 'zodiac-gemini'],
+  zodiacCancer: ['mci', 'zodiac-cancer'],
+  zodiacLeo: ['mci', 'zodiac-leo'],
+  zodiacVirgo: ['mci', 'zodiac-virgo'],
+  zodiacLibra: ['mci', 'zodiac-libra'],
+  zodiacScorpio: ['mci', 'zodiac-scorpio'],
+  zodiacSagittarius: ['mci', 'zodiac-sagittarius'],
+  zodiacCapricorn: ['mci', 'zodiac-capricorn'],
+  zodiacAquarius: ['mci', 'zodiac-aquarius'],
+  zodiacPisces: ['mci', 'zodiac-pisces'],
   // ── chrome / actions ──
   profile: ['mci', 'account-circle-outline'],
   settings: ['mci', 'cog-outline'],
@@ -76,6 +92,29 @@ const MAP = {
 } as const;
 
 export type IconName = keyof typeof MAP;
+
+// Map a sign string ("Aries (Mesha)" / "Aries" / "Mesha" / Hindi "मेष") to its
+// zodiac glyph icon. Keyed by the English/Sanskrit base word; unknown → null.
+const ZODIAC_ICON: Record<string, IconName> = {
+  Aries: 'zodiacAries', Mesha: 'zodiacAries', मेष: 'zodiacAries',
+  Taurus: 'zodiacTaurus', Vrishabha: 'zodiacTaurus', वृषभ: 'zodiacTaurus',
+  Gemini: 'zodiacGemini', Mithuna: 'zodiacGemini', मिथुन: 'zodiacGemini',
+  Cancer: 'zodiacCancer', Karka: 'zodiacCancer', कर्क: 'zodiacCancer',
+  Leo: 'zodiacLeo', Simha: 'zodiacLeo', सिंह: 'zodiacLeo',
+  Virgo: 'zodiacVirgo', Kanya: 'zodiacVirgo', कन्या: 'zodiacVirgo',
+  Libra: 'zodiacLibra', Tula: 'zodiacLibra', तुला: 'zodiacLibra',
+  Scorpio: 'zodiacScorpio', Vrishchika: 'zodiacScorpio', वृश्चिक: 'zodiacScorpio',
+  Sagittarius: 'zodiacSagittarius', Dhanu: 'zodiacSagittarius', धनु: 'zodiacSagittarius',
+  Capricorn: 'zodiacCapricorn', Makara: 'zodiacCapricorn', मकर: 'zodiacCapricorn',
+  Aquarius: 'zodiacAquarius', Kumbha: 'zodiacAquarius', कुम्भ: 'zodiacAquarius',
+  Pisces: 'zodiacPisces', Meena: 'zodiacPisces', मीन: 'zodiacPisces',
+};
+
+export function zodiacIcon(sign?: string | null): IconName | null {
+  if (!sign) return null;
+  const base = sign.split(' (')[0].trim();
+  return ZODIAC_ICON[base] ?? null;
+}
 
 export function Icon({
   name,

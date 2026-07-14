@@ -92,11 +92,12 @@ export default function SettingsScreen() {
         {/* Language */}
         <Text style={styles.sectionLabel}>{isHindi ? 'भाषा' : 'LANGUAGE'}</Text>
         <View style={styles.group}>
-          <Row
+          <SegmentedRow
             icon="info"
             label={t('settings.language')}
-            value={isHindi ? 'हिन्दी' : 'English'}
-            onPress={() => setLang(lang === 'hi' ? 'en' : 'hi')}
+            options={[{ key: 'en', label: 'English' }, { key: 'hi', label: 'हिन्दी' }]}
+            selected={lang}
+            onSelect={(k) => setLang(k === 'hi' ? 'hi' : 'en')}
             last
           />
         </View>
@@ -109,13 +110,27 @@ export default function SettingsScreen() {
         {/* Appearance */}
         <Text style={styles.sectionLabel}>{isHindi ? 'रूप' : 'APPEARANCE'}</Text>
         <View style={styles.group}>
-          <Row icon={isDark ? 'moon' : 'sun'} label={t('settings.theme')} value={isDark ? t('settings.themeDark') : t('settings.themeLight')} onPress={toggle} last />
+          <SegmentedRow
+            icon={isDark ? 'moon' : 'sun'}
+            label={t('settings.theme')}
+            options={[{ key: 'light', label: t('settings.themeLight') }, { key: 'dark', label: t('settings.themeDark') }]}
+            selected={isDark ? 'dark' : 'light'}
+            onSelect={(k) => { if ((k === 'dark') !== isDark) toggle(); }}
+            last
+          />
         </View>
 
         {/* Notifications */}
         <Text style={styles.sectionLabel}>{isHindi ? 'सूचनाएं' : 'NOTIFICATIONS'}</Text>
         <View style={styles.group}>
-          <Row icon="clock" label={isHindi ? 'दैनिक मार्गदर्शन' : 'Daily guidance'} value={remOn ? (isHindi ? 'चालू' : 'On') : (isHindi ? 'बंद' : 'Off')} onPress={toggleReminders} last />
+          <SegmentedRow
+            icon="clock"
+            label={isHindi ? 'दैनिक मार्गदर्शन' : 'Daily guidance'}
+            options={[{ key: 'on', label: isHindi ? 'चालू' : 'On' }, { key: 'off', label: isHindi ? 'बंद' : 'Off' }]}
+            selected={remOn ? 'on' : 'off'}
+            onSelect={(k) => { if ((k === 'on') !== remOn) toggleReminders(); }}
+            last
+          />
         </View>
         <Text style={styles.deleteHint}>{isHindi ? 'हर दिन सुबह 7 और शाम 6 बजे एक कोमल राशिफल।' : 'A gentle reading at 7 AM and 6 PM each day.'}</Text>
 
@@ -203,6 +218,40 @@ function Row({ icon, label, value, onPress, chevron, last }: {
     : inner;
 }
 
+// A choose-between setting shown as ONE segmented button split by a vertical
+// divider (theme, language, notifications). The active half is highlighted.
+function SegmentedRow({ icon, label, options, selected, onSelect, last }: {
+  icon: IconName; label: string;
+  options: { key: string; label: string }[];
+  selected: string; onSelect: (key: string) => void; last?: boolean;
+}) {
+  const th = useColors();
+  const styles = makeStyles(th);
+  return (
+    <View style={[styles.row, !last && styles.rowBorder]}>
+      <View style={styles.rowLeft}>
+        <Icon name={icon} size={17} color={th.textMuted} />
+        <Text style={styles.rowLabel}>{label}</Text>
+      </View>
+      <View style={styles.segment}>
+        {options.map((o, i) => {
+          const on = o.key === selected;
+          return (
+            <Pressable
+              key={o.key}
+              onPress={() => onSelect(o.key)}
+              android_ripple={{ color: th.goldFaint }}
+              style={[styles.segItem, i > 0 && styles.segDivider, on && styles.segItemOn]}
+            >
+              <Text style={[styles.segText, on && styles.segTextOn]}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const makeStyles = (th: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: th.canvas },
   content: { padding: Spacing.lg, paddingTop: Spacing.lg },
@@ -217,6 +266,14 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   rowLabel: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   rowValue: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
+
+  // segmented (choose-between) control
+  segment: { flexDirection: 'row', borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.sm, overflow: 'hidden' },
+  segItem: { paddingVertical: 7, paddingHorizontal: 14, minWidth: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: th.surface },
+  segItemOn: { backgroundColor: th.goldSurface },
+  segDivider: { borderLeftWidth: 1, borderLeftColor: th.borderStrong },
+  segText: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.textMuted },
+  segTextOn: { color: th.goldContrast },
 
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
