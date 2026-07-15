@@ -9,6 +9,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { hiNakshatra, hiVaara } from '../lib/astroHindi';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { HeroBanner } from '../components/HeroBanner';
+import { FEATURE_BANNER } from '../constants/appArt';
 
 export default function PanchangScreen() {
   const th = useColors();
@@ -48,6 +50,7 @@ export default function PanchangScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HeroBanner source={FEATURE_BANNER.panchang} style={{ marginBottom: Spacing.lg }} />
           <Text style={styles.dateLine}>
             {isHindi ? hiVaara(data?.vaara ?? '') : data?.vaara}{data?.place ? `  ·  ${data.place}` : ''}
           </Text>

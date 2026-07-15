@@ -2155,6 +2155,42 @@ in a `carouselWrap` with `marginHorizontal: -Spacing.lg` to break out of the bod
 
 ---
 
+## 43. AI art blended across every screen (2026-07-15, JS-only)
+
+Full-app pass to make Ritham feel bespoke: audited every screen (free + paid), found only **4** of ~30
+used any imagery, and blended **34 AI-generated images** into the empty corners — matched to the "Stellar
+Velocity" palette. Master prompts are catalogued in **`AI_ART_PROMPTS.md`** (each block is standalone,
+paste-and-generate for ChatGPT — style/hex/orientation/no-text baked in). User generated all 34; they came
+back **opaque** (not the transparent cutouts originally planned), so they're framed as heroes / scrim-cards
+(the Reports-tab `ImageBackground` pattern) rather than floating PNGs — reads as intentional.
+
+- **New shared pieces:** `components/HeroBanner.tsx` (rounded, framed image hero; optional bottom scrim for
+  overlaid text; uses theme tokens + `Depth` so it works light/dark) and `constants/appArt.ts` (registries
+  for temples, per-sign banners, feature banners + a `signBanner(moonSign)` resolver). Report art stays in
+  `reportArt.ts`.
+- **Placements (asset → screen):**
+  - `assets/auth/login-hero.png` → **Login** full-screen backdrop; card floats in the dark lower third;
+    `StatusBar` forced light; content pushed to `justifyContent:'flex-end'`.
+  - `assets/guru/guru-portrait.png` → **Call** pre-call "meet your astrologer" cameo (172-wide 3:4 rounded
+    card, gold border + `Depth.glow`). Animated `CallOrb` kept for the LIVE call only.
+  - `assets/guru/guru-seated.png` → **Chat** empty-state hero (above the "first minute free" intro card).
+  - `assets/store/{store-hero,rudraksha,gemstone,evil-eye}.png` → **Store** redesigned: hero with COMING
+    SOON overlaid on scrim; category cards now have real product thumbnails (88px) instead of icon chips.
+  - `assets/temples/<id>.png` (8) → **Darshan** — each card became an `ImageBackground` header with the
+    temple name overlaid on a scrim; card padding moved into a `cardBody`; icon-header kept as fallback.
+  - `assets/horoscope/<key>.png` (12) → **Horoscope** — one constellation banner shown, keyed to the moon
+    sign via `signBanner()` (English-sign→rashi-key map; graceful `undefined` if missing).
+  - `assets/numerology/numerology-hero.png` → **Numerology** centered 72%-wide yantra medallion.
+  - `assets/dream/dream-hero.png` → **Dream** 3:2 hero under the header.
+  - `assets/banners/{panchang,muhurat,sadesati,vakri}.png` → those four feature screens' header vignettes
+    (via `FEATURE_BANNER`).
+  - `assets/paywall/unlock.png` → **Paywall** crowning 76px medallion on BOTH variants (chat + call).
+- **Notes:** `HeroBanner` clips the art's dark vignette corners with `borderRadius`, so opaque squares/circles
+  sit cleanly on any surface. `tsc --noEmit` clean. Swapping/adding `require()`d images needs a Metro
+  restart (`-c`) or the stale asset hash renders nothing — same gotcha as §42.
+
+---
+
 ## FUTURE FEATURE (planned, not built): Live AI Voice Astrologer — costs & pricing
 
 Reference notes from planning (2026-07-10) for a **voice-only, real-time AI astrologer call in Indian

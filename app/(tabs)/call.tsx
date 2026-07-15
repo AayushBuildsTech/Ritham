@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Alert,
+  View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Alert, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -155,7 +155,11 @@ export default function CallScreen() {
         </Reveal>
 
         <Reveal index={2}>
-          <View style={styles.orbWrap}><CallOrb state="idle" size={200} /></View>
+          <View style={styles.guruWrap}>
+            <View style={styles.guruCameo}>
+              <Image source={require('../../assets/guru/guru-portrait.png')} style={styles.guruImg} resizeMode="cover" />
+            </View>
+          </View>
         </Reveal>
 
         <Reveal index={3}>
@@ -300,6 +304,12 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   chipText: { fontFamily: Fonts.bodyMedium, color: th.text, fontSize: Fonts.size.sm },
 
   orbWrap: { alignItems: 'center', marginTop: Spacing.lg, marginBottom: Spacing.sm },
+  guruWrap: { alignItems: 'center', marginTop: Spacing.lg, marginBottom: Spacing.sm },
+  guruCameo: {
+    width: 172, aspectRatio: 3 / 4, borderRadius: Radius.xl, overflow: 'hidden',
+    borderWidth: 2, borderColor: th.gold, ...Depth.glow,
+  },
+  guruImg: { width: '100%', height: '100%' },
   title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.text, textAlign: 'center', marginTop: Spacing.sm },
   subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.textMuted, textAlign: 'center', marginTop: 6 },
 

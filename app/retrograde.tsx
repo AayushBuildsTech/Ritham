@@ -14,6 +14,8 @@ import { useColors } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { HeroBanner } from '../components/HeroBanner';
+import { FEATURE_BANNER } from '../constants/appArt';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fmt = (iso: string, year = false) => {
@@ -72,6 +74,7 @@ export default function RetrogradeScreen() {
         <View style={styles.center}><Text style={styles.errorText}>{isHindi ? 'अभी आकाश नहीं पढ़ा जा सका। कृपया फिर कोशिश करें।' : 'Couldn’t read the sky right now. Please try again.'}</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HeroBanner source={FEATURE_BANNER.vakri} style={{ marginBottom: Spacing.lg }} />
           <Text style={styles.sectionLabel}>{isHindi ? 'अभी' : 'RIGHT NOW'}</Text>
 
           {current.length === 0 ? (

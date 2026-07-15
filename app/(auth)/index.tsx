@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, ImageBackground } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { AntDesign } from '@expo/vector-icons';
 import {
   GoogleSignin,
@@ -64,7 +66,15 @@ export default function SignInScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <ImageBackground source={require('../../assets/auth/login-hero.png')} style={styles.root} resizeMode="cover">
+      <StatusBar style="light" />
+      <LinearGradient
+        colors={['rgba(13,13,26,0.15)', 'rgba(13,13,26,0.55)', 'rgba(13,13,26,0.94)']}
+        locations={[0, 0.5, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View style={styles.inner}>
       <Reveal index={0}>
         <View style={styles.header}>
           <Text style={styles.logo}>Ritham</Text>
@@ -106,16 +116,18 @@ export default function SignInScreen() {
           </Text>
         </View>
       </Reveal>
-    </View>
+      </View>
+    </ImageBackground>
   );
 }
 
 const makeStyles = (th: ThemeColors) => StyleSheet.create({
-  root: { flex: 1, backgroundColor: th.canvas, justifyContent: 'center', padding: Spacing.lg },
-  header: { alignItems: 'center', marginBottom: Spacing.xxl },
-  logo: { fontFamily: Fonts.displayBold, fontSize: 56, color: th.goldLight, letterSpacing: 1 },
-  rule: { width: 88, height: 1, backgroundColor: th.gold, opacity: 0.7, marginVertical: Spacing.md },
-  tagline: { fontFamily: Fonts.bodyMedium, fontSize: 11, color: th.textMuted, letterSpacing: 4 },
+  root: { flex: 1, backgroundColor: th.canvas },
+  inner: { flex: 1, justifyContent: 'flex-end', padding: Spacing.lg, paddingBottom: Spacing.xxl },
+  header: { alignItems: 'center', marginBottom: Spacing.xl },
+  logo: { fontFamily: Fonts.displayBold, fontSize: 56, color: '#FFFFFF', letterSpacing: 1 },
+  rule: { width: 88, height: 1, backgroundColor: th.goldLight, opacity: 0.9, marginVertical: Spacing.md },
+  tagline: { fontFamily: Fonts.bodyMedium, fontSize: 11, color: 'rgba(255,255,255,0.75)', letterSpacing: 4 },
   card: {
     backgroundColor: th.surface,
     borderRadius: Radius.lg,

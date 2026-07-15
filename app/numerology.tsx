@@ -12,6 +12,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
+import { HeroBanner } from '../components/HeroBanner';
 
 export default function NumerologyScreen() {
   const th = useColors();
@@ -58,6 +59,11 @@ export default function NumerologyScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HeroBanner
+            source={require('../assets/numerology/numerology-hero.png')}
+            aspectRatio={1}
+            style={{ width: '72%', alignSelf: 'center', marginBottom: Spacing.lg }}
+          />
           <Text style={styles.intro}>
             {isHindi
               ? `${name?.trim().split(/\s+/)[0]}, आपके मूल अंक आपके नाम और जन्म तिथि से निकाले गए हैं।`

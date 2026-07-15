@@ -18,6 +18,7 @@ import { Colors, Fonts, Spacing, Radius, Accents, ThemeColors } from '../../cons
 import { useColors } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { Icon } from '../../components/Icon';
+import { HeroBanner } from '../../components/HeroBanner';
 import { TAB_BAR_HEIGHT } from './_layout';
 
 type Entry = 'loading' | 'need_profile' | 'ready';
@@ -281,13 +282,16 @@ export default function ChatScreen() {
         showsVerticalScrollIndicator={false}
       >
         {notStarted && !freeUsed && !showPaywall && (
-          <View style={styles.introCard}>
-            <Text style={styles.introEyebrow}>{isHindi ? 'आपका पहला मिनट निःशुल्क है' : 'YOUR FIRST MINUTE IS FREE'}</Text>
-            <Text style={styles.introTitle}>{isHindi ? 'तारों से एक बातचीत' : 'A conversation with the stars'}</Text>
-            <Text style={styles.introDisclaimer}>
-              {isHindi ? 'मार्गदर्शन और चिंतन के लिए — पेशेवर सलाह का विकल्प नहीं।' : 'For guidance and reflection — not a substitute for professional advice.'}
-            </Text>
-          </View>
+          <>
+            <HeroBanner source={require('../../assets/guru/guru-seated.png')} aspectRatio={4 / 5} style={styles.introHero} />
+            <View style={styles.introCard}>
+              <Text style={styles.introEyebrow}>{isHindi ? 'आपका पहला मिनट निःशुल्क है' : 'YOUR FIRST MINUTE IS FREE'}</Text>
+              <Text style={styles.introTitle}>{isHindi ? 'तारों से एक बातचीत' : 'A conversation with the stars'}</Text>
+              <Text style={styles.introDisclaimer}>
+                {isHindi ? 'मार्गदर्शन और चिंतन के लिए — पेशेवर सलाह का विकल्प नहीं।' : 'For guidance and reflection — not a substitute for professional advice.'}
+              </Text>
+            </View>
+          </>
         )}
 
         {notStarted && freeUsed && hasBalance && !showPaywall && (
@@ -413,6 +417,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: Spacing.lg, gap: Spacing.sm },
 
+  introHero: { marginBottom: Spacing.md },
   introCard: { backgroundColor: th.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: th.border, marginBottom: Spacing.sm },
   introEyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: Accents.sapphire.color, letterSpacing: 2, marginBottom: Spacing.sm },
   introTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginBottom: Spacing.sm },

@@ -14,6 +14,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { hiSign } from '../lib/astroHindi';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { HeroBanner } from '../components/HeroBanner';
+import { FEATURE_BANNER } from '../constants/appArt';
 import { SadeSatiTimeline } from '../components/SadeSatiTimeline';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -61,6 +63,7 @@ export default function SadeSatiScreen() {
         <View style={styles.center}><Text style={styles.errorText}>{isHindi ? 'इसे पढ़ने के लिए हमें आपकी कुंडली चाहिए। कृपया पहले अपनी कुंडली खोलें, फिर कोशिश करें।' : 'We need your Kundli to read this. Please open your chart first, then try again.'}</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HeroBanner source={FEATURE_BANNER.sadesati} style={{ marginBottom: Spacing.lg }} />
           <Text style={styles.moonLine}>{isHindi ? `चंद्रमा ${hiSign(data.moonSign)} में` : `Chandra (Moon) in ${data.moonSign}`}</Text>
           <Text style={styles.intro}>{isHindi ? SADE_SATI_INTRO_HI : SADE_SATI_INTRO}</Text>
 

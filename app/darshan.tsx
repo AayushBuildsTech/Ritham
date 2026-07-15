@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert, ImageBackground } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { TEMPLES, Temple, TEMPLE_HI } from '../config/temples';
 import { track } from '../lib/analytics';
@@ -9,6 +10,10 @@ import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
+import { TEMPLE_IMG } from '../constants/appArt';
+
+// Bottom-weighted dark scrim so the temple name stays legible over the art.
+const SCRIM = ['rgba(6,6,12,0)', 'rgba(7,7,15,0.45)', 'rgba(6,6,12,0.9)'] as const;
 
 export default function DarshanScreen() {
   const th = useColors();
@@ -45,28 +50,44 @@ export default function DarshanScreen() {
           return (
           <Reveal key={t.id} index={i}>
             <View style={styles.card}>
-              <View style={styles.cardHead}>
-                <View style={styles.icon}><Icon name="temple" size={24} color={Accents.ruby.color} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.name}>{hi?.name ?? t.name}</Text>
-                  <Text style={styles.location}>{hi?.location ?? t.location}</Text>
+              {TEMPLE_IMG[t.id] ? (
+                <ImageBackground source={TEMPLE_IMG[t.id]} style={styles.cardBanner} resizeMode="cover">
+                  <LinearGradient colors={SCRIM} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+                  <View style={styles.bannerOverlay}>
+                    <Text style={styles.name}>{hi?.name ?? t.name}</Text>
+                    <View style={styles.locRow}>
+                      <Icon name="temple" size={13} color="rgba(255,255,255,0.9)" />
+                      <Text style={styles.location}>{hi?.location ?? t.location}</Text>
+                    </View>
+                  </View>
+                </ImageBackground>
+              ) : (
+                <View style={styles.cardHead}>
+                  <View style={styles.icon}><Icon name="temple" size={24} color={Accents.ruby.color} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nameFallback}>{hi?.name ?? t.name}</Text>
+                    <Text style={styles.locationFallback}>{hi?.location ?? t.location}</Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.deity}>{hi?.deity ?? t.deity}</Text>
-              <View style={styles.timingRow}>
-                <Icon name="clock" size={14} color={th.textMuted} />
-                <Text style={styles.timings}>{hi?.timings ?? t.timings}</Text>
-              </View>
+              )}
 
-              <Pressable style={styles.watchBtn} onPress={() => watch(t)} android_ripple={{ color: th.goldDeep }}>
-                <Text style={styles.watchText}>{isHindi ? 'लाइव दर्शन देखें' : 'Watch Live Darshan'}</Text>
-                <Icon name="external" size={15} color={th.goldContrast} />
-              </Pressable>
-              <Text style={styles.unverified}>
-                {isHindi
-                  ? `${t.source === 'youtube' ? 'आधिकारिक YouTube चैनल' : 'आधिकारिक मंदिर वेबसाइट'} खोलता है`
-                  : `Opens the ${t.source === 'youtube' ? 'official YouTube channel' : 'official temple website'}`}
-              </Text>
+              <View style={styles.cardBody}>
+                <Text style={styles.deity}>{hi?.deity ?? t.deity}</Text>
+                <View style={styles.timingRow}>
+                  <Icon name="clock" size={14} color={th.textMuted} />
+                  <Text style={styles.timings}>{hi?.timings ?? t.timings}</Text>
+                </View>
+
+                <Pressable style={styles.watchBtn} onPress={() => watch(t)} android_ripple={{ color: th.goldDeep }}>
+                  <Text style={styles.watchText}>{isHindi ? 'लाइव दर्शन देखें' : 'Watch Live Darshan'}</Text>
+                  <Icon name="external" size={15} color={th.goldContrast} />
+                </Pressable>
+                <Text style={styles.unverified}>
+                  {isHindi
+                    ? `${t.source === 'youtube' ? 'आधिकारिक YouTube चैनल' : 'आधिकारिक मंदिर वेबसाइट'} खोलता है`
+                    : `Opens the ${t.source === 'youtube' ? 'official YouTube channel' : 'official temple website'}`}
+                </Text>
+              </View>
             </View>
           </Reveal>
           );
@@ -90,17 +111,23 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   card: {
     backgroundColor: th.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: th.border,
-    padding: Spacing.lg, marginBottom: Spacing.md, ...Depth.card,
+    overflow: 'hidden', marginBottom: Spacing.md, ...Depth.card,
   },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  cardBanner: { width: '100%', aspectRatio: 16 / 9, justifyContent: 'flex-end' },
+  bannerOverlay: { padding: Spacing.md },
+  locRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+  cardBody: { padding: Spacing.lg },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, paddingBottom: 0 },
   icon: {
     width: 52, height: 52, borderRadius: Radius.sm,
     backgroundColor: Accents.ruby.faint, borderWidth: 1, borderColor: Accents.ruby.soft,
     alignItems: 'center', justifyContent: 'center',
   },
-  name: { fontFamily: Fonts.displayBold, color: th.text, fontSize: Fonts.size.lg },
-  location: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
-  deity: { fontFamily: Fonts.bodyMedium, color: th.goldLight, fontSize: Fonts.size.sm, marginTop: Spacing.md },
+  name: { fontFamily: Fonts.displayBold, color: '#FFFFFF', fontSize: Fonts.size.xl, letterSpacing: 0.2 },
+  location: { fontFamily: Fonts.body, color: 'rgba(255,255,255,0.85)', fontSize: Fonts.size.sm },
+  nameFallback: { fontFamily: Fonts.displayBold, color: th.text, fontSize: Fonts.size.lg },
+  locationFallback: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm, marginTop: 2 },
+  deity: { fontFamily: Fonts.bodyMedium, color: th.goldLight, fontSize: Fonts.size.sm },
   timingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
   timings: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
 

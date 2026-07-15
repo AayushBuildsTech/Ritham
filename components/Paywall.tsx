@@ -5,7 +5,7 @@
 // Prices are display-only here; the server recomputes the real amount (rule #3).
 
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert, Image } from 'react-native';
 import {
   SESSION_PLANS, QUESTION_PACKS, CALL_PACKS, paiseTo, formatSeconds,
   paisePerMinute, CHEAPEST_CALL_PER_MIN,
@@ -59,6 +59,7 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
   if (variant === 'call') {
     return (
       <View style={styles.card}>
+        <Image source={require('../assets/paywall/unlock.png')} style={styles.relic} resizeMode="cover" />
         <Text style={styles.eyebrow}>{isHindi ? 'अपने ज्योतिषी से बात करें' : 'TALK TO YOUR JYOTISHI'}</Text>
         <Text style={styles.title}>{title ?? (isHindi ? 'कॉल मिनट खरीदें' : 'Buy call minutes')}</Text>
         <Text style={styles.subtitle}>
@@ -88,6 +89,7 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
 
   return (
     <View style={styles.card}>
+      <Image source={require('../assets/paywall/unlock.png')} style={styles.relic} resizeMode="cover" />
       <Text style={styles.eyebrow}>{isHindi ? 'और अधिक अनलॉक करें' : 'UNLOCK MORE'}</Text>
       <Text style={styles.title}>{title ?? (isHindi ? 'अपनी बातचीत जारी रखें' : 'Continue your reading')}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -193,6 +195,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
     backgroundColor: th.surfaceRaised, borderRadius: Radius.lg, padding: Spacing.lg,
     borderWidth: 1, borderColor: th.borderStrong, gap: Spacing.sm, ...Depth.raised,
   },
+  relic: { width: 76, height: 76, borderRadius: 38, alignSelf: 'center', marginBottom: Spacing.xs },
   eyebrow: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs, color: th.gold, letterSpacing: 2 },
   title: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text },
   subtitle: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 20, marginBottom: Spacing.xs },

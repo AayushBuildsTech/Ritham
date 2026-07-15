@@ -10,6 +10,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { hiNakshatra } from '../lib/astroHindi';
 import { Icon, IconName } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { HeroBanner } from '../components/HeroBanner';
+import { FEATURE_BANNER } from '../constants/appArt';
 import { Reveal } from '../components/Reveal';
 
 // activity id → thin-line icon (replaces the emoji in MUHURAT_ACTIVITIES)
@@ -68,6 +70,7 @@ export default function MuhuratScreen() {
       {/* ── Activity picker ─────────────────────────────────────────────────── */}
       {!current ? (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <HeroBanner source={FEATURE_BANNER.muhurat} style={{ marginBottom: Spacing.lg }} />
           <Text style={styles.lead}>{isHindi ? 'शुभ तिथियां खोजें…' : 'Find auspicious dates for…'}</Text>
           {MUHURAT_ACTIVITIES.map((a, i) => (
             <Reveal key={a.id} index={i}>

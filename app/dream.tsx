@@ -15,6 +15,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Reveal } from '../components/Reveal';
+import { HeroBanner } from '../components/HeroBanner';
 
 // Dream feature (Swapna Shastra) — a FREE, rule-based dream oracle. The omen
 // comes from a fixed traditional dictionary (constants/dreams.ts); the timing
@@ -90,6 +91,7 @@ export default function DreamScreen() {
       <ScreenHeader title={isHindi ? 'स्वप्न फल' : 'Dream Oracle'} onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
+        <HeroBanner source={require('../assets/dream/dream-hero.png')} aspectRatio={3 / 2} style={{ marginBottom: Spacing.lg }} />
         <Text style={styles.intro}>
           {isHindi
             ? 'आपने स्वप्न में जो देखा, उसे चुनें। पारंपरिक स्वप्न शास्त्र और आज के पंचांग से उसका फल जानें।'

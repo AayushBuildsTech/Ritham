@@ -8,6 +8,8 @@ import { Fonts, Spacing, Radius, Depth, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
+import { HeroBanner } from '../components/HeroBanner';
+import { signBanner } from '../constants/appArt';
 
 const PERIOD_IDS: HoroscopePeriod[] = ['daily', 'weekly', 'monthly'];
 
@@ -82,6 +84,10 @@ export default function HoroscopeScreen() {
 
         <Text style={styles.eyebrow}>{isHindi ? 'आपका राशिफल' : 'YOUR HOROSCOPE'}</Text>
         <Text style={styles.h1}>{isHindi ? 'तारे, आपके लिए' : 'The stars, for you'}</Text>
+
+        {signBanner(moonSign) && (
+          <HeroBanner source={signBanner(moonSign)} style={{ marginBottom: Spacing.lg }} />
+        )}
 
         {/* underline segmented control */}
         <View style={styles.segment}>
