@@ -31,18 +31,18 @@ export const QUESTION_PACKS = [
 // The five chart-based reports read the user's own cached Kundli; Vastu is
 // property-based (floor plan) and Matchmaking is two-person (partner chart).
 export const REPORT_PRICES = {
-  // Flagship — the deepest, most comprehensive reading.
-  life:        { price_paise: 39900 },
-  // Focused single-person chart reports.
-  career:      { price_paise: 14900 },
-  love:        { price_paise: 12900 },
-  health:      { price_paise: 9900 },
-  education:   { price_paise: 9900 },
-  // Existing (unchanged).
-  vastu:       { price_paise: 14900 },
-  matchmaking: { price_paise: 19900 },
+  // Flagship — the deepest, most comprehensive reading (premium anchor).
+  life:        { price_paise: 29900 },
+  // Focused single-person chart reports (impulse-friendly).
+  career:      { price_paise: 9900 },
+  love:        { price_paise: 7900 },
+  health:      { price_paise: 6900 },
+  education:   { price_paise: 6900 },
+  // Home & compatibility (kept a touch higher — floor plan / two-person effort).
+  vastu:       { price_paise: 12900 },
+  matchmaking: { price_paise: 14900 },
   // Karmic & spiritual — reads the user's own Kundli.
-  pastlife:    { price_paise: 14900 },
+  pastlife:    { price_paise: 9900 },
 } as const;
 
 export type SessionPlanId = typeof SESSION_PLANS[number]['id'];

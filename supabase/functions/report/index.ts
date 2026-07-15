@@ -193,12 +193,33 @@ Deno.serve(async (req) => {
 async function generateVastu(admin: any, floorplanPath: string, answers: any, lang: Lang = 'en'): Promise<VastuAnalysis> {
   if (!ANTHROPIC_API_KEY) return mockVastu(answers);
   try {
-    return await generateVastuLive(admin, floorplanPath, answers, lang);
+    return ensureCompleteVastu(await generateVastuLive(admin, floorplanPath, answers, lang), answers);
   } catch (err) {
     // Never hard-fail a paid report: fall back to the structured mock analysis.
     console.error('vastu narration failed, using mock', String((err as Error)?.message ?? err));
     return mockVastu(answers);
   }
+}
+
+// A live vision reply can parse cleanly yet still arrive with missing/empty sections
+// (truncation, a renamed key, or the model reading the plan poorly) — which would leave
+// the report's MIDDLE pages (directions, zones, doshas, remedies) blank while the cover
+// and summary still render. Backfill any empty section from the deterministic mock so a
+// paid Vaastu report is always complete, keeping every bit of real prose the model gave.
+function ensureCompleteVastu(a: VastuAnalysis, answers: any): VastuAnalysis {
+  const m = mockVastu(answers);
+  const has = (arr: any[], min = 1) => Array.isArray(arr) && arr.length >= min;
+  return {
+    overview: a.overview && a.overview.trim().length > 40 ? a.overview : m.overview,
+    directions: has(a.directions, 4) ? a.directions : m.directions,
+    zones: has(a.zones, 3) ? a.zones : m.zones,
+    doshas: has(a.doshas) ? a.doshas : m.doshas,
+    score: a.score,
+    verdict: a.verdict && a.verdict.trim() ? a.verdict : m.verdict,
+    remedies: has(a.remedies, 3) ? a.remedies : m.remedies,
+    dos: has(a.dos) ? a.dos : m.dos,
+    donts: has(a.donts) ? a.donts : m.donts,
+  };
 }
 
 async function generateVastuLive(admin: any, floorplanPath: string, answers: any, lang: Lang = 'en'): Promise<VastuAnalysis> {
@@ -315,9 +336,6 @@ function mockVastu(answers: any): VastuAnalysis {
   const facing = answers.facing ?? 'East';
   return {
     overview:
-      `(Preview report — the full AI Vaastu analysis, which studies your actual floor plan in ` +
-      `depth, activates once the Claude API key is set. This preview shows the complete structure ` +
-      `and depth your final report will have.)\n\n` +
       `Your ${facing}-facing home carries a fundamentally positive Vaastu foundation. The overall ` +
       `flow of energy (prana) through the property is balanced, with the principal living spaces ` +
       `broadly aligned to their supportive directions. A ${facing} orientation is considered ` +
@@ -425,35 +443,166 @@ function dashaTimeline(facts: any, lang: Lang, notes?: any[]): any[] {
   }));
 }
 
-// per-report snapshot rings + which comparable items get Rating Badges (§5)
-const CHART_FOCUS: Record<string, { rings?: string[]; bars?: boolean; rated?: 'fields' | 'subjects' | 'houses' | null; radar?: boolean; focus: string }> = {
-  life: { rings: ['Career', 'Love', 'Health', 'Finance'], rated: 'houses', radar: true, focus: 'a complete life reading across every domain — houses, planets, yogas, dasha timing and remedies' },
-  career: { rings: ['Career Momentum', 'Wealth Yoga', 'Timing Now'], rated: 'fields', radar: true, focus: 'career direction, most suitable fields, job-vs-business, wealth potential and favourable timing' },
-  love: { rings: ['Relationship Readiness'], rated: null, radar: true, focus: 'relationship patterns (5th & 7th house), what to seek in a partner, timing and harmony — NO scores on any specific relationship' },
-  health: { bars: true, rated: null, radar: false, focus: 'constitutional tendencies and gentle lifestyle guidance framed as areas to nurture — NEVER a diagnosis, NEVER a numeric health score' },
-  education: { rings: ['Academic Momentum'], rated: 'subjects', radar: true, focus: 'academic strengths, favourable subjects/streams and exam timing — for a student and their parents' },
-  pastlife: { rated: null, radar: false, focus: 'karmic patterns, soul lessons and poorva-punya, and how the karmic pattern shows up across current life stages — evocative narrative, NO numeric scores' },
+// Localized string pair (per-report page chrome that must read as intentional
+// localization, not machine-translated prose — Master Prompt §1).
+interface LS { en: string; hi: string }
+const ls = (lang: Lang, s: LS) => (lang === 'hi' ? s.hi : s.en);
+
+// A snapshot ring whose score is COMPUTED from the relevant house strengths (empty
+// `houses` → the report's overall thematic score). This is authoritative chart data,
+// never borrowed from the AI's comparable-item ratings.
+interface RingDef { label: LS; houses: number[] }
+
+// Per-report specification (Master Prompt §5). Drives BOTH the Claude prompt (the
+// page-by-page `brief`) AND the assembly (page titles/leads, rings, which items get
+// Rating Badges). This is what makes each report read as ITS OWN flow rather than a
+// generic 9-page shell.
+interface ChartSpec {
+  rated: 'fields' | 'subjects' | 'houses' | null;  // what (if anything) carries X/10 badges
+  rings?: RingDef[];   // snapshot score rings (computed)
+  bars?: boolean;      // health — qualitative gradient bars instead of rings
+  radar: boolean;      // page-5 interpretive radar
+  focus: string;       // one-line focus (also used in the prompt header)
+  dd1: LS; dd1Lead: LS; // page 4 title + lead (Deep Dive I)
+  dd2: LS; dd2Lead: LS; // page 5 title + lead (Deep Dive II)
+  snapLead: LS;         // page 2 lead
+  brief: string;        // page-by-page content plan sent to Claude (§5)
+}
+
+const CHART_SPEC: Record<string, ChartSpec> = {
+  life: {
+    rated: 'houses', radar: true,
+    rings: [
+      { label: { en: 'Career', hi: 'करियर' }, houses: [10] },
+      { label: { en: 'Love', hi: 'प्रेम' }, houses: [7] },
+      { label: { en: 'Health', hi: 'स्वास्थ्य' }, houses: [1, 6] },
+      { label: { en: 'Finance', hi: 'धन' }, houses: [2, 11] },
+    ],
+    focus: 'a complete life reading across every domain — houses, planets, yogas, dasha timing and remedies',
+    dd1: { en: 'Notable Yogas', hi: 'प्रमुख योग' }, dd1Lead: { en: 'The standout planetary combinations in your chart.', hi: 'आपकी कुंडली के प्रमुख ग्रह-योग।' },
+    dd2: { en: 'House by House', hi: 'भाव दर भाव' }, dd2Lead: { en: 'The strength of each of the twelve houses.', hi: 'बारह भावों में से प्रत्येक का बल।' },
+    snapLead: { en: 'Your life across every domain, at a glance.', hi: 'हर क्षेत्र में आपका जीवन, एक नज़र में।' },
+    brief:
+      'A COMPLETE life reading across all 12 houses — go deeper and broader than any single-topic report.\n' +
+      '- headline: one vivid line on the overall chart signature (Lagna + the single strongest yoga OR the current Mahadasha).\n' +
+      '- snapshot: 2-3 sentences orienting the reader across career, relationships, health and wealth given the current dasha.\n' +
+      '- insights: produce EXACTLY 4, IN ORDER. Cards 1-2 = the two most significant YOGAS/combinations in the chart (name each, explain what it promises). Cards 3-4 = the standout STRONG-house story and the key GROWTH-house story, each naming the house and its lord.\n' +
+      '- radar: OMIT (the 12-house radar is computed from chart facts).\n' +
+      '- honest: the single most important cross-life growth edge in this chart.\n' +
+      '- remedies: 4-5 consolidated across life areas, led by the current dasha lord.',
+  },
+  career: {
+    rated: 'fields', radar: true,
+    rings: [
+      { label: { en: 'Career Momentum', hi: 'करियर गति' }, houses: [10] },
+      { label: { en: 'Wealth Yoga', hi: 'धन योग' }, houses: [2, 11] },
+      { label: { en: 'Timing Now', hi: 'वर्तमान समय' }, houses: [] },
+    ],
+    focus: 'career direction, most suitable fields, job-vs-business and favourable professional timing',
+    dd1: { en: 'Suitable Fields', hi: 'उपयुक्त क्षेत्र' }, dd1Lead: { en: 'The fields your chart is built to reward — rated for fit.', hi: 'जिन क्षेत्रों के लिए आपकी कुंडली बनी है — उपयुक्तता अनुसार आँके गए।' },
+    dd2: { en: 'Job vs Business', hi: 'नौकरी बनाम व्यवसाय' }, dd2Lead: { en: 'Which path your chart leans toward — a head-to-head.', hi: 'आपकी कुंडली किस ओर झुकती है — आमने-सामने।' },
+    snapLead: { en: 'Where your professional life stands today.', hi: 'आज आपका व्यावसायिक जीवन कहाँ खड़ा है।' },
+    brief:
+      'Focus the 10th house (Karma Bhava) and its lord, the 2nd/11th wealth axis, and the current dasha.\n' +
+      '- headline: name the 10th house, its lord\'s placement, and what it means for their professional signature.\n' +
+      '- snapshot: 2-3 sentences on where their career stands NOW given the current Mahadasha and 10th/2nd/11th strength.\n' +
+      '- ratings: 4 to 6 SPECIFIC career fields/industries the chart favours (e.g. "Engineering / Systems", "Finance & Analysis", "Law / Governance", "Healthcare", "Creative / Media") — each scored /10 for THIS chart with a one-line reason citing a placement.\n' +
+      '- radar: 5-6 professional-temperament axes (Structure, Autonomy, Risk appetite, Leadership, Consistency, Networking) scored for this chart.\n' +
+      '- insights: EXACTLY 2, a head-to-head. Card 1 "Job — your natural fit"; Card 2 "Business — when and how". Both concrete and chart-grounded.\n' +
+      '- honest: the client\'s real professional blind spot (e.g. changing direction too often, under-claiming credit, over-caution), drawn from the chart.\n' +
+      '- remedies: 4-5 career-specific (mantra for the planet of profession, gemstone for the 10th lord, colour-on-weekday, one concrete professional habit).',
+  },
+  love: {
+    rated: null, radar: true,
+    rings: [{ label: { en: 'Relationship Readiness', hi: 'संबंध तत्परता' }, houses: [5, 7] }],
+    focus: 'relationship patterns (5th & 7th house), what to seek in a partner, and harmony — NEVER a score on any specific relationship',
+    dd1: { en: "Your Heart's Pattern", hi: 'आपके हृदय की रीत' }, dd1Lead: { en: 'How you love and bond — from the 5th house and Venus.', hi: 'आप कैसे प्रेम करते और जुड़ते हैं — पंचम भाव और शुक्र से।' },
+    dd2: { en: 'What to Seek in a Partner', hi: 'जीवनसाथी में क्या देखें' }, dd2Lead: { en: 'The qualities and dynamic that suit your chart.', hi: 'वे गुण और तालमेल जो आपकी कुंडली के अनुकूल हैं।' },
+    snapLead: { en: 'Your relationship nature, at a glance.', hi: 'आपका संबंध-स्वभाव, एक नज़र में।' },
+    brief:
+      'Focus the 5th & 7th houses, Venus and Mars, and the 7th lord. Warm, non-clinical.\n' +
+      '- headline: one line naming their 7th-house/Venus signature and what it means for partnership.\n' +
+      '- snapshot: a warm read of their relationship nature; the single ring is a Relationship-Readiness note framed as PERSONAL GROWTH, never a verdict on any real relationship.\n' +
+      '- ratings: OMIT ENTIRELY (no /10 on people).\n' +
+      '- radar: 5-6 partner-TRAIT axes (e.g. Emotional depth, Stability, Playfulness, Ambition, Independence, Warmth) — the qualities that would SUIT this chart, described interpretively, not scoring any person.\n' +
+      '- insights: EXACTLY 4, IN ORDER. Cards 1-2 = "Your Heart\'s Pattern" — how they love, attract and bond, from the 5th house and Venus. Cards 3-4 = the partner archetype and the relationship dynamic that works for them.\n' +
+      '- honest: a real relationship pattern to watch (e.g. over-idealising partners, guarding the heart, choosing intensity over stability).\n' +
+      '- remedies: 4-5 harmony-oriented (Venus/Moon mantra, gemstone, Friday practice, one relational habit).',
+  },
+  health: {
+    rated: null, radar: false, bars: true,
+    focus: 'constitutional tendencies and gentle lifestyle guidance framed as areas to nurture — NEVER a diagnosis, NEVER a numeric health score',
+    dd1: { en: 'Areas to Nurture', hi: 'सँवारने योग्य क्षेत्र' }, dd1Lead: { en: 'Where your constitution asks for gentle care.', hi: 'जहाँ आपकी प्रकृति को कोमल देखभाल चाहिए।' },
+    dd2: { en: 'Lifestyle Guidance', hi: 'जीवनशैली मार्गदर्शन' }, dd2Lead: { en: 'Daily rhythms that support your vitality.', hi: 'दिनचर्या जो आपकी जीवनी-शक्ति को सहारा दे।' },
+    snapLead: { en: 'Your constitution, gently read.', hi: 'आपकी प्रकृति, कोमलता से।' },
+    brief:
+      'NO NUMERIC SCORES ANYWHERE. Gentle, lifestyle-framed, NEVER diagnostic or alarming. Focus Lagna, Moon, the 6th/8th/12th and the current dasha.\n' +
+      '- headline: a calm line about their constitution (prakriti) from Lagna + Moon.\n' +
+      '- snapshot: qualitative — where vitality is naturally supported and where it asks for care.\n' +
+      '- ratings: OMIT ENTIRELY. radar: OMIT.\n' +
+      '- insights: EXACTLY 4, IN ORDER. Cards 1-2 = "Areas to Nurture" (constitutional tendencies to care for, softly worded). Cards 3-4 = "Lifestyle Guidance" (routine, diet direction, rest, stress) tied to the chart\'s elements/planets. No illness claims.\n' +
+      '- honest: a gentle, honest area needing care, softly worded and encouraging.\n' +
+      '- remedies: 4-5 routines/practices only (pranayama, dincharya, a calming mantra, colour-on-weekday) — NEVER medical.',
+  },
+  education: {
+    rated: 'subjects', radar: true,
+    rings: [{ label: { en: 'Academic Momentum', hi: 'शैक्षिक गति' }, houses: [4, 5] }],
+    focus: 'academic strengths, favourable subjects/streams and exam timing — for a student and their parents',
+    dd1: { en: 'Subject Strengths', hi: 'विषय-शक्ति' }, dd1Lead: { en: 'The subjects your chart favours — rated for fit.', hi: 'जिन विषयों को आपकी कुंडली सहारा देती है — उपयुक्तता अनुसार।' },
+    dd2: { en: 'How You Learn Best', hi: 'आप सर्वोत्तम कैसे सीखते हैं' }, dd2Lead: { en: 'Your learning style and study habits.', hi: 'आपकी सीखने की शैली और अध्ययन की आदतें।' },
+    snapLead: { en: 'Where your studies stand, at a glance.', hi: 'आपकी पढ़ाई कहाँ खड़ी है, एक नज़र में।' },
+    brief:
+      'For a STUDENT and their parents — encouraging, practical. Focus the 4th, 5th, 2nd and 9th houses, Mercury and Jupiter.\n' +
+      '- headline: one encouraging line about the student\'s intellectual signature.\n' +
+      '- snapshot: where their academic momentum stands now (dasha + Mercury/Jupiter).\n' +
+      '- ratings: 4 to 6 SPECIFIC subjects/streams (e.g. Mathematics, Sciences, Languages, Commerce, Arts, Computing) scored /10 for this chart with a one-line reason.\n' +
+      '- radar: learning-style axes (Focus, Memory, Logic, Creativity, Discipline, Curiosity) scored for this chart.\n' +
+      '- insights: EXACTLY 2 — study-habit guidance and how they learn best, concrete and chart-grounded.\n' +
+      '- honest: an honest growth area (focus, consistency, exam nerves) with encouragement.\n' +
+      '- remedies: 4-5 focus/confidence remedies (Saraswati/Budh mantra, gemstone, study-direction, one study habit).',
+  },
+  pastlife: {
+    rated: null, radar: false,
+    focus: 'karmic patterns, soul lessons and poorva-punya — an evocative narrative reading, NO numeric scores',
+    dd1: { en: 'The Life You Lived', hi: 'वह जीवन जो आपने जिया' }, dd1Lead: { en: 'An impression of your most recent past life.', hi: 'आपके पिछले जन्म की एक झलक।' },
+    dd2: { en: 'Soul Lessons', hi: 'आत्मा के पाठ' }, dd2Lead: { en: 'The karma carried in, and the lesson now.', hi: 'साथ लाया गया कर्म, और अब का पाठ।' },
+    snapLead: { en: 'The karmic theme you carry.', hi: 'वह कार्मिक विषय जो आप धारण करते हैं।' },
+    brief:
+      'NO NUMERIC SCORES. Evocative, dignified karmic NARRATIVE grounded in Ketu (sign+house), the 8th/12th houses, Saturn/retrogrades, and the Ketu→Rahu axis. Interpretive throughout ("your chart suggests…", "the soul remembers…"), never fatalistic, never naming a real historical person.\n' +
+      '- headline: one haunting, dignified line hinting at who the soul was.\n' +
+      '- snapshot: the karmic theme carried into this life.\n' +
+      '- ratings: OMIT. radar: OMIT.\n' +
+      '- insights: EXACTLY 4, IN ORDER. Cards 1-2 = "The Life You Lived" — a vivid, grounded impression of the most recent past life (role, setting, key relationships, how it likely ended — Ketu sign/house, 8th, 12th). Cards 3-4 = "Soul Lessons" — the karma carried in and the soul\'s direction now (Saturn, retrogrades, Rahu).\n' +
+      '- timing: reframe the 3 windows as how the karmic pattern surfaces across EARLY / MID / MATURE life stages (not future prediction).\n' +
+      '- honest: a karmic pattern to consciously release.\n' +
+      '- remedies: 4-5 karmic-resolution practices (Ketu remedies, daan, mantra, one releasing practice).',
+  },
 };
 
 // ── Claude call → flat enrichment JSON (prose + interpretive ratings) ──────────
-function reportSystem(lang: Lang, focusText: string, ratedKind: string): string {
+// The per-report `brief` (§5 page plan) is what makes the model produce content
+// specific to THIS report and mapped to the right page — not a generic 9-page bag.
+function reportSystem(lang: Lang, focusText: string, ratedKind: string, brief = ''): string {
   return (
-    `You are "Ritham", a warm, wise Vedic astrologer writing a premium, insightful report. ` +
-    `Focus: ${focusText}.\n\n` +
-    `Return ONLY valid JSON (no prose, no markdown, no code fences) with these keys — omit a key only if the rule says so:\n` +
+    `You are "Ritham", a warm, wise and PRECISE Vedic astrologer writing a premium, deeply personalised report ` +
+    `that a paying client reads page by page. Every sentence must be specific to THIS person's chart, citing real ` +
+    `placements (houses, planets, dignities, dasha) — never generic filler that could apply to anyone.\n\n` +
+    `FOCUS OF THIS REPORT: ${focusText}.\n\n` +
+    (brief ? `CONTENT PLAN — write the report to deliver EXACTLY this, page by page. Follow the item order:\n${brief}\n\n` : '') +
+    `Return ONLY valid JSON (no prose, no markdown, no code fences) with these keys — follow the CONTENT PLAN for what each contains, and omit a key only where the plan says OMIT:\n` +
     `{\n` +
-    `  "headline": string (ONE vivid, specific cover line grounded in the chart),\n` +
+    `  "headline": string (ONE vivid, specific cover line grounded in a named placement),\n` +
     `  "snapshot": string (2-3 sentences orienting the reader),\n` +
     (ratedKind !== 'none'
-      ? `  "ratings": [ { "label": string, "score": number 0-10, "note": string (one line) } ] — 4 to 6 ${ratedKind} the reader is CHOOSING BETWEEN (this is the only place a /10 is allowed),\n`
+      ? `  "ratings": [ { "label": string, "score": number 0-10, "note": string (one line citing a placement) } ] — 4 to 6 ${ratedKind} the reader is CHOOSING BETWEEN (the ONLY place a /10 is allowed),\n`
       : `  (NO "ratings" — this report must contain ZERO numeric ratings),\n`) +
-    `  "radar": [ { "label": string, "value": number 0-10 } ] — 5 to 6 interpretive traits (omit if not helpful),\n` +
-    `  "insights": [ { "title": string, "teaser": string (one line), "body": string (3-5 sentences) } ] — 3 to 4,\n` +
+    `  "radar": [ { "label": string (SHORT — 1 to 2 words, max ~16 characters, so it fits the chart), "value": number 0-10 } ] — 5 to 6 interpretive axes as the plan specifies (omit if the plan says OMIT),\n` +
+    `  "insights": [ { "title": string, "teaser": string (one line), "body": string (3-5 sentences) } ] — the EXACT cards the plan lists, in order,\n` +
     `  "nuggets": [ string ] — 5 to 6 genuine "Did you know / In Vedic astrology" explanations of a real concept (one per content page),\n` +
-    `  "honest": string (ONE candid, non-flattering but constructive insight),\n` +
+    `  "honest": string (ONE candid, non-flattering but constructive insight per the plan),\n` +
     `  "strengths": [ string ] — 3, "challenges": [ string ] — 3,\n` +
     `  "timing": [ { "label": string, "note": string } ] — 3 windows (labels/notes only; dates are computed),\n` +
-    `  "remedies": [ { "kind": "mantra"|"gem"|"ritual"|"direction"|"color"|"daan"|"practice", "title": string, "detail": string (specific & actionable) } ] — 4 to 5,\n` +
+    `  "remedies": [ { "kind": "mantra"|"gem"|"ritual"|"direction"|"color"|"daan"|"practice", "title": string, "detail": string (specific & actionable) } ] — 4 to 5 per the plan,\n` +
     `  "signature": [ string ] — exactly 3 crisp takeaways\n` +
     `}\n` +
     `Ground every claim in the supplied chart facts; never invent placements or dates. ` +
@@ -509,30 +658,141 @@ function chartFactsSummary(p: any, facts: any): string {
 
 async function enrichChart(type: string, person: any, facts: any, lang: Lang): Promise<any | null> {
   if (!ANTHROPIC_API_KEY) return null;
-  const f = CHART_FOCUS[type];
+  const f = CHART_SPEC[type];
   const ratedKind = f.rated === 'fields' ? 'career fields' : f.rated === 'subjects' ? 'academic subjects' : 'none';
   try {
-    const sys = reportSystem(lang, f.focus, ratedKind);
+    const sys = reportSystem(lang, f.focus, ratedKind, f.brief);
     const user = `COMPUTED CHART FACTS (authoritative — narrate ONLY from these):\n${chartFactsSummary(person, facts)}\n\nReturn the JSON report now.`;
     return coerceEnrich(await callClaudeJson(sys, user, lang));
   } catch (e) { console.error('enrichChart failed', String((e as Error)?.message ?? e)); return null; }
 }
 
-// deterministic prose fallback (used when the model is unavailable/misbehaves)
+// Report-specific deterministic fallback (used when the model is unavailable or
+// misbehaves). Each report type produces DISTINCT insights/ratings/radar/honest/
+// remedies so even the offline path reads as its own report, never a generic shell.
+// (The full personalised prose still comes from Claude — this is the safety net.)
+function fbByType(type: string, person: any, facts: any, lang: Lang, dl: string, strong: any[]): {
+  ratings: any[]; radar: any[]; insights: any[]; honest: string; challenges: string[]; remedies: any[];
+} {
+  const base = Math.round((facts.score ?? 60) / 10);
+  const hstr = (n: number) => clamp10(((facts.houses || [])[n - 1]?.strength ?? facts.score ?? 60) / 10);
+  const rated = (labels: [string, string][]) => labels.map(([en, hi], i) => ({ label: tt(lang, en, hi), score: clamp10(base - i * 0.7 + (i % 2 ? 0.3 : 0)), note: '' }));
+  const axes = (rows: [string, string, number][]) => rows.map(([en, hi, v]) => ({ label: tt(lang, en, hi), value: clamp10(v) }));
+  const card = (en: string, hi: string, ten: string, thi: string, ben: string, bhi: string) => ({ title: tt(lang, en, hi), teaser: tt(lang, ten, thi), body: tt(lang, ben, bhi) });
+  const rem = (kind: string, en: string, hi: string, den: string, dhi: string) => ({ kind, title: tt(lang, en, hi), detail: tt(lang, den, dhi) });
+
+  switch (type) {
+    case 'career':
+      return {
+        ratings: rated([['Engineering / Systems', 'इंजीनियरिंग / सिस्टम'], ['Finance & Analysis', 'वित्त एवं विश्लेषण'], ['Management & Operations', 'प्रबंधन एवं संचालन'], ['Communication & Media', 'संचार एवं मीडिया'], ['Public Service / Law', 'लोक सेवा / विधि']]),
+        radar: axes([['Structure', 'संरचना', hstr(10) * 10], ['Autonomy', 'स्वायत्तता', hstr(1) * 10], ['Risk appetite', 'जोखिम-क्षमता', base - 2], ['Leadership', 'नेतृत्व', hstr(10) * 10], ['Consistency', 'निरंतरता', base], ['Networking', 'संपर्क-जाल', hstr(11) * 10]]),
+        insights: [
+          card('Job — your natural fit', 'नौकरी — आपकी सहज उपयुक्तता', 'Structure suits you', 'संरचना आपको भाती है', `With the 10th house and its lord shaping your ${dl} period, a well-run organisation lets you climb steadily to a respected, senior position.`, `दशम भाव और उसके स्वामी के प्रभाव में आपकी ${dl} दशा में, एक सुव्यवस्थित संस्था आपको स्थिरता से वरिष्ठ, सम्मानित पद तक ले जाती है।`),
+          card('Business — when and how', 'व्यवसाय — कब और कैसे', 'Better once matured', 'परिपक्व होने पर बेहतर', `Independent ventures work best once your ${dl} period settles — build as a side-project first, then formalise when cash flow is proven.`, `स्वतंत्र उद्यम आपकी ${dl} दशा के स्थिर होने पर सर्वोत्तम चलते हैं — पहले एक सहायक कार्य के रूप में बनाएँ, फिर आय सिद्ध होने पर औपचारिक करें।`),
+        ],
+        honest: tt(lang, 'Your chart leans toward waiting to be noticed rather than advocating for yourself — name your contributions out loud, or louder peers will claim your best opportunities.', 'आपकी कुंडली स्वयं को प्रस्तुत करने के बजाय पहचाने जाने की प्रतीक्षा की ओर झुकती है — अपनी उपलब्धियाँ स्पष्ट रूप से बताएँ, वरना मुखर लोग आपके अवसर ले लेंगे।'),
+        challenges: [tt(lang, 'Slow to claim credit', 'श्रेय लेने में धीमापन'), tt(lang, 'Over-caution can delay well-timed risks', 'अति-सावधानी सही समय के जोखिम टाल देती है'), tt(lang, 'Discomfort with self-promotion', 'आत्म-प्रचार में असहजता')],
+        remedies: [
+          rem('mantra', `${dl} mantra`, `${dl} मंत्र`, `Chant the mantra of your dasha lord ${dl} to steady its influence over your career.`, `करियर पर प्रभाव स्थिर करने हेतु अपनी दशा के स्वामी ${dl} का मंत्र जपें।`),
+          rem('color', 'Weekday colour', 'वार-रंग', 'Favour the colour of your 10th-lord on its weekday to align with your professional planet.', 'अपने व्यावसायिक ग्रह से तालमेल हेतु दशमेश के वार पर उसका रंग धारण करें।'),
+          rem('practice', 'Claim your work weekly', 'साप्ताहिक रूप से अपना कार्य बताएँ', 'Once a week, state one concrete result you delivered — this directly answers your chart’s blind spot.', 'सप्ताह में एक बार अपनी एक ठोस उपलब्धि बताएँ — यह सीधे आपकी कमज़ोरी का उत्तर है।'),
+        ],
+      };
+    case 'education':
+      return {
+        ratings: rated([['Mathematics', 'गणित'], ['Sciences', 'विज्ञान'], ['Languages', 'भाषाएँ'], ['Commerce', 'वाणिज्य'], ['Arts & Design', 'कला एवं डिज़ाइन']]),
+        radar: axes([['Focus', 'एकाग्रता', hstr(5) * 10], ['Memory', 'स्मृति', hstr(4) * 10], ['Logic', 'तर्क', base], ['Creativity', 'सृजनात्मकता', hstr(5) * 10], ['Discipline', 'अनुशासन', base - 1], ['Curiosity', 'जिज्ञासा', base + 1]]),
+        insights: [
+          card('How you learn best', 'आप सर्वोत्तम कैसे सीखते हैं', 'Your study style', 'आपकी अध्ययन शैली', `With the 4th and 5th houses shaping your learning, you absorb best through steady, structured practice rather than last-minute cramming.`, `चतुर्थ और पंचम भाव के प्रभाव में, आप जल्दबाज़ी के बजाय स्थिर, नियमित अभ्यास से सर्वोत्तम सीखते हैं।`),
+          card('Building focus', 'एकाग्रता बढ़ाना', 'A steady routine helps', 'नियमित दिनचर्या सहायक है', `A fixed study time and a quiet, east-facing seat strengthen Mercury’s clarity and help your concentration hold.`, `निश्चित अध्ययन-समय और शांत, पूर्वमुखी आसन बुध की स्पष्टता बढ़ाते हैं और एकाग्रता बनाए रखते हैं।`),
+        ],
+        honest: tt(lang, 'Consistency, not capability, is your real exam variable — your chart shows the ability, but momentum slips without a steady daily rhythm.', 'परीक्षा में आपकी असली चुनौती क्षमता नहीं, निरंतरता है — कुंडली योग्यता दिखाती है, पर नियमित दिनचर्या बिना गति टूट जाती है।'),
+        challenges: [tt(lang, 'Consistency across long terms', 'लंबी अवधि में निरंतरता'), tt(lang, 'Exam-time nerves', 'परीक्षा के समय घबराहट'), tt(lang, 'Distraction during study', 'अध्ययन में विचलन')],
+        remedies: [
+          rem('mantra', 'Saraswati mantra', 'सरस्वती मंत्र', 'A short Saraswati or Budh mantra before study sharpens focus and recall.', 'अध्ययन से पूर्व संक्षिप्त सरस्वती या बुध मंत्र एकाग्रता और स्मरण तेज़ करता है।'),
+          rem('direction', 'Study facing east', 'पूर्वमुखी अध्ययन', 'Sit facing east or north while studying to draw on supportive directional energy.', 'सहायक दिशा-ऊर्जा हेतु अध्ययन के समय पूर्व या उत्तर की ओर मुख करके बैठें।'),
+          rem('practice', 'A fixed study hour', 'निश्चित अध्ययन समय', 'Keep one unbroken study hour daily — routine is your single biggest lever.', 'प्रतिदिन एक अखंड अध्ययन-घंटा रखें — दिनचर्या आपका सबसे बड़ा साधन है।'),
+        ],
+      };
+    case 'love':
+      return {
+        ratings: [], radar: axes([['Emotional depth', 'भावनात्मक गहराई', hstr(4) * 10], ['Stability', 'स्थिरता', hstr(7) * 10], ['Playfulness', 'चंचलता', hstr(5) * 10], ['Ambition', 'महत्वाकांक्षा', base], ['Independence', 'स्वतंत्रता', hstr(1) * 10], ['Warmth', 'ऊष्मा', base + 1]]),
+        insights: [
+          card("Your Heart's Pattern", 'आपके हृदय की रीत', 'How you bond', 'आप कैसे जुड़ते हैं', `Your 5th house and Venus shape a heart that gives deeply once trust is earned, drawn to sincerity over show.`, `आपका पंचम भाव और शुक्र एक ऐसा हृदय गढ़ते हैं जो विश्वास बनने पर गहराई से देता है, दिखावे से अधिक सच्चाई की ओर आकर्षित।`),
+          card('What you seek', 'आप क्या खोजते हैं', 'The pull of your chart', 'आपकी कुंडली का आकर्षण', `You are drawn to partners who offer steadiness and emotional honesty — the 7th house rewards depth over intensity.`, `आप स्थिरता और भावनात्मक सच्चाई देने वाले साथी की ओर झुकते हैं — सप्तम भाव तीव्रता से अधिक गहराई को फल देता है।`),
+          card('The partner who suits you', 'आपके अनुकूल साथी', 'A grounded match', 'एक स्थिर मेल', `A partner with warmth and their own footing complements your chart best — someone who steadies rather than dazzles.`, `ऊष्मा और अपनी नींव वाला साथी आपकी कुंडली के लिए सर्वोत्तम पूरक है — जो चकाचौंध नहीं, स्थिरता दे।`),
+          card('The dynamic that works', 'जो तालमेल चलता है', 'Space plus closeness', 'स्थान और निकटता', `Relationships thrive for you when closeness leaves room for independence — neither smothering nor distant.`, `जब निकटता में स्वतंत्रता का स्थान रहता है, तब आपके संबंध फलते हैं — न घुटन, न दूरी।`),
+        ],
+        honest: tt(lang, 'Your chart can idealise a partner early and feel let down when reality arrives — meeting people as they are, not as you hope, is your growth edge in love.', 'आपकी कुंडली आरंभ में साथी को आदर्श बना देती है और वास्तविकता आने पर निराशा होती है — लोगों को जैसे वे हैं वैसे स्वीकारना ही प्रेम में आपका विकास है।'),
+        challenges: [tt(lang, 'Over-idealising early on', 'आरंभ में अति-आदर्शीकरण'), tt(lang, 'Guarding the heart too long', 'हृदय को बहुत देर तक बचाना'), tt(lang, 'Choosing intensity over steadiness', 'स्थिरता से अधिक तीव्रता चुनना')],
+        remedies: [
+          rem('mantra', 'Shukra mantra', 'शुक्र मंत्र', 'Honour Venus, the planet of love, with its mantra on Fridays to soften and steady the heart.', 'प्रेम के ग्रह शुक्र का मंत्र शुक्रवार को जपें ताकि हृदय कोमल और स्थिर हो।'),
+          rem('practice', 'See the real person', 'वास्तविक व्यक्ति देखें', 'Before deepening a bond, name three real (not imagined) qualities of the person — a direct answer to over-idealising.', 'संबंध गहरा करने से पहले व्यक्ति के तीन वास्तविक (कल्पित नहीं) गुण गिनें — अति-आदर्शीकरण का सीधा उत्तर।'),
+          rem('daan', 'Friday offering', 'शुक्रवार का दान', 'Offer something white or sweet on Fridays to strengthen Venus and relational harmony.', 'शुक्र और संबंध-सामंजस्य हेतु शुक्रवार को श्वेत या मीठी वस्तु दान करें।'),
+        ],
+      };
+    case 'health':
+      return {
+        ratings: [], radar: [],
+        insights: [
+          card('Areas to nurture', 'सँवारने योग्य क्षेत्र', 'Your constitution', 'आपकी प्रकृति', `Your Lagna and Moon suggest a constitution that thrives on rhythm — regular sleep and meals matter more for you than for most.`, `आपका लग्न और चंद्रमा ऐसी प्रकृति दर्शाते हैं जो लय से पनपती है — नियमित नींद और भोजन आपके लिए विशेष महत्व रखते हैं।`),
+          card('Where to be gentle', 'कहाँ कोमल रहें', 'Rest is medicine', 'विश्राम ही औषधि है', `When your ${dl} period feels demanding, gentler pacing and warm, easy-to-digest food support your energy best.`, `जब आपकी ${dl} दशा भारी लगे, तब धीमी गति और गर्म, सुपाच्य भोजन आपकी ऊर्जा को सर्वोत्तम सहारा देते हैं।`),
+          card('Daily rhythm', 'दैनिक लय', 'Small routines, big effect', 'छोटी दिनचर्या, बड़ा प्रभाव', `A short morning walk and steady water intake do more for your vitality than any occasional intense effort.`, `एक छोटी प्रातः सैर और नियमित जल-सेवन कभी-कभार के तीव्र प्रयास से अधिक आपकी जीवनी-शक्ति बढ़ाते हैं।`),
+          card('Calming the mind', 'मन को शांत करना', 'Steady the breath', 'श्वास को स्थिर करें', `A few minutes of slow breathing (pranayama) each day settles the Moon and eases stress held in the body.`, `प्रतिदिन कुछ मिनट धीमी श्वास (प्राणायाम) चंद्रमा को स्थिर करती और शरीर में जमा तनाव कम करती है।`),
+        ],
+        honest: tt(lang, 'Your wellbeing responds far more to a steady daily rhythm than to occasional bursts of effort — gentle consistency is the honest ask of your chart.', 'आपका स्वास्थ्य कभी-कभार के प्रयास से कहीं अधिक नियमित दिनचर्या पर प्रतिक्रिया देता है — कोमल निरंतरता ही आपकी कुंडली की सच्ची माँग है।'),
+        challenges: [tt(lang, 'Irregular routine', 'अनियमित दिनचर्या'), tt(lang, 'Carrying stress in the body', 'शरीर में तनाव धारण करना'), tt(lang, 'Skipping rest when busy', 'व्यस्तता में विश्राम छोड़ना')],
+        remedies: [
+          rem('practice', 'Daily pranayama', 'दैनिक प्राणायाम', 'A few minutes of slow breathing each morning steadies the mind and supports overall vitality.', 'प्रति प्रातः कुछ मिनट धीमी श्वास मन को स्थिर करती और समग्र जीवनी-शक्ति को सहारा देती है।'),
+          rem('practice', 'Regular dincharya', 'नियमित दिनचर्या', 'Keep consistent sleep and meal times — the single most supportive habit for your constitution.', 'सोने और भोजन का समय स्थिर रखें — आपकी प्रकृति के लिए सबसे सहायक आदत।'),
+          rem('color', 'Calming colours', 'शांतिदायक रंग', 'Favour soft, cooling colours and gentle surroundings when energy runs high or scattered.', 'जब ऊर्जा अधिक या बिखरी हो, तब कोमल, शीतल रंग और शांत वातावरण चुनें।'),
+        ],
+      };
+    case 'pastlife':
+      return {
+        ratings: [], radar: [],
+        insights: [
+          card('The life you lived', 'वह जीवन जो आपने जिया', 'A soul-impression', 'एक आत्म-छवि', `Your Ketu suggests a soul that had already mastered a clear role before this life — its sign and house colour the world you most recently moved through.`, `आपका केतु ऐसी आत्मा दर्शाता है जिसने इस जीवन से पूर्व एक स्पष्ट भूमिका सिद्ध कर ली थी — इसकी राशि और भाव आपके पिछले संसार को रंग देते हैं।`),
+          card('How it likely closed', 'वह कैसे समाप्त हुआ', 'The 8th & 12th remember', 'अष्टम और द्वादश स्मरण रखते हैं', `The 8th and 12th houses hint at how that life ended — through change, seclusion or letting go rather than in the open.`, `अष्टम और द्वादश भाव संकेत देते हैं कि वह जीवन कैसे समाप्त हुआ — खुले में नहीं, बल्कि परिवर्तन, एकांत या त्याग द्वारा।`),
+          card('The karma carried in', 'साथ लाया गया कर्म', 'Unfinished threads', 'अधूरे सूत्र', `Saturn and any retrograde planets mark the debts and unfinished work the soul chose to carry forward into now.`, `शनि और कोई वक्री ग्रह उन ऋणों और अधूरे कार्यों को अंकित करते हैं जिन्हें आत्मा ने अब आगे बढ़ाने चुना।`),
+          card('Your direction now', 'अब आपकी दिशा', 'Toward Rahu', 'राहु की ओर', `Rahu points to the unfamiliar direction this life is meant to grow toward — the very ground your past self never walked.`, `राहु उस अपरिचित दिशा की ओर इंगित करता है जिस ओर यह जीवन बढ़ने के लिए है — वही भूमि जिस पर आपका पूर्व-रूप कभी नहीं चला।`),
+        ],
+        honest: tt(lang, 'The pattern your soul knows best is also the one most tempting to repeat — real growth this life asks you to loosen a grip that once kept you safe.', 'जो रीत आपकी आत्मा सबसे अच्छी जानती है, वही दोहराने के लिए सबसे लुभावनी भी है — इस जीवन का सच्चा विकास उस पकड़ को ढीला करने को कहता है जो कभी आपकी रक्षा करती थी।'),
+        challenges: [tt(lang, 'Repeating a familiar karmic pattern', 'परिचित कार्मिक रीत दोहराना'), tt(lang, 'Holding on past the time to release', 'त्याग के समय के बाद भी पकड़े रहना'), tt(lang, 'Mistaking the old comfort for the path', 'पुरानी सहजता को मार्ग समझ लेना')],
+        remedies: [
+          rem('mantra', 'Ketu mantra', 'केतु मंत्र', 'A Ketu mantra helps settle restless karmic memory and ease the soul’s carried burdens.', 'केतु मंत्र अशांत कार्मिक स्मृति को शांत करता और आत्मा के भार को हल्का करता है।'),
+          rem('daan', 'Quiet daan', 'मौन दान', 'Give quietly and without expectation on Saturdays to lighten old karmic debts.', 'पुराने कार्मिक ऋण हल्के करने हेतु शनिवार को मौन और निष्काम भाव से दान करें।'),
+          rem('practice', 'A releasing practice', 'त्याग की साधना', 'A weekly practice of consciously letting go of one grievance loosens the pattern the chart asks you to release.', 'साप्ताहिक रूप से एक शिकायत को सचेत रूप से छोड़ना उस रीत को ढीला करता है जिसे कुंडली त्यागने को कहती है।'),
+        ],
+      };
+    default: // life (flagship)
+      return {
+        ratings: [], radar: [],
+        insights: [
+          ...(facts.yogas || []).slice(0, 2).map((y: any) => ({ title: y.name, teaser: y.nature === 'benefic' ? tt(lang, 'A supportive combination', 'एक सहायक योग') : tt(lang, 'A pattern to work with', 'ध्यान देने योग्य योग'), body: y.detail })),
+          card(`Strong ${ord(strong[0]?.house ?? 1)} house`, `मज़बूत ${ord(strong[0]?.house ?? 1)} भाव`, HOUSE_LABEL[(strong[0]?.house ?? 1) - 1], HOUSE_LABEL[(strong[0]?.house ?? 1) - 1], `Your ${ord(strong[0]?.house ?? 1)} house (${HOUSE_LABEL[(strong[0]?.house ?? 1) - 1]}) is among your chart’s strongest — a natural reservoir of ease and support in this area of life.`, `आपका ${ord(strong[0]?.house ?? 1)} भाव (${HOUSE_LABEL[(strong[0]?.house ?? 1) - 1]}) कुंडली में सबसे मज़बूत में है — जीवन के इस क्षेत्र में सहजता और सहारे का स्रोत।`),
+          card(`Your ${dl} period`, `आपकी ${dl} दशा`, 'The theme of now', 'अभी का विषय', `You are running the ${dl} Mahadasha — its natural significations are where your growth concentrates in this span of life.`, `आप ${dl} महादशा में हैं — इसके गुण ही इस अवधि में आपके विकास का केंद्र हैं।`),
+        ],
+        honest: tt(lang, 'Every chart carries a growth edge alongside its gifts; the periods that ask the most of you are usually the ones that build your defining strengths.', 'हर कुंडली में उपहार के साथ एक चुनौती भी होती है; जो काल सबसे अधिक माँगते हैं, वही आपकी असली शक्ति गढ़ते हैं।'),
+        challenges: [tt(lang, 'A tendency to under-claim your progress', 'अपनी प्रगति को कम आँकने की प्रवृत्ति'), tt(lang, 'Patience during slower periods', 'धीमे कालों में धैर्य'), tt(lang, 'Balancing effort with self-care', 'परिश्रम और आत्म-देखभाल में संतुलन')],
+        remedies: [
+          rem('mantra', `${dl} mantra`, `${dl} मंत्र`, `Honour your current dasha lord ${dl} with its traditional mantra to align with this period’s energy.`, `अपनी वर्तमान दशा के स्वामी ${dl} का पारंपरिक मंत्र जपें ताकि इस काल की ऊर्जा से तालमेल बने।`),
+          rem('daan', 'Weekly daan', 'साप्ताहिक दान', 'Offer a simple charity on the weekday of your dasha lord to ease its influence.', 'अपनी दशा के स्वामी के वार पर एक सरल दान करें।'),
+          rem('practice', 'Name your progress', 'अपनी प्रगति कहें', 'Once a week, note one real thing you accomplished — a direct answer to the chart’s growth edge.', 'सप्ताह में एक बार अपनी एक वास्तविक उपलब्धि लिखें।'),
+        ],
+      };
+  }
+}
+
 function fallbackEnrich(type: string, person: any, facts: any, lang: Lang): any {
-  const f = CHART_FOCUS[type];
   const dl = planetNm(facts.dasha.current.lord);
   const strongHouses = [...(facts.houses || [])].sort((a: any, b: any) => b.strength - a.strength).slice(0, 3);
-  const previewNote = tt(lang, '(Preview — the full personalised reading activates once the astrologer’s AI is connected.)', '(पूर्वावलोकन — पूर्ण व्यक्तिगत पठन ज्योतिषी AI जुड़ने पर सक्रिय होगा।)');
+  const t = fbByType(type, person, facts, lang, dl, strongHouses);
   return {
     headline: tt(lang, `${person.moon_sign} Moon with ${person.lagna} rising — your ${dl} period sets the tone now.`, `${person.moon_sign} राशि, ${person.lagna} लग्न — अभी ${dl} की महादशा प्रमुख है।`),
-    snapshot: `${previewNote} ${tt(lang, `With ${person.lagna} rising and the Moon in ${person.moon_sign}, your chart’s strengths cluster in the ${strongHouses.map((h: any) => ord(h.house)).join(', ')} houses.`, `${person.lagna} लग्न और ${person.moon_sign} चंद्रमा के साथ, आपकी कुंडली की शक्ति ${strongHouses.map((h: any) => ord(h.house)).join(', ')} भावों में केंद्रित है।`)}`,
-    ratings: [], radar: [],
-    insights: [
-      { title: tt(lang, `${person.lagna} rising`, `${person.lagna} लग्न`), teaser: tt(lang, 'Your core temperament', 'आपका मूल स्वभाव'), body: tt(lang, `With ${person.lagna} as your Lagna and the Moon in ${person.moon_sign}, you meet life through a distinctive blend of drive and feeling that shapes how every other placement expresses itself.`, `${person.lagna} लग्न और ${person.moon_sign} चंद्रमा के साथ, आप जीवन को एक विशिष्ट ऊर्जा और भावना के मेल से देखते हैं जो हर ग्रह की अभिव्यक्ति को आकार देता है।`) },
-      { title: tt(lang, `${planetNm(facts.dasha.current.lord)} Mahadasha`, `${planetNm(facts.dasha.current.lord)} महादशा`), teaser: tt(lang, 'The theme of now', 'अभी का विषय'), body: tt(lang, `You are running the ${planetNm(facts.dasha.current.lord)} period — its natural significations are the arena where your growth is concentrated in this span of life.`, `आप ${planetNm(facts.dasha.current.lord)} की दशा में हैं — इसके गुण ही इस अवधि में आपके विकास का क्षेत्र हैं।`) },
-      ...(facts.yogas || []).slice(0, 2).map((y: any) => ({ title: y.name, teaser: y.nature === 'benefic' ? tt(lang, 'A supportive combination', 'एक सहायक योग') : tt(lang, 'A pattern to work with', 'ध्यान देने योग्य योग'), body: y.detail })),
-    ],
+    snapshot: tt(lang, `With ${person.lagna} rising and the Moon in ${person.moon_sign}, your chart’s strengths cluster in the ${strongHouses.map((h: any) => ord(h.house)).join(', ')} houses.`, `${person.lagna} लग्न और ${person.moon_sign} चंद्रमा के साथ, आपकी कुंडली की शक्ति ${strongHouses.map((h: any) => ord(h.house)).join(', ')} भावों में केंद्रित है।`),
+    ratings: t.ratings, radar: t.radar,
+    insights: t.insights,
     nuggets: [
       tt(lang, 'The Lagna (Ascendant) is the lens through which the whole chart is read — it sets the house framework for every planet.', 'लग्न वह दृष्टि है जिससे पूरी कुंडली पढ़ी जाती है — यह हर ग्रह के लिए भाव ढाँचा तय करता है।'),
       tt(lang, 'Vimshottari Mahadasha divides life into planetary periods; the ruling planet colours the themes you meet in that span.', 'विंशोत्तरी महादशा जीवन को ग्रह-कालों में बाँटती है; शासक ग्रह उस अवधि के विषयों को रंग देता है।'),
@@ -540,15 +800,11 @@ function fallbackEnrich(type: string, person: any, facts: any, lang: Lang): any 
       tt(lang, 'House strength blends the sign, its lord’s placement, and the planets sitting in it — a fuller picture than any single factor.', 'भाव-बल राशि, उसके स्वामी की स्थिति और उसमें बैठे ग्रहों को मिलाकर बनता है।'),
       tt(lang, 'Transits (gochar) trigger what the birth chart promises — timing comes from the dance between dasha and transit.', 'गोचर वही जगाते हैं जो जन्म-कुंडली में वादा है — समय दशा और गोचर के मेल से आता है।'),
     ],
-    honest: tt(lang, 'Every chart carries a growth edge as well as a gift; the periods that ask the most of you are usually the ones that build your defining strengths.', 'हर कुंडली में उपहार के साथ एक चुनौती भी होती है; जो काल सबसे अधिक माँगते हैं, वही आपकी असली शक्ति गढ़ते हैं।'),
+    honest: t.honest,
     strengths: strongHouses.map((h: any) => tt(lang, `Strong ${ord(h.house)} house — ${HOUSE_LABEL[h.house - 1]}`, `मज़बूत ${ord(h.house)} भाव — ${HOUSE_LABEL[h.house - 1]}`)),
-    challenges: [tt(lang, 'A tendency to under-claim your progress', 'अपनी प्रगति को कम आँकने की प्रवृत्ति'), tt(lang, 'Timing patience during slower periods', 'धीमे कालों में धैर्य'), tt(lang, 'Balancing effort with self-care', 'परिश्रम और आत्म-देखभाल में संतुलन')],
+    challenges: t.challenges,
     timing: [],
-    remedies: [
-      { kind: 'mantra', title: tt(lang, `${dl} mantra`, `${dl} मंत्र`), detail: tt(lang, `Honour your current dasha lord ${dl} with its traditional mantra to align with this period’s energy.`, `अपनी वर्तमान दशा के स्वामी ${dl} का पारंपरिक मंत्र जपें ताकि इस काल की ऊर्जा से तालमेल बने।`) },
-      { kind: 'daan', title: tt(lang, 'Weekly daan', 'साप्ताहिक दान'), detail: tt(lang, 'Offer a simple, non-branded charity on the weekday of your dasha lord to ease its influence.', 'अपनी दशा के स्वामी के वार पर एक सरल दान करें।') },
-      { kind: 'practice', title: tt(lang, 'Name your progress', 'अपनी प्रगति कहें'), detail: tt(lang, 'Once a week, note one real thing you accomplished — a direct answer to the chart’s growth edge.', 'सप्ताह में एक बार अपनी एक वास्तविक उपलब्धि लिखें।') },
-    ],
+    remedies: t.remedies,
     signature: [
       tt(lang, `${person.lagna} rising, ${person.moon_sign} Moon — a chart of ${dl}-led focus.`, `${person.lagna} लग्न, ${person.moon_sign} चंद्रमा — ${dl}-प्रधान कुंडली।`),
       tt(lang, `Strongest in the ${strongHouses.map((h: any) => ord(h.house)).join(', ')} houses.`, `सबसे मज़बूत ${strongHouses.map((h: any) => ord(h.house)).join(', ')} भावों में।`),
@@ -573,47 +829,52 @@ function pageTitles(lang: Lang, type: string): Record<string, string> {
 }
 
 function assembleChart(type: string, person: any, facts: any, e: any, lang: Lang): any {
-  const f = CHART_FOCUS[type];
+  const f = CHART_SPEC[type];
   const T = pageTitles(lang, type);
   const meta = (Chart.CHART_META as any)[type];
   const title = tt(lang, meta.title, meta.title); // title stays as the report name
   const nug = (i: number) => (e.nuggets && e.nuggets[i] ? [{ type: 'nugget', nugget: { body: e.nuggets[i] } }] : []);
+  const rated = f.rated === 'fields' || f.rated === 'subjects';
   const disclaimer = type === 'health'
     ? tt(lang, 'A gentle wellbeing reading — not medical advice, diagnosis, or treatment.', 'एक कोमल स्वास्थ्य पठन — यह चिकित्सा सलाह, निदान या उपचार नहीं है।')
     : tt(lang, 'For guidance and reflection — not a substitute for professional advice.', 'मार्गदर्शन और चिंतन के लिए — पेशेवर सलाह का विकल्प नहीं।');
 
-  // p2 snapshot: rings / gradient bars / plain summary — per §5
+  // p2 snapshot: rings (computed from the RELEVANT houses) / gradient bars / summary — per §5.
+  // Ring scores are authoritative chart data, never borrowed from the AI's comparable-item ratings.
+  const ringScore = (r: RingDef) => {
+    if (!r.houses.length) return clamp10((facts.score ?? 60) / 10);
+    const s = r.houses.map((h) => (facts.houses || [])[h - 1]?.strength ?? facts.score ?? 60);
+    return clamp10((s.reduce((a: number, b: number) => a + b, 0) / s.length) / 10);
+  };
   const snapBlocks: any[] = [];
   if (f.bars) { // health — qualitative, no scores
-    snapBlocks.push({ type: 'gradientBars', items: (facts.houses || []).filter((h: any) => f.rated !== 'houses').slice(0, 4).map((h: any) => ({ label: HOUSE_LABEL[h.house - 1], level: clamp10(h.strength / 10) / 10, note: '' })) });
+    snapBlocks.push({ type: 'gradientBars', items: (facts.houses || []).slice(0, 4).map((h: any) => ({ label: tt(lang, HOUSE_LABEL[h.house - 1], HOUSE_LABEL[h.house - 1]), level: clamp10(h.strength / 10) / 10, note: '' })) });
     snapBlocks.push({ type: 'paragraph', text: disclaimer });
   } else if (f.rings) {
-    const ringScores = (e.ratings && e.ratings.length >= f.rings.length)
-      ? e.ratings.slice(0, f.rings.length).map((r: any) => r.score)
-      : f.rings.map((_, i) => clamp10(((facts.houses || [])[i]?.strength ?? facts.score ?? 60) / 10));
-    snapBlocks.push({ type: 'rings', items: f.rings.map((label, i) => ({ label, score: ringScores[i] ?? 6 })) });
+    snapBlocks.push({ type: 'rings', items: f.rings.map((r) => ({ label: ls(lang, r.label), score: ringScore(r) })) });
   }
   snapBlocks.push({ type: 'paragraph', text: e.snapshot });
 
-  // p4 deep dive I — comparable ratings where apt, else insight cards
+  // p4 deep dive I — §5: comparable ratings (career fields / education subjects),
+  // notable yogas (flagship life), or the report's insight cards (love/health/pastlife).
   const dd1: any[] = [];
-  if (f.rated === 'houses') {
-    dd1.push({ type: 'ratings', items: (facts.houses || []).slice(0, 6).map((h: any) => ({ label: `${ord(h.house)} · ${HOUSE_LABEL[h.house - 1]}`, score: clamp10(h.strength / 10), note: '' })) });
-  } else if ((f.rated === 'fields' || f.rated === 'subjects') && e.ratings.length) {
+  if (rated && e.ratings.length) {
     dd1.push({ type: 'ratings', items: e.ratings });
   } else {
     dd1.push({ type: 'insights', cards: e.insights.slice(0, 2) });
   }
   dd1.push(...nug(1));
 
-  // p5 deep dive II — radar (interpretive or 12-house) + insights
+  // p5 deep dive II — §5: interpretive radar (career/education/love) or the computed
+  // 12-house radar (flagship), plus the page's insight cards.
   const dd2: any[] = [];
   if (f.rated === 'houses') {
     dd2.push({ type: 'radar', caption: tt(lang, 'House strengths', 'भाव-बल'), axes: (facts.houses || []).map((h: any) => ({ label: ord(h.house), value: clamp10(h.strength / 10) })) });
   } else if (f.radar && e.radar.length) {
     dd2.push({ type: 'radar', axes: e.radar });
   }
-  dd2.push({ type: 'insights', cards: e.insights.slice(f.rated === 'fields' || f.rated === 'subjects' ? 0 : 2, 4) });
+  // rated reports put their 2 head-to-head cards here; others put insights[2..4].
+  dd2.push({ type: 'insights', cards: e.insights.slice(rated ? 0 : 2, 4) });
   dd2.push(...nug(2));
 
   // p6 timing — real dasha dates (or life-stage reframe for pastlife)
@@ -627,10 +888,10 @@ function assembleChart(type: string, person: any, facts: any, e: any, lang: Lang
 
   const pages = [
     { key: 'cover', title, hero: true, lead: e.headline, blocks: [] },
-    { key: 'snapshot', title: T.snapshot, lead: tt(lang, 'Where you stand, at a glance.', 'एक नज़र में आपकी स्थिति।'), blocks: snapBlocks },
+    { key: 'snapshot', title: T.snapshot, lead: ls(lang, f.snapLead), blocks: snapBlocks },
     { key: 'chart', title: T.chart, lead: tt(lang, 'Your Vedic birth chart (Lagna Kundli).', 'आपकी लग्न कुंडली।'), blocks: [{ type: 'vedicChart', lagnaSign: facts.lagnaIdx, planets: planetsByHouse(facts) }, ...nug(0)] },
-    { key: 'deepdive1', title: T.deepdive1, blocks: dd1 },
-    { key: 'deepdive2', title: T.deepdive2, blocks: dd2 },
+    { key: 'deepdive1', title: ls(lang, f.dd1), lead: ls(lang, f.dd1Lead), blocks: dd1 },
+    { key: 'deepdive2', title: ls(lang, f.dd2), lead: ls(lang, f.dd2Lead), blocks: dd2 },
     { key: 'timing', title: T.timing, blocks: timingBlocks },
     { key: 'strengths', title: T.strengths, lead: tt(lang, 'A balanced, honest read.', 'एक संतुलित, सच्चा पठन।'), blocks: [{ type: 'strengthsChallenges', strengths: e.strengths, challenges: e.challenges }, ...(e.honest ? [{ type: 'honest', text: e.honest }] : []), ...nug(4)] },
     { key: 'remedies', title: T.remedies, lead: tt(lang, 'Specific, doable — prioritised.', 'विशिष्ट, सरल — प्राथमिकता अनुसार।'), blocks: [{ type: 'remedies', items: e.remedies }] },
@@ -643,7 +904,16 @@ function assembleChart(type: string, person: any, facts: any, e: any, lang: Lang
 async function enrichMatch(a: any, b: any, m: any, lang: Lang): Promise<any | null> {
   if (!ANTHROPIC_API_KEY) return null;
   try {
-    const sys = reportSystem(lang, 'compatibility between two people via Ashtakoot Guna Milan — strengths, honest friction points, doshas with remedies', 'none');
+    const matchBrief =
+      'Two-person compatibility via Ashtakoot Guna Milan. The guna table, dual score, kuta bars and dosha cards are COMPUTED for you — your job is the human meaning around them, grounded in the two moon signs and nakshatras.\n' +
+      '- headline: one warm line naming the match band and what genuinely supports these two (or what to tend).\n' +
+      '- snapshot: 2-3 sentences on the overall compatibility given the score and any dosha.\n' +
+      '- ratings: OMIT. radar: OMIT. insights: keep empty (dosha cards are supplied separately).\n' +
+      '- honest: one candid friction point this pairing should be aware of, non-alarmist.\n' +
+      '- strengths: 3 real strengths of the pairing; challenges: 3 honest friction points.\n' +
+      '- remedies: 4-5 JOINT remedies for both partners (shared puja, mantra, daan, a relational practice).\n' +
+      '- signature: 3 lines suitable to share with family.';
+    const sys = reportSystem(lang, 'compatibility between two people via Ashtakoot Guna Milan — strengths, honest friction points, doshas with remedies', 'none', matchBrief);
     const kootas = m.kootas.map((k: any) => `${k.name} ${k.got}/${k.max} (${k.note})`).join('; ');
     const user = `COMPUTED MATCH FACTS (authoritative):\n${a.name} (Moon ${a.moon_sign}, ${a.nakshatra}) & ${b.name} (Moon ${b.moon_sign}, ${b.nakshatra})\nAshtakoot: ${m.total}/${m.max} (${m.percent}% · ${m.band}); Kutas: ${kootas}; Mangal: ${m.mangal.note}; Nadi dosha: ${m.nadiDosha}; Bhakoot dosha: ${m.bhakootDosha}\n\nReturn the JSON now (no "ratings").`;
     return coerceEnrich(await callClaudeJson(sys, user, lang));
@@ -680,7 +950,17 @@ function vastuZoneScore(name: string, va: any): number {
   if (flagged) s -= 2;
   return Math.max(1, Math.min(10, s));
 }
-function shortTitle(s: string): string { const w = String(s ?? '').split(/[.,—-]/)[0].trim(); return w.length > 42 ? w.slice(0, 40) + '…' : w; }
+// A concise title from a longer sentence. Breaks only on real sentence boundaries
+// (period/colon/semicolon/em-dash or a spaced " - "), NEVER on hyphenated words like
+// "North-East", and truncates on a WORD boundary with an ellipsis so it never cuts
+// mid-word (e.g. no "Diplomatic S").
+function shortTitle(s: string): string {
+  const first = String(s ?? '').split(/\s+[—-]\s+|[.:;—]/)[0].trim();
+  if (first.length <= 46) return first;
+  const cut = first.slice(0, 44);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > 20 ? cut.slice(0, sp) : cut).trim() + '…';
+}
 
 function assembleVastu(answers: any, va: any, lang: Lang): any {
   const T = pageTitles(lang, 'vastu');

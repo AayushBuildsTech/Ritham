@@ -101,9 +101,26 @@ function remedies(items: Remedy[], ctx: Ctx): string {
   </div>`).join('')}</div>`;
 }
 
-// Radar / Spider Chart (§3.7) — draw-on via CSS scale.
+// Wrap a label into at most two balanced lines (so long axis names don't run off
+// the chart). Single long words are kept whole and rely on the padded viewBox.
+function wrapLabel(label: string, maxLen = 12): string[] {
+  const s = String(label ?? '').trim();
+  const words = s.split(/\s+/);
+  if (s.length <= maxLen || words.length < 2) return [s];
+  let best = 0, bestDiff = Infinity, acc = 0;
+  for (let i = 0; i < words.length - 1; i++) {
+    acc += words[i].length + 1;
+    const diff = Math.abs(acc - (s.length - acc));
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  return [words.slice(0, best + 1).join(' '), words.slice(best + 1).join(' ')];
+}
+
+// Radar / Spider Chart (§3.7) — draw-on via CSS scale. Labels are anchored by their
+// position (end/middle/start) and wrapped, and the viewBox is padded + overflow is
+// visible, so a long axis name (e.g. "Diplomatic Service") never gets clipped.
 function radar(axes: RadarAxis[], caption: string | undefined): string {
-  const n = axes.length, cx = 110, cy = 110, rMax = 88;
+  const n = axes.length, cx = 110, cy = 110, rMax = 84;
   const pt = (i: number, r: number) => {
     const a = (-Math.PI / 2) + (i * 2 * Math.PI / n);
     return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
@@ -112,9 +129,16 @@ function radar(axes: RadarAxis[], caption: string | undefined): string {
     `<polygon class="rd-grid" points="${axes.map((_, i) => pt(i, rMax * g).map((v) => v.toFixed(1)).join(',')).join(' ')}"/>`).join('');
   const spokes = axes.map((_, i) => { const [x, y] = pt(i, rMax); return `<line class="rd-spoke" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('');
   const poly = axes.map((ax, i) => pt(i, rMax * Math.max(0, Math.min(10, ax.value)) / 10).map((v) => v.toFixed(1)).join(',')).join(' ');
-  const labels = axes.map((ax, i) => { const [x, y] = pt(i, rMax + 16); return `<text class="rd-lbl" x="${x.toFixed(1)}" y="${y.toFixed(1)}">${esc(ax.label)}</text>`; }).join('');
+  const labels = axes.map((ax, i) => {
+    const [x, y] = pt(i, rMax + 14);
+    const anchor = x < cx - 2 ? 'end' : x > cx + 2 ? 'start' : 'middle';
+    const lines = wrapLabel(ax.label);
+    const y0 = lines.length > 1 ? y - 5 : y;
+    const tspans = lines.map((ln, li) => `<tspan x="${x.toFixed(1)}" dy="${li === 0 ? 0 : 11}">${esc(ln)}</tspan>`).join('');
+    return `<text class="rd-lbl" x="${x.toFixed(1)}" y="${y0.toFixed(1)}" text-anchor="${anchor}">${tspans}</text>`;
+  }).join('');
   return `<div class="radar reveal">
-    <svg viewBox="0 0 220 220">${grid}${spokes}<polygon class="rd-fill" points="${poly}"/>${labels}</svg>
+    <svg viewBox="-38 -22 296 264">${grid}${spokes}<polygon class="rd-fill" points="${poly}"/>${labels}</svg>
     ${caption ? `<div class="radar-cap">${esc(caption)}</div>` : ''}
   </div>`;
 }
@@ -293,8 +317,9 @@ function renderPage(p: ReportPage, i: number, content: ReportContent, ctx: Ctx):
 
 // ── document ─────────────────────────────────────────────────────────────────
 
-export function buildReportHtml(content: ReportContent, acc: ReportAccent): string {
+export function buildReportHtml(content: ReportContent, acc: ReportAccent, opts?: { print?: boolean }): string {
   const lang = content.lang;
+  const print = !!opts?.print;
   const ctx: Ctx = { lang, acc };
   const hi = lang === 'hi';
   const fontHref =
@@ -303,7 +328,30 @@ export function buildReportHtml(content: ReportContent, acc: ReportAccent): stri
   const bodyFont = hi ? "'Inter','Noto Sans Devanagari',sans-serif" : "'Inter',sans-serif";
   const dispFont = hi ? "'Fraunces','Noto Sans Devanagari',serif" : "'Fraunces',serif";
 
-  const pages = content.pages.map((p, i) => renderPage(p, i, content, ctx)).join('');
+  // Print/PDF mode: the on-screen doc reveals content on scroll (opacity:0 → .in),
+  // which leaves every page after the first blank in a non-scrolling PDF render.
+  // Force all content visible & static, paginate per page, and drop scroll-only chrome.
+  const printCss = print ? `
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body.print{scroll-snap-type:none}
+body.print .page{min-height:auto;page-break-after:always;break-after:page;justify-content:flex-start;padding:34px 30px}
+body.print .page:last-child{page-break-after:auto;break-after:auto}
+body.print .hero{min-height:auto;padding:70px 30px}
+body.print .reveal{opacity:1!important;transform:none!important;transition:none!important}
+body.print .rd-fill{transform:scale(1)!important;opacity:1!important;transition:none!important}
+body.print .rate-bar i,body.print .gbar-track i,body.print .kuta-bar i{transition:none!important}
+body.print .dots,body.print .hero-scroll{display:none!important}
+` : '';
+
+  let pages = content.pages.map((p, i) => renderPage(p, i, content, ctx)).join('');
+  // In print/PDF mode, bake each count-up's FINAL value into the span text server-side.
+  // expo-print snapshots the page without reliably waiting for the JS count-up, so a
+  // `<span data-count="8">0</span>` would otherwise print as 0. This makes every score /
+  // rating / badge correct even if no JS runs.
+  if (print) {
+    pages = pages.replace(/(<span data-count="(-?[\d.]+)"( data-dec="1")?>)0(<\/span>)/g,
+      (_m, open, num, dec, close) => `${open}${dec ? Number(num).toFixed(1) : String(Math.round(Number(num)))}${close}`);
+  }
 
   return `<!DOCTYPE html><html lang="${lang}"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
@@ -318,7 +366,7 @@ export function buildReportHtml(content: ReportContent, acc: ReportAccent): stri
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;background:var(--canvas);color:var(--text);font-family:${bodyFont};
-  scroll-snap-type:y mandatory;overflow-x:hidden;scroll-behavior:smooth}
+  scroll-snap-type:y proximity;overflow-x:hidden;scroll-behavior:smooth}
 .page{min-height:100vh;scroll-snap-align:start;padding:clamp(20px,7vw,40px);display:flex;flex-direction:column;justify-content:center;position:relative}
 .page-inner{width:100%;max-width:560px;margin:0 auto}
 .page-eyebrow{font-family:${bodyFont};font-weight:600;letter-spacing:2.5px;text-transform:uppercase;font-size:12px;color:var(--acc);margin-bottom:14px}
@@ -415,12 +463,12 @@ h1,h4{font-family:${dispFont}}
 
 /* radar */
 .radar{text-align:center;margin:14px 0}
-.radar svg{width:100%;max-width:300px}
+.radar svg{width:100%;max-width:300px;overflow:visible}
 .rd-grid{fill:none;stroke:rgba(255,255,255,.08)}
 .rd-spoke{stroke:rgba(255,255,255,.08)}
 .rd-fill{fill:var(--accFaint);stroke:var(--acc);stroke-width:2;transform-origin:110px 110px;transform:scale(0);opacity:0;transition:transform .9s cubic-bezier(.22,1,.36,1),opacity .9s}
 .page.in .rd-fill{transform:scale(1);opacity:1}
-.rd-lbl{fill:var(--muted);font-size:10px;text-anchor:middle;dominant-baseline:middle}
+.rd-lbl{fill:var(--muted);font-size:9.5px;dominant-baseline:middle}
 .radar-cap{font-size:13px;color:var(--muted);margin-top:6px}
 
 /* vedic chart (North-Indian लग्न कुंडली) */
@@ -528,8 +576,9 @@ h1,h4{font-family:${dispFont}}
 .dots{position:fixed;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:9px;z-index:20}
 .dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.22);transition:all .3s}
 .dots i.on{background:var(--acc);transform:scale(1.5)}
+${printCss}
 </style></head>
-<body>
+<body class="${print ? 'print' : ''}">
 ${pages}
 <div class="dots">${content.pages.map((_, i) => `<i data-dot="${i}"></i>`).join('')}</div>
 <script>
@@ -551,13 +600,37 @@ ${pages}
     [].forEach.call(pg.querySelectorAll('[data-count]'),countUp);
     [].forEach.call(pg.querySelectorAll('.ring-fg'),function(r){r.style.strokeDashoffset=r.dataset.off;});
   }
-  var io=new IntersectionObserver(function(es){es.forEach(function(e){
-    if(e.isIntersecting){e.target.classList.add('in');animate(e.target);
-      var i=+e.target.dataset.i;dots.forEach(function(d,di){d.classList.toggle('on',di===i);});}
-  });},{threshold:.4});
+  function reveal(p){ if(p&&!p.classList.contains('in')){p.classList.add('in');animate(p);} }
+  // Reveal on scroll: any page whose top has risen into view (or been scrolled past)
+  // is shown. This survives scroll-snap MOMENTUM that skips middle pages — the old
+  // IntersectionObserver(threshold .4) never fired for a page that snap-scrolling
+  // jumped over, leaving it blank. Once revealed a page stays revealed.
+  function activeDot(){
+    var mid=window.innerHeight/2, best=1e9, bi=0;
+    pages.forEach(function(p,idx){var r=p.getBoundingClientRect();var d=Math.abs((r.top+r.bottom)/2-mid);if(d<best){best=d;bi=idx;}});
+    dots.forEach(function(d,di){d.classList.toggle('on',di===bi);});
+  }
+  function onScroll(){
+    var vh=window.innerHeight;
+    pages.forEach(function(p){var r=p.getBoundingClientRect();if(r.top<vh*0.85&&r.bottom>0)reveal(p);});
+    activeDot();
+  }
+  // A low-threshold observer gives the nice entrance animation on gentle scrolling;
+  // the scroll handler is the fallback that guarantees nothing stays hidden.
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)reveal(e.target);});},{threshold:0.01});
   pages.forEach(function(p){io.observe(p);});
-  if(pages[0]){pages[0].classList.add('in');animate(pages[0]);if(dots[0])dots[0].classList.add('on');}
+  window.addEventListener('scroll',onScroll,{passive:true});
+  window.addEventListener('resize',onScroll,{passive:true});
+  reveal(pages[0]); onScroll();
 })();
+${print ? `
+(function(){
+  // PDF render: reveal EVERY page and jump counters/rings/bars to their final values
+  // now (no scroll, no IntersectionObserver, no animation) so nothing prints blank.
+  [].forEach.call(document.querySelectorAll('.page'),function(p){p.classList.add('in');});
+  [].forEach.call(document.querySelectorAll('[data-count]'),function(el){var to=+el.dataset.count,dec=el.dataset.dec==='1';el.textContent=dec?to.toFixed(1):String(Math.round(to));});
+  [].forEach.call(document.querySelectorAll('.ring-fg'),function(r){r.style.strokeDashoffset=r.dataset.off;});
+})();` : ''}
 </script>
 </body></html>`;
 }

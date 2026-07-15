@@ -72,7 +72,11 @@ export default function ReportView() {
     if (!html || exporting) return;
     setExporting(true);
     try {
-      const { uri } = await Print.printToFileAsync({ html });
+      // The on-screen doc reveals content on scroll, which prints blank past page 1.
+      // For v2 content, render a print-mode HTML (all content visible & static); the
+      // legacy html blob is already print-styled, so use it as-is.
+      const printHtml = content ? buildReportHtml(content, reportAccent(content.type), { print: true }) : html;
+      const { uri } = await Print.printToFileAsync({ html: printHtml });
       track('report_downloaded', { type: content?.type ?? report?.type });
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: isHindi ? 'आपकी रिपोर्ट' : 'Your Report' });

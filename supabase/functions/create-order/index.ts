@@ -43,14 +43,14 @@ const CALL_PACKS: Record<string, { price_paise: number; seconds: number }> = {
   poorna:       { price_paise: 55900, seconds: 1800 },
 };
 const REPORT_PRICES: Record<string, { price_paise: number }> = {
-  life:        { price_paise: 39900 },
-  career:      { price_paise: 14900 },
-  love:        { price_paise: 12900 },
-  health:      { price_paise: 9900 },
-  education:   { price_paise: 9900 },
-  vastu:       { price_paise: 14900 },
-  matchmaking: { price_paise: 19900 },
-  pastlife:    { price_paise: 14900 },
+  life:        { price_paise: 29900 },
+  career:      { price_paise: 9900 },
+  love:        { price_paise: 7900 },
+  health:      { price_paise: 6900 },
+  education:   { price_paise: 6900 },
+  vastu:       { price_paise: 12900 },
+  matchmaking: { price_paise: 14900 },
+  pastlife:    { price_paise: 9900 },
 };
 
 const cors = {
