@@ -4,7 +4,17 @@
 
 ---
 
-## 0. Latest Session (2026-07-15) — Reports v2 content made per-report & page-mapped (fix "every report reads generic")
+## 0. Latest Session (2026-07-15, evening) — Reports tab rebrand (AI emblem art) + My Reports page
+
+**Reports tab redesigned around AI-generated emblem art (client-only, `app/(tabs)/reports.tsx`).** The old tab dumped every report under four headings (Comprehensive / Focused / Home / Karmic) with tiny icon rows. Replaced with **large full-width image cards**, one per report, each showing ONLY the name + a price pill (shows "Create" when a credit is owned). One AI "celestial-luxe" emblem per report (dark cosmic base + that report's Royal-Jewel accent; matchmaking = a couple silhouette, pastlife = a soul-across-lifetimes silhouette) generated in Gemini and saved to **`assets/reports/<type>.png`** (8 files). Headings removed — the art + accent do the grouping. Flagship (`life`) is first with a FLAGSHIP chip.
+- **Cards are 1:1 square** to match the square source art → zero cropping (earlier 1.5:1 `cover` was cropping the emblem/glow); scrim tuned (`locations [0,.55,.85,1]`) so it only darkens the bottom where the title+price sit. Title is on its own full-width line above the price pill so long names ("Complete Kundli Analysis", "Education & Career (Students)") wrap instead of truncating.
+- **`constants/reportArt.ts`** — shared `REPORT_IMG` (require map) + `REPORT_ACCENT` (type→AccentName), used by both screens.
+- **New `app/my-reports.tsx`** (`/my-reports`, reached via a "Your Reports (N)" button at the bottom of the tab): lists all 8 report types as expandable rows (emblem thumbnail + name + count); expand → that type's past reports (score + date → `report-view` for re-download); empty types show "None yet" + a one-tap Create. Replaces the old per-card "My reports" accordions.
+- Routing (tap → `/report-language` gate → intake), credit-aware CTA, EN/HI, secure note and the `__DEV__` preview button all preserved. Verified: parses, app tsc = 0, Metro full bundle = 200 (all 8 images resolve). No deploy (client-only).
+
+---
+
+## Prior Session (2026-07-15) — Reports v2 content made per-report & page-mapped (fix "every report reads generic")
 
 **Problem (user, on device):** the new 9-page report UI looks great, but the *content* was generic and identical across report types — it did not follow the Master Prompt's per-report, page-by-page flow (§5). Users weren't getting what they paid for.
 
