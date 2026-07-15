@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import * as Print from 'expo-print';
@@ -15,10 +15,76 @@ import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
 import { ScreenHeader } from '../components/ScreenHeader';
 
+// Astrologer-style "preparing your report" step lines (a report is one long AI
+// generation; these keep the wait feeling intentional and premium, tailored per type).
+const CHART_STEPS = {
+  en: ['Casting your Lagna kundli…', 'Placing the nine planets…', 'Reading your nakshatra…', 'Tracing your Mahadasha timeline…', 'Weighing the yogas in your chart…', 'Preparing your remedies…', 'Writing your reading…'],
+  hi: ['आपकी लग्न कुंडली बनाई जा रही है…', 'नौ ग्रह स्थापित किए जा रहे हैं…', 'आपका नक्षत्र पढ़ा जा रहा है…', 'आपकी महादशा देखी जा रही है…', 'आपकी कुंडली के योग तौले जा रहे हैं…', 'आपके उपाय तैयार किए जा रहे हैं…', 'आपका पठन लिखा जा रहा है…'],
+};
+const VASTU_STEPS = {
+  en: ['Studying your floor plan…', 'Mapping the eight directions…', 'Checking the Brahmasthan…', 'Locating Vaastu doshas…', 'Preparing your remedies…', 'Writing your report…'],
+  hi: ['आपके नक्शे का अध्ययन हो रहा है…', 'आठ दिशाओं का मानचित्रण…', 'ब्रह्मस्थान की जाँच…', 'वास्तु दोष खोजे जा रहे हैं…', 'आपके उपाय तैयार किए जा रहे हैं…', 'आपकी रिपोर्ट लिखी जा रही है…'],
+};
+const MATCH_STEPS = {
+  en: ['Aligning both charts…', 'Computing the 36 gunas…', 'Checking the eight kutas…', 'Screening for doshas…', 'Weighing your compatibility…', 'Writing your report…'],
+  hi: ['दोनों कुंडलियाँ मिलाई जा रही हैं…', '36 गुणों की गणना…', 'आठ कूटों की जाँच…', 'दोष जाँचे जा रहे हैं…', 'आपकी अनुकूलता तौली जा रही है…', 'आपकी रिपोर्ट लिखी जा रही है…'],
+};
+
+function GeneratingView({ type, isHindi, styles }: { type?: string; isHindi: boolean; styles: ReturnType<typeof makeStyles> }) {
+  const lang = isHindi ? 'hi' : 'en';
+  const steps = type === 'vastu' ? VASTU_STEPS[lang] : type === 'matchmaking' ? MATCH_STEPS[lang] : CHART_STEPS[lang];
+  const [i, setI] = useState(0);
+  const rot = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
+  const prog = useRef(new Animated.Value(0)).current;
+  const fade = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(Animated.timing(rot, { toValue: 1, duration: 4200, easing: Easing.linear, useNativeDriver: true })).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ])).start();
+    // Slow crawl toward ~92% — feels like progress without ever "completing" before the report lands.
+    Animated.timing(prog, { toValue: 0.92, duration: 85000, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    const id = setInterval(() => {
+      Animated.sequence([
+        Animated.timing(fade, { toValue: 0, duration: 260, useNativeDriver: true }),
+        Animated.timing(fade, { toValue: 1, duration: 260, useNativeDriver: true }),
+      ]).start();
+      setTimeout(() => setI((n) => (n + 1) % steps.length), 260);
+    }, 3400);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const spin = rot.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.16] });
+  const glow = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
+  const width = prog.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+
+  return (
+    <View style={styles.center}>
+      <View style={styles.genOrb}>
+        <Animated.View style={[styles.genRing, { transform: [{ rotate: spin }] }]} />
+        <Animated.Text style={[styles.genGlyph, { opacity: glow, transform: [{ scale }] }]}>✦</Animated.Text>
+      </View>
+      <Text style={styles.genTitle}>{isHindi ? 'आपकी रिपोर्ट तैयार हो रही है' : 'Preparing your report'}</Text>
+      <Animated.Text style={[styles.genStep, { opacity: fade }]}>{steps[i]}</Animated.Text>
+      <View style={styles.genBarTrack}><Animated.View style={[styles.genBarFill, { width }]} /></View>
+      <Text style={styles.msg}>
+        {isHindi
+          ? 'हमारे ज्योतिषी आपकी कुंडली पढ़कर आपकी रिपोर्ट लिख रहे हैं। इसमें एक-दो मिनट लग सकते हैं — कृपया यह स्क्रीन खुली रखें।'
+          : 'Your astrologer is reading your chart and writing your report. This can take a minute or two — please keep this screen open.'}
+      </Text>
+    </View>
+  );
+}
+
 export default function ReportView() {
   const th = useColors();
   const styles = makeStyles(th);
-  const { t, isHindi } = useLanguage();
+  const { isHindi } = useLanguage();
   const router = useRouter();
   // `preview` renders a bundled sample (no DB) so the renderer is testable before
   // the Edge Function JSON path exists — e.g. /report-view?preview=career.
@@ -107,15 +173,7 @@ export default function ReportView() {
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : !html && report?.status === 'generating' ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={th.gold} size="large" />
-          <Text style={styles.genTitle}>{t('reports.generating')}</Text>
-          <Text style={styles.msg}>
-            {isHindi
-              ? 'हमारे ज्योतिषी आपकी कुंडली पढ़कर आपकी रिपोर्ट लिख रहे हैं। इसमें एक-दो मिनट लग सकते हैं — कृपया यह स्क्रीन खुली रखें।'
-              : 'Our astrologer is reading your chart and writing your report. This can take a minute or two — please keep this screen open.'}
-          </Text>
-        </View>
+        <GeneratingView type={report?.type} isHindi={isHindi} styles={styles} />
       ) : !html && report?.status === 'failed' ? (
         <View style={styles.center}>
           <Text style={styles.genTitle}>{isHindi ? 'हम यह रिपोर्ट पूरी नहीं कर सके' : 'We couldn’t finish this report'}</Text>
@@ -148,4 +206,11 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   genTitle: { fontFamily: Fonts.display, color: th.gold, fontSize: Fonts.size.lg, textAlign: 'center', marginTop: Spacing.lg, marginBottom: Spacing.sm },
   msg: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.md, textAlign: 'center', lineHeight: 22 },
   web: { flex: 1, backgroundColor: th.canvas },
+  // engaging "preparing your report" screen
+  genOrb: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
+  genRing: { position: 'absolute', width: 92, height: 92, borderRadius: 46, borderWidth: 2.5, borderColor: th.gold, borderTopColor: 'transparent', borderRightColor: 'transparent' },
+  genGlyph: { fontSize: 44, color: th.gold, textShadowColor: th.gold, textShadowRadius: 16 },
+  genStep: { fontFamily: Fonts.body, color: th.goldLight, fontSize: Fonts.size.md, textAlign: 'center', marginBottom: Spacing.lg, minHeight: 24 },
+  genBarTrack: { width: 200, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.10)', overflow: 'hidden', marginBottom: Spacing.lg },
+  genBarFill: { height: '100%', borderRadius: 3, backgroundColor: th.gold },
 });

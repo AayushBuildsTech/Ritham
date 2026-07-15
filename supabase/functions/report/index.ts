@@ -483,13 +483,15 @@ const CHART_SPEC: Record<string, ChartSpec> = {
     dd2: { en: 'House by House', hi: 'भाव दर भाव' }, dd2Lead: { en: 'The strength of each of the twelve houses.', hi: 'बारह भावों में से प्रत्येक का बल।' },
     snapLead: { en: 'Your life across every domain, at a glance.', hi: 'हर क्षेत्र में आपका जीवन, एक नज़र में।' },
     brief:
-      'A COMPLETE life reading across all 12 houses — go deeper and broader than any single-topic report.\n' +
+      'A COMPLETE life reading — the FLAGSHIP, richer and broader than any focused report. The birth chart, elemental balance, planetary strengths, 12-house scores and dasha sub-periods are all COMPUTED and shown for you; your job is the prose.\n' +
       '- headline: one vivid line on the overall chart signature (Lagna + the single strongest yoga OR the current Mahadasha).\n' +
-      '- snapshot: 2-3 sentences orienting the reader across career, relationships, health and wealth given the current dasha.\n' +
-      '- insights: produce EXACTLY 4, IN ORDER. Cards 1-2 = the two most significant YOGAS/combinations in the chart (name each, explain what it promises). Cards 3-4 = the standout STRONG-house story and the key GROWTH-house story, each naming the house and its lord.\n' +
-      '- radar: OMIT (the 12-house radar is computed from chart facts).\n' +
+      '- snapshot: 3-4 sentences orienting the reader across career, relationships, health and wealth given the current dasha.\n' +
+      '- insights: produce EXACTLY 7, IN ORDER. Cards 1-2 = the "big three" — (1) the Lagna/Ascendant temperament, (2) the Moon-mind and Sun-soul together. Cards 3-5 = the three most significant YOGAS/combinations (name each, explain what it promises). Cards 6-7 = the standout STRONG-house story and the key GROWTH-house story, each naming the house and its lord.\n' +
+      '- radar: OMIT (elemental + 12-house radars are computed). ratings: OMIT (house + planet strengths are computed).\n' +
+      '- nuggets: EXACTLY 8 genuine "Did you know / In Vedic astrology" explanations, each on a real concept used across the pages (Lagna, planetary dignity, a yoga, house strength, Mahadasha/antardasha, the five elements, remedies).\n' +
       '- honest: the single most important cross-life growth edge in this chart.\n' +
-      '- remedies: 4-5 consolidated across life areas, led by the current dasha lord.',
+      '- strengths: 4; challenges: 4.\n' +
+      '- remedies: 5-6 consolidated across life areas, led by the current dasha lord.',
   },
   career: {
     rated: 'fields', radar: true,
@@ -611,11 +613,11 @@ function reportSystem(lang: Lang, focusText: string, ratedKind: string, brief = 
   );
 }
 
-async function callClaudeJson(system: string, userContent: any, lang: Lang): Promise<any> {
+async function callClaudeJson(system: string, userContent: any, lang: Lang, maxTokens?: number): Promise<any> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, max_tokens: lang === 'hi' ? 9000 : 6000, thinking: { type: 'disabled' }, system, messages: [{ role: 'user', content: userContent }] }),
+    body: JSON.stringify({ model: MODEL, max_tokens: maxTokens ?? (lang === 'hi' ? 9000 : 6000), thinking: { type: 'disabled' }, system, messages: [{ role: 'user', content: userContent }] }),
   });
   if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
   const data = await res.json();
@@ -630,8 +632,8 @@ function coerceEnrich(o: any): any {
     headline: S(o.headline), snapshot: S(o.snapshot),
     ratings: arr(o.ratings).slice(0, 6).map((r: any) => ({ label: S(r.label), score: clamp10(v2num(r.score, 6)), note: S(r.note) })),
     radar: arr(o.radar).slice(0, 6).map((r: any) => ({ label: S(r.label), value: clamp10(v2num(r.value, 5)) })),
-    insights: arr(o.insights).slice(0, 4).map((c: any) => ({ title: S(c.title), teaser: S(c.teaser), body: S(c.body) })),
-    nuggets: arr(o.nuggets).map(S).slice(0, 8),
+    insights: arr(o.insights).slice(0, 8).map((c: any) => ({ title: S(c.title), teaser: S(c.teaser), body: S(c.body) })),
+    nuggets: arr(o.nuggets).map(S).slice(0, 10),
     honest: S(o.honest),
     strengths: arr(o.strengths).map(S).slice(0, 4), challenges: arr(o.challenges).map(S).slice(0, 4),
     timing: arr(o.timing).slice(0, 3).map((t: any) => ({ label: S(t.label), note: S(t.note) })),
@@ -663,7 +665,9 @@ async function enrichChart(type: string, person: any, facts: any, lang: Lang): P
   try {
     const sys = reportSystem(lang, f.focus, ratedKind, f.brief);
     const user = `COMPUTED CHART FACTS (authoritative — narrate ONLY from these):\n${chartFactsSummary(person, facts)}\n\nReturn the JSON report now.`;
-    return coerceEnrich(await callClaudeJson(sys, user, lang));
+    // Flagship asks for more content (7 insights + 8 nuggets) → give it more room.
+    const maxTokens = type === 'life' ? (lang === 'hi' ? 14000 : 9000) : undefined;
+    return coerceEnrich(await callClaudeJson(sys, user, lang, maxTokens));
   } catch (e) { console.error('enrichChart failed', String((e as Error)?.message ?? e)); return null; }
 }
 
@@ -769,9 +773,11 @@ function fbByType(type: string, person: any, facts: any, lang: Lang, dl: string,
       return {
         ratings: [], radar: [],
         insights: [
+          card('Your Ascendant', 'आपका लग्न', 'Core temperament', 'मूल स्वभाव', `${person.lagna} rising sets the lens for your whole chart — how you meet the world and how every other placement expresses itself.`, `${person.lagna} लग्न पूरी कुंडली की दृष्टि तय करता है — आप संसार से कैसे मिलते हैं और हर ग्रह कैसे व्यक्त होता है।`),
+          card('Moon & Sun', 'चंद्र और सूर्य', 'Heart and soul', 'मन और आत्मा', `Your Moon in ${person.moon_sign} shapes the emotional mind, while the Sun in ${person.sun_sign} carries the soul's purpose and vitality.`, `${person.moon_sign} चंद्रमा आपके भावनात्मक मन को और ${person.sun_sign} सूर्य आत्मा के उद्देश्य व जीवनी-शक्ति को आकार देता है।`),
           ...(facts.yogas || []).slice(0, 2).map((y: any) => ({ title: y.name, teaser: y.nature === 'benefic' ? tt(lang, 'A supportive combination', 'एक सहायक योग') : tt(lang, 'A pattern to work with', 'ध्यान देने योग्य योग'), body: y.detail })),
-          card(`Strong ${ord(strong[0]?.house ?? 1)} house`, `मज़बूत ${ord(strong[0]?.house ?? 1)} भाव`, HOUSE_LABEL[(strong[0]?.house ?? 1) - 1], HOUSE_LABEL[(strong[0]?.house ?? 1) - 1], `Your ${ord(strong[0]?.house ?? 1)} house (${HOUSE_LABEL[(strong[0]?.house ?? 1) - 1]}) is among your chart’s strongest — a natural reservoir of ease and support in this area of life.`, `आपका ${ord(strong[0]?.house ?? 1)} भाव (${HOUSE_LABEL[(strong[0]?.house ?? 1) - 1]}) कुंडली में सबसे मज़बूत में है — जीवन के इस क्षेत्र में सहजता और सहारे का स्रोत।`),
-          card(`Your ${dl} period`, `आपकी ${dl} दशा`, 'The theme of now', 'अभी का विषय', `You are running the ${dl} Mahadasha — its natural significations are where your growth concentrates in this span of life.`, `आप ${dl} महादशा में हैं — इसके गुण ही इस अवधि में आपके विकास का केंद्र हैं।`),
+          card(`Strong ${ord(strong[0]?.house ?? 1)} house`, `मज़बूत ${ord(strong[0]?.house ?? 1)} भाव`, HOUSE_LABEL[(strong[0]?.house ?? 1) - 1], HOUSE_LABEL[(strong[0]?.house ?? 1) - 1], `Your ${ord(strong[0]?.house ?? 1)} house (${HOUSE_LABEL[(strong[0]?.house ?? 1) - 1]}) is among your chart’s strongest — a natural reservoir of ease in this area of life.`, `आपका ${ord(strong[0]?.house ?? 1)} भाव (${HOUSE_LABEL[(strong[0]?.house ?? 1) - 1]}) कुंडली में सबसे मज़बूत में है — जीवन के इस क्षेत्र में सहजता का स्रोत।`),
+          ((): any => { const lw = [...(facts.houses || [])].sort((a: any, b: any) => a.strength - b.strength)[0]?.house ?? 1; return card(`Growth: ${ord(lw)} house`, `विकास: ${ord(lw)} भाव`, HOUSE_LABEL[lw - 1], HOUSE_LABEL[lw - 1], `Your ${ord(lw)} house (${HOUSE_LABEL[lw - 1]}) asks for the most conscious effort — the area where growth is earned rather than given.`, `आपका ${ord(lw)} भाव (${HOUSE_LABEL[lw - 1]}) सबसे अधिक सचेत प्रयास माँगता है — जहाँ विकास अर्जित होता है।`); })(),
         ],
         honest: tt(lang, 'Every chart carries a growth edge alongside its gifts; the periods that ask the most of you are usually the ones that build your defining strengths.', 'हर कुंडली में उपहार के साथ एक चुनौती भी होती है; जो काल सबसे अधिक माँगते हैं, वही आपकी असली शक्ति गढ़ते हैं।'),
         challenges: [tt(lang, 'A tendency to under-claim your progress', 'अपनी प्रगति को कम आँकने की प्रवृत्ति'), tt(lang, 'Patience during slower periods', 'धीमे कालों में धैर्य'), tt(lang, 'Balancing effort with self-care', 'परिश्रम और आत्म-देखभाल में संतुलन')],
@@ -828,7 +834,90 @@ function pageTitles(lang: Lang, type: string): Record<string, string> {
   };
 }
 
+// Snapshot ring score, computed from the RELEVANT houses (authoritative chart data,
+// never borrowed from the AI's comparable-item ratings). Shared by both assemblers.
+function ringScoreFor(r: RingDef, facts: any): number {
+  if (!r.houses.length) return clamp10((facts.score ?? 60) / 10);
+  const s = r.houses.map((h) => (facts.houses || [])[h - 1]?.strength ?? facts.score ?? 60);
+  return clamp10((s.reduce((a: number, b: number) => a + b, 0) / s.length) / 10);
+}
+
+// ── Flagship-only computed elements (Complete Kundli, §5.1). These give the ₹-flagship
+// visible depth the focused reports don't have — elemental balance, planetary strengths,
+// 12-house score badges, dasha sub-periods — all derived from `facts` and rendered with
+// EXISTING blocks (radar / ratings / timeline), so no renderer change is needed. ───────
+const HOUSE_LABEL_HI = ['स्वयं', 'धन', 'पराक्रम', 'घर', 'सृजन', 'स्वास्थ्य', 'साझेदारी', 'गूढ़', 'भाग्य', 'करियर', 'लाभ', 'मोक्ष'];
+const GRAHA_HI: Record<string, string> = { Sun: 'सूर्य', Moon: 'चंद्र', Mars: 'मंगल', Mercury: 'बुध', Jupiter: 'गुरु', Venus: 'शुक्र', Saturn: 'शनि', Rahu: 'राहु', Ketu: 'केतु' };
+const DIGN_HI: Record<string, string> = { Exalted: 'उच्च', 'Own sign': 'स्व-राशि', Neutral: 'सम', Debilitated: 'नीच' };
+const grahaHi = (n: string) => GRAHA_HI[n] ?? n;
+const V2_ELEMENTS: LS[] = [{ en: 'Fire', hi: 'अग्नि' }, { en: 'Earth', hi: 'पृथ्वी' }, { en: 'Air', hi: 'वायु' }, { en: 'Water', hi: 'जल' }];
+
+// Elemental (tattva) balance radar — planets + Lagna grouped by sign element.
+function elementRadar(facts: any, lang: Lang): any {
+  const counts = [0, 0, 0, 0];
+  for (const p of Object.values(facts.planets || {})) counts[(((p as any).signIdx % 4) + 4) % 4]++;
+  counts[((facts.lagnaIdx % 4) + 4) % 4]++;
+  return { type: 'radar', caption: tt(lang, 'Elemental balance (tattva)', 'तत्व संतुलन'), axes: V2_ELEMENTS.map((el, i) => ({ label: ls(lang, el), value: clamp10(counts[i] * 2) })) };
+}
+
+// Per-graha strength badges (dignity + house placement).
+const V2_PLANET_ORDER = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
+const V2_DIGN_SCORE: Record<string, number> = { Exalted: 9, 'Own sign': 7.5, Neutral: 6, Debilitated: 3 };
+function planetRatings(facts: any, lang: Lang): any {
+  const items = V2_PLANET_ORDER.map((nm) => {
+    const p = (facts.planets || {})[nm]; if (!p) return null;
+    let s = V2_DIGN_SCORE[p.dignity] ?? 6;
+    if ([1, 4, 5, 7, 9, 10].includes(p.house)) s += 1;      // kendra / trikona
+    else if ([6, 8, 12].includes(p.house)) s -= 1.5;         // dusthana
+    return { label: tt(lang, `${nm} · ${p.sign}`, `${grahaHi(nm)} · ${p.sign}`), score: clamp10(s), note: tt(lang, `${p.dignity}, ${ord(p.house)} house`, `${DIGN_HI[p.dignity] ?? p.dignity}, ${ord(p.house)} भाव`) };
+  }).filter(Boolean);
+  return { type: 'ratings', items };
+}
+
+// 12-house score badges (§5.1: "each house with a strength rating badge X/10").
+function houseRatings(facts: any, lang: Lang): any {
+  return { type: 'ratings', items: (facts.houses || []).map((h: any) => ({ label: tt(lang, `${ord(h.house)} · ${HOUSE_LABEL[h.house - 1]}`, `${ord(h.house)} · ${HOUSE_LABEL_HI[h.house - 1]}`), score: clamp10(h.strength / 10), note: '' })) };
+}
+function houseRadarBlock(facts: any, lang: Lang): any {
+  return { type: 'radar', caption: tt(lang, 'House strengths', 'भाव-बल'), axes: (facts.houses || []).map((h: any) => ({ label: ord(h.house), value: clamp10(h.strength / 10) })) };
+}
+
+// Antardasha (sub-period) rail within the current Mahadasha — real dates.
+function antarTimeline(facts: any, lang: Lang): any {
+  const d = facts.dasha; const now = Date.now();
+  const fmt = (dt: any) => new Date(dt).toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', { year: 'numeric', month: 'short' });
+  const list = (d.antars || []).filter((a: any) => new Date(a.end).getTime() >= now).slice(0, 4);
+  return { type: 'timeline', windows: list.map((a: any) => ({ label: tt(lang, `${planetNm(a.lord)} sub-period`, `${grahaHi(planetNm(a.lord))} अंतर्दशा`), period: `${fmt(a.start)} – ${fmt(a.end)}`, note: '', current: new Date(a.start).getTime() <= now && now < new Date(a.end).getTime() })) };
+}
+
+// Flagship assembly — a deeper 9-page reading with the computed elements above, plus a
+// richer set of AI insights (7) and nuggets (8) placed across the pages.
+function assembleLife(person: any, facts: any, e: any, lang: Lang): any {
+  const f = CHART_SPEC.life;
+  const T = pageTitles(lang, 'life');
+  const meta = (Chart.CHART_META as any).life;
+  const title = tt(lang, meta.title, meta.title);
+  const ins = (a: number, b: number) => [{ type: 'insights', cards: (e.insights || []).slice(a, b) }];
+  const nug = (i: number) => (e.nuggets && e.nuggets[i] ? [{ type: 'nugget', nugget: { body: e.nuggets[i] } }] : []);
+  const disclaimer = tt(lang, 'For guidance and reflection — not a substitute for professional advice.', 'मार्गदर्शन और चिंतन के लिए — पेशेवर सलाह का विकल्प नहीं।');
+  const rings = { type: 'rings', items: (f.rings || []).map((r) => ({ label: ls(lang, r.label), score: ringScoreFor(r, facts) })) };
+
+  const pages = [
+    { key: 'cover', title, hero: true, lead: e.headline, blocks: [] },
+    { key: 'snapshot', title: T.snapshot, lead: ls(lang, f.snapLead), blocks: [rings, elementRadar(facts, lang), { type: 'paragraph', text: e.snapshot }] },
+    { key: 'chart', title: T.chart, lead: tt(lang, 'Your birth chart, planetary strengths and the big three.', 'आपकी लग्न कुंडली, ग्रह-बल और तीन प्रमुख।'), blocks: [{ type: 'vedicChart', lagnaSign: facts.lagnaIdx, planets: planetsByHouse(facts) }, ...nug(0), planetRatings(facts, lang), ...ins(0, 2), ...nug(1)] },
+    { key: 'deepdive1', title: ls(lang, f.dd1), lead: ls(lang, f.dd1Lead), blocks: [...ins(2, 5), ...nug(2)] },
+    { key: 'deepdive2', title: ls(lang, f.dd2), lead: ls(lang, f.dd2Lead), blocks: [houseRadarBlock(facts, lang), houseRatings(facts, lang), ...ins(5, 7), ...nug(3)] },
+    { key: 'timing', title: T.timing, lead: tt(lang, 'Your Mahadasha timeline and the current sub-periods (antardasha).', 'आपकी महादशा और वर्तमान अंतर्दशाएँ।'), blocks: [{ type: 'timeline', windows: dashaTimeline(facts, lang, e.timing) }, antarTimeline(facts, lang), ...nug(4)] },
+    { key: 'strengths', title: T.strengths, lead: tt(lang, 'A balanced, honest read.', 'एक संतुलित, सच्चा पठन।'), blocks: [{ type: 'strengthsChallenges', strengths: e.strengths, challenges: e.challenges }, ...(e.honest ? [{ type: 'honest', text: e.honest }] : []), ...nug(5)] },
+    { key: 'remedies', title: T.remedies, lead: tt(lang, 'Specific, doable — prioritised.', 'विशिष्ट, सरल — प्राथमिकता अनुसार।'), blocks: [{ type: 'remedies', items: e.remedies }] },
+    { key: 'summary', title: T.summary, lead: tt(lang, 'Made to keep and share.', 'सहेजने और साझा करने योग्य।'), blocks: [{ type: 'signature', lines: e.signature }, { type: 'paragraph', text: disclaimer }] },
+  ];
+  return { type: 'life', lang, person: { name: person.name, birthLine: birthLine(person) }, headline: e.headline, pages };
+}
+
 function assembleChart(type: string, person: any, facts: any, e: any, lang: Lang): any {
+  if (type === 'life') return assembleLife(person, facts, e, lang);   // flagship: deeper, bespoke layout
   const f = CHART_SPEC[type];
   const T = pageTitles(lang, type);
   const meta = (Chart.CHART_META as any)[type];
@@ -840,18 +929,12 @@ function assembleChart(type: string, person: any, facts: any, e: any, lang: Lang
     : tt(lang, 'For guidance and reflection — not a substitute for professional advice.', 'मार्गदर्शन और चिंतन के लिए — पेशेवर सलाह का विकल्प नहीं।');
 
   // p2 snapshot: rings (computed from the RELEVANT houses) / gradient bars / summary — per §5.
-  // Ring scores are authoritative chart data, never borrowed from the AI's comparable-item ratings.
-  const ringScore = (r: RingDef) => {
-    if (!r.houses.length) return clamp10((facts.score ?? 60) / 10);
-    const s = r.houses.map((h) => (facts.houses || [])[h - 1]?.strength ?? facts.score ?? 60);
-    return clamp10((s.reduce((a: number, b: number) => a + b, 0) / s.length) / 10);
-  };
   const snapBlocks: any[] = [];
   if (f.bars) { // health — qualitative, no scores
     snapBlocks.push({ type: 'gradientBars', items: (facts.houses || []).slice(0, 4).map((h: any) => ({ label: tt(lang, HOUSE_LABEL[h.house - 1], HOUSE_LABEL[h.house - 1]), level: clamp10(h.strength / 10) / 10, note: '' })) });
     snapBlocks.push({ type: 'paragraph', text: disclaimer });
   } else if (f.rings) {
-    snapBlocks.push({ type: 'rings', items: f.rings.map((r) => ({ label: ls(lang, r.label), score: ringScore(r) })) });
+    snapBlocks.push({ type: 'rings', items: f.rings.map((r) => ({ label: ls(lang, r.label), score: ringScoreFor(r, facts) })) });
   }
   snapBlocks.push({ type: 'paragraph', text: e.snapshot });
 
