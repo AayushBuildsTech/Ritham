@@ -231,6 +231,12 @@ export default function HomeScreen() {
       image: require('../../assets/promo-astrologer.png'), imageBottom: true, still: true, onPress: goChat,
     },
     {
+      key: 'call', icon: 'phoneCall', badge: isHindi ? 'AI कॉल' : 'AI CALL', title: isHindi ? 'ज्योतिषी को कॉल करें' : 'Call your Astrologer',
+      sub: isHindi ? 'फ़ोन पर अपने AI ज्योतिषी से बात करें' : 'Talk to your AI Astrologer by voice', cta: isHindi ? 'कॉल करें' : 'Call Now',
+      image: require('../../assets/carousel/call.png'),
+      onPress: () => router.push('/(tabs)/call'),
+    },
+    {
       key: 'panchang', icon: 'panchang', badge: B.free, title: isHindi ? 'आज का पंचांग' : 'Today’s Panchang',
       sub: isHindi ? 'तिथि, नक्षत्र और दैनिक समय' : 'Tithi, nakshatra & daily timings', cta: isHindi ? 'देखें' : 'View',
       image: require('../../assets/carousel/panchang.png'),
