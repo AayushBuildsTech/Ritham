@@ -158,7 +158,7 @@ export default function SettingsScreen() {
         {/* Support */}
         <Text style={styles.sectionLabel}>{isHindi ? 'सहायता' : 'SUPPORT'}</Text>
         <View style={styles.group}>
-          <Row icon="send" label={isHindi ? 'संपर्क करें' : 'Contact us'} value={CONTACT_EMAIL} last />
+          <Row icon="send" label={isHindi ? 'संपर्क करें' : 'Contact us'} chevron onPress={() => router.push('/contact')} last />
         </View>
 
         <Pressable style={styles.signOutBtn} onPress={confirmSignOut} disabled={deleting} android_ripple={{ color: 'rgba(199,82,75,0.15)' }}>
