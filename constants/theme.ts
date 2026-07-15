@@ -94,13 +94,15 @@ export const Fonts = {
 
   regular: 'Inter_400Regular', // back-compat (was 'System')
 
+  // Reading tiers bumped up for legibility (esp. Devanagari/Hindi, which reads
+  // ~one tier smaller than Latin at the same px). Display tiers kept — already large.
   size: {
-    xs: 11,
-    sm: 13,
-    md: 15,
-    lg: 18,
-    xl: 22,
-    xxl: 28,
+    xs: 12,
+    sm: 14,
+    md: 16,
+    lg: 19,
+    xl: 23,
+    xxl: 29,
     hero: 40, // serif display wants more room than a sans
     display: 52,
   },
@@ -139,13 +141,13 @@ export const Type = {
     fontFamily: Fonts.body,
     fontSize: Fonts.size.md,
     color: Colors.text,
-    lineHeight: 24,
+    lineHeight: 26,
   },
   bodyMuted: {
     fontFamily: Fonts.body,
     fontSize: Fonts.size.sm,
     color: Colors.textMuted,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   label: {
     fontFamily: Fonts.bodySemibold,

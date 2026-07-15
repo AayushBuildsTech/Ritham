@@ -42,7 +42,7 @@ export default function Contact() {
     <View style={styles.root}>
       <ScreenHeader title={isHindi ? 'संपर्क करें' : 'Contact us'} onBack={() => router.back()} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
           <Text style={styles.intro}>
             {isHindi
               ? 'कोई प्रश्न, समस्या या सुझाव? नीचे संदेश लिखें — हम जल्द ही उत्तर देंगे।'

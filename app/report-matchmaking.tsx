@@ -223,7 +223,7 @@ export default function MatchmakingIntake() {
       <ScreenHeader title="Matchmaking" onBack={() => router.back()} />
       <KeyboardAwareScrollView
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >

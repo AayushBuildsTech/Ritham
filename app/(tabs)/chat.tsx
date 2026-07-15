@@ -370,7 +370,7 @@ export default function ChatScreen() {
             disabled={!canSend}
             android_ripple={{ color: th.goldDeep, borderless: true, radius: 24 }}
           >
-            <Icon name="send" size={19} color={canSend ? th.goldContrast : th.textDim} />
+            <Icon name="send" size={19} color={canSend ? th.goldContrast : th.textMuted} />
           </Pressable>
         </View>
       )}

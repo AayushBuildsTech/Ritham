@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Modal, View, Text, TextInput, Pressable, FlatList, StyleSheet, ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
+import { useKeyboardState } from 'react-native-keyboard-controller';
 import { Colors, Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
 import { Icon } from './Icon';
@@ -33,6 +35,11 @@ export function SelectModal({
 }: Props) {
   const th = useColors();
   const styles = makeStyles(th);
+  const { height: winH } = useWindowDimensions();
+  // Lift the bottom sheet above the on-screen keyboard so the search results stay
+  // visible while typing (an RN Modal window doesn't auto-resize for the keyboard).
+  const kbH = useKeyboardState((s) => s.height) ?? 0;
+  const sheetLift = kbH > 0 ? { marginBottom: kbH, maxHeight: Math.max(300, winH - kbH - 96) } : null;
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<Option[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,7 +83,7 @@ export function SelectModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close} statusBarTranslucent>
       <Pressable style={styles.backdrop} onPress={close}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, sheetLift]} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />
           <Text style={styles.title}>{title}</Text>
 
@@ -100,10 +107,10 @@ export function SelectModal({
           <FlatList
             data={data}
             keyExtractor={(item) => item.value}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             style={styles.list}
             initialNumToRender={20}
-            keyboardDismissMode="on-drag"
+            keyboardDismissMode="none"
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               const active = item.value === selectedValue;

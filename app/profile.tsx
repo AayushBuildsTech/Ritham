@@ -284,7 +284,7 @@ export default function ProfileScreen() {
     <View style={styles.root}>
       <KeyboardAwareScrollView
         contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >

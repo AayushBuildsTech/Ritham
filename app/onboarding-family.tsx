@@ -64,7 +64,7 @@ export default function OnboardingFamilyScreen() {
               <View key={m.id} style={styles.memberRow}>
                 <View style={styles.avatar}><Icon name="profile" size={18} color={th.gold} /></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.memberName} numberOfLines={1}>{m.name}</Text>
+                  <Text style={styles.memberName} numberOfLines={2}>{m.name}</Text>
                   <Text style={styles.memberMeta} numberOfLines={1}>
                     {RELATION_LABEL[m.relation] ?? (isHindi ? 'परिवार' : 'Family')}
                     {m.moonSign ? ` · ${isHindi ? 'चंद्र' : 'Moon in'} ${m.moonSign}` : ''}

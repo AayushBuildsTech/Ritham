@@ -89,7 +89,7 @@ export default function DreamScreen() {
     <View style={styles.root}>
       <ScreenHeader title={isHindi ? 'स्वप्न फल' : 'Dream Oracle'} onBack={() => router.back()} />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
         <Text style={styles.intro}>
           {isHindi
             ? 'आपने स्वप्न में जो देखा, उसे चुनें। पारंपरिक स्वप्न शास्त्र और आज के पंचांग से उसका फल जानें।'

@@ -98,7 +98,7 @@ export default function FamilyScreen() {
                 </View>
                 <View style={styles.cardBody}>
                   <View style={styles.nameRow}>
-                    <Text style={styles.name} numberOfLines={1}>{m.name}</Text>
+                    <Text style={styles.name} numberOfLines={2}>{m.name}</Text>
                     {isActive && <Text style={styles.activePill}>{isHindi ? 'सक्रिय' : 'ACTIVE'}</Text>}
                   </View>
                   <Text style={styles.meta} numberOfLines={1}>

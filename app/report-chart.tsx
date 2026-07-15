@@ -180,7 +180,7 @@ export default function ChartReportIntake() {
   return (
     <View style={styles.root}>
       <ScreenHeader title={meta.title} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="always" showsVerticalScrollIndicator={false}>
         <Text style={styles.lead}>{meta.desc}</Text>
 
         <View style={styles.selfCard}>

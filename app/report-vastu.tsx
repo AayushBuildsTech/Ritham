@@ -121,7 +121,7 @@ export default function VastuIntake() {
       <ScreenHeader title="Vaastu Report" onBack={() => router.back()} />
       <KeyboardAwareScrollView
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         bottomOffset={24}
         showsVerticalScrollIndicator={false}
       >
