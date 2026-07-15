@@ -226,12 +226,12 @@ export default function HomeScreen() {
   const B = { free: isHindi ? 'निःशुल्क' : 'FREE', live: isHindi ? 'लाइव' : 'LIVE' };
   const carouselSlides: CarouselSlide[] = profile ? [
     {
-      key: 'chat', icon: 'chat', badge: isHindi ? 'लाइव AI' : 'LIVE AI', title: isHindi ? 'कोई सवाल है?' : 'Got a question?',
+      key: 'chat', icon: 'chat', badge: isHindi ? 'लाइव' : 'LIVE', title: isHindi ? 'कोई सवाल है?' : 'Got a question?',
       sub: isHindi ? 'अपने AI ज्योतिषी से बात करें' : 'Chat with your AI Astrologer', cta: isHindi ? 'अभी पूछें' : 'Chat Now',
       image: require('../../assets/promo-astrologer.png'), imageBottom: true, still: true, onPress: goChat,
     },
     {
-      key: 'call', icon: 'phoneCall', badge: isHindi ? 'AI कॉल' : 'AI CALL', title: isHindi ? 'ज्योतिषी को कॉल करें' : 'Call your Astrologer',
+      key: 'call', icon: 'phoneCall', badge: isHindi ? 'कॉल' : 'CALL', title: isHindi ? 'ज्योतिषी को कॉल करें' : 'Call your Astrologer',
       sub: isHindi ? 'फ़ोन पर अपने AI ज्योतिषी से बात करें' : 'Talk to your AI Astrologer by voice', cta: isHindi ? 'कॉल करें' : 'Call Now',
       image: require('../../assets/carousel/call.png'),
       onPress: () => router.push('/(tabs)/call'),
