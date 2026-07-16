@@ -28,6 +28,7 @@ const MAP = {
   dream: ['mci', 'weather-night'],
   leaf: ['mci', 'leaf'],
   paw: ['mci', 'paw'],
+  palmreading: ['mci', 'hand-back-right-outline'],
   // ── zodiac (rashi) glyphs ──
   zodiacAries: ['mci', 'zodiac-aries'],
   zodiacTaurus: ['mci', 'zodiac-taurus'],

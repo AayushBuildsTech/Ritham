@@ -51,4 +51,5 @@ export const FEATURE_BANNER = {
   muhurat: require('../assets/banners/muhurat.webp'),
   sadesati: require('../assets/banners/sadesati.webp'),
   vakri: require('../assets/banners/vakri.webp'),
+  palmreading: require('../assets/banners/palmreading.png'),
 } as const;

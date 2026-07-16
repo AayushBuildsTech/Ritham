@@ -43,6 +43,9 @@ export const REPORT_PRICES = {
   matchmaking: { price_paise: 14900 },
   // Karmic & spiritual — reads the user's own Kundli.
   pastlife:    { price_paise: 9900 },
+  // Palmistry × astrology — reads an uploaded palm photo (vision) cross-referenced
+  // with the user's own Kundli. Impulse-friendly, in line with the focused readings.
+  palm:        { price_paise: 9900 },
 } as const;
 
 export type SessionPlanId = typeof SESSION_PLANS[number]['id'];
@@ -59,7 +62,7 @@ export function isChartReport(t: string): t is ChartReportType {
 }
 
 // UI metadata for the Reports section (single source of truth for cards).
-export type ReportGroup = 'flagship' | 'personal' | 'home' | 'karmic';
+export type ReportGroup = 'flagship' | 'personal' | 'home' | 'karmic' | 'divination';
 export interface ReportMeta {
   type: ReportType;
   title: string;
@@ -69,8 +72,16 @@ export interface ReportMeta {
   route: string;  // where the card navigates
 }
 
-// Order here is the display order within each group.
+// Order here is the on-screen display order (the Reports tab & My Reports render this
+// array top-to-bottom). The two most distinctive readings — Palm Reading and Past Life
+// — lead the library, above even the flagship Kundli analysis, to showcase them.
 export const REPORT_META: ReportMeta[] = [
+  // ── Palmistry & divination (lead — most unique) ───────────────────────────────
+  { type: 'palm', title: 'Palm Reading', icon: '✋', group: 'divination', route: '/palmreading',
+    desc: 'Upload a photo of your palm for a line-by-line reading of your Heart, Head, Life & Fate lines and mounts — cross-referenced with your Vedic chart.' },
+  // ── Karmic & spiritual ───────────────────────────────────────────────────────
+  { type: 'pastlife', title: 'Past Life Predictions', icon: '☸', group: 'karmic', route: '/report-chart',
+    desc: 'Karmic patterns, soul lessons & poorva-punya from previous lives — read through your 5th, 9th, 12th & 8th houses and the Rahu–Ketu axis.' },
   // ── Flagship ────────────────────────────────────────────────────────────────
   { type: 'life', title: 'Complete Kundli Analysis', icon: '✦', group: 'flagship', route: '/report-chart',
     desc: 'Your full life reading — all 12 houses, planets, yogas, Mahadasha timeline, life-area outlook & remedies.' },
@@ -88,9 +99,6 @@ export const REPORT_META: ReportMeta[] = [
     desc: 'Upload your floor plan for a room-by-room Vaastu consultancy with score & remedies.' },
   { type: 'matchmaking', title: 'Matchmaking Report', icon: '💞', group: 'home', route: '/report-matchmaking',
     desc: 'Ashtakoot Guna Milan with your partner — 36-guna score, doshas, both charts, remedies.' },
-  // ── Karmic & spiritual ───────────────────────────────────────────────────────
-  { type: 'pastlife', title: 'Past Life Predictions', icon: '☸', group: 'karmic', route: '/report-chart',
-    desc: 'Karmic patterns, soul lessons & poorva-punya from previous lives — read through your 5th, 9th, 12th & 8th houses and the Rahu–Ketu axis.' },
 ];
 
 // Group headers for the Reports tab, in display order.
@@ -99,6 +107,7 @@ export const REPORT_GROUPS: { key: ReportGroup; label: string }[] = [
   { key: 'personal', label: 'Focused Readings' },
   { key: 'home', label: 'Home & Compatibility' },
   { key: 'karmic', label: 'Karmic & Spiritual' },
+  { key: 'divination', label: 'Palmistry & Divination' },
 ];
 
 export function paiseTo(paise: number): string {

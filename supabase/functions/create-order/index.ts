@@ -51,6 +51,7 @@ const REPORT_PRICES: Record<string, { price_paise: number }> = {
   vastu:       { price_paise: 12900 },
   matchmaking: { price_paise: 14900 },
   pastlife:    { price_paise: 9900 },
+  palm:        { price_paise: 9900 },
 };
 
 const cors = {

@@ -379,3 +379,43 @@ words, logos, watermark, UI, or borders.
 <!-- #34 (paywall unlock relic) removed — the paywall no longer shows a relic image; it
      looked out of place. The paywall now opens straight to the eyebrow + title. -->
 
+---
+
+# TIER 4 — Palm Reading (paid feature)
+
+Three assets for the Palm Reading feature. Same "Stellar Velocity" language as the rest
+of the app. Save each at the filename in its heading.
+
+### 35. Palm reading — screen banner → `assets/banners/palmreading.webp`
+```
+Create a wide landscape (horizontal) image for a mobile app feature header. Scene: an open
+human right palm shown from the front, rendered as elegant glowing line-art — the major palm
+lines (heart, head, life, fate) traced in luminous warm gold, with a few bright stars and a
+faint zodiac constellation woven along the lines so palmistry and astrology merge. The palm
+floats over deep, near-empty magenta-and-violet nebula space. Keep the LOWER portion darker
+and uncluttered so app text can sit on it. Colour palette: cyber magenta #FF007F, neon violet
+#7B2CBF, warm gold, on a near-black #0D0D1A base. Mood: mystical, premium, calm, cinematic,
+soft glow. Do NOT include any text, letters, words, logos, watermark, UI elements, or borders.
+```
+
+### 36. Palm reading — report/card emblem → `assets/reports/palm.png`
+```
+Create a SQUARE image (emblem/hero for a premium report card). Scene: a single open palm seen
+from the front, its four major lines and the planetary mounts glowing in warm gold line-art,
+with tiny constellation stars set into the mounts, over a rich magenta-and-violet nebula on a
+near-black #0D0D1A base. Centered, softly vignetted so the edges fall into darkness. Colour
+palette: cyber magenta #FF007F, neon violet #7B2CBF, warm gold. Mood: luxurious, mystical,
+spiritual, product-hero. Do NOT include any text, words, logos, watermark, UI, or borders.
+```
+
+### 37. Palm reading — carousel promo → `assets/carousel/palmreading.png`
+```
+Create a SQUARE 3D-render-style image on a fully TRANSPARENT background (PNG cutout, no
+background): an open glowing palm floating at a gentle angle, its lines drawn in warm gold
+light with a magenta-and-violet neon rim glow and a scatter of small gold stars and stardust
+around the fingertips, as if reading destiny from the hand. Composition weighted to the RIGHT
+side of the square with a little padding. Colour palette: cyber magenta #FF007F, neon violet
+#7B2CBF, warm gold. Mood: premium, mystical, aspirational. Do NOT include any text, words,
+logos, watermark, UI, or borders.
+```
+

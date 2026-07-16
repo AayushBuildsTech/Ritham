@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const type = body?.type;
-    if (type !== 'vastu' && type !== 'matchmaking' && !Chart.isChartType(type)) return json({ error: 'unsupported_type' }, 400);
+    if (type !== 'vastu' && type !== 'matchmaking' && type !== 'palm' && !Chart.isChartType(type)) return json({ error: 'unsupported_type' }, 400);
     // App language: 'hi' → the report is narrated in Devanagari Hindi.
     const lang: Lang = body?.lang === 'hi' ? 'hi' : 'en';
 
@@ -107,6 +107,19 @@ Deno.serve(async (req) => {
         user_id: user.id, order_id: ent.order_id, entitlement_id: ent.id,
         type, status: 'generating', chart_style: style,
         partner: { self, partner }, // both charts kept on the record
+      };
+    } else if (type === 'palm') {
+      // palmistry × astrology: reads an uploaded palm photo (vision) + the user's
+      // own cached Kundli. The image path reuses the generic `floorplan_path` column.
+      const { self, palmPath, answers } = body;
+      if (!isPerson(self)) return json({ error: 'missing_chart' }, 400);
+      if (tooBig(self)) return json({ error: 'chart_too_large' }, 400);
+      if (!palmPath) return json({ error: 'missing_palm' }, 400);
+      if (!String(palmPath).startsWith(`${user.id}/`)) return json({ error: 'forbidden_path' }, 403);
+      insertRow = {
+        user_id: user.id, order_id: ent.order_id, entitlement_id: ent.id,
+        type, status: 'generating', floorplan_path: palmPath,
+        answers: { self, focus: String(answers?.focus ?? '') }, // chart snapshot + focus
       };
     } else if (Chart.isChartType(type)) {
       // single-person chart report: reads the user's own cached Kundli (rule #1)
@@ -160,6 +173,14 @@ Deno.serve(async (req) => {
           const e = (await enrichMatch(body.self, body.partner, milan, lang)) ?? coerceEnrich({});
           pages = assembleMatch(body.self, body.partner, milan, e, lang);
           score = milan.percent;
+        } else if (type === 'palm') {
+          const person = body.self as Chart.ChartPerson;
+          // Compute the same authoritative chart facts the chart reports use, so the
+          // palm reading can cross-reference real placements/dasha (type 'life' = general).
+          const facts = Chart.computeChartFacts(person, 'life');
+          const pa = await generatePalm(admin, body.palmPath, String(body.answers?.focus ?? ''), person, facts, lang); // vision (self-mocks)
+          pages = assemblePalm(person, facts, pa, lang);
+          score = pa.score;
         } else if (Chart.isChartType(type)) {
           const person = body.self as Chart.ChartPerson;
           const facts = Chart.computeChartFacts(person, type);
@@ -1069,6 +1090,290 @@ function assembleVastu(answers: any, va: any, lang: Lang): any {
     { key: 'summary', title: T.summary, blocks: [{ type: 'signature', lines: [va.verdict, tt(lang, `Vaastu score: ${va.score}/100.`, `वास्तु अंक: ${va.score}/100।`), (va.remedies || [])[0] || tt(lang, 'Keep the North-East light and open.', 'ईशान कोण को हल्का और खुला रखें।')].filter(Boolean) }, { type: 'paragraph', text: tt(lang, 'For guidance and reflection — not a structural or safety assessment.', 'मार्गदर्शन के लिए — संरचनात्मक या सुरक्षा आकलन नहीं।') }] },
   ];
   return { type: 'vastu', lang, person: { name: String(name), birthLine: String(answers.facing ?? '') }, headline: pages[0].lead as string, pages };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PALM READING (Hasta Samudrika Shastra × astrology) — VISION analysis of an
+//  uploaded palm photo, CROSS-REFERENCED with the user's own Kundli. Mirrors the
+//  Vastu vision path: strict-JSON reply → structured 9-page ReportContent, with a
+//  deterministic mock so a paid reading is NEVER blank and works with no API key.
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface PalmLine { name: string; quality: string; reading: string }
+interface PalmMount { mount: string; prominence: string; reading: string }
+interface PalmMark { sign: string; meaning: string }
+interface PalmLifeArea { area: string; score: number; reading: string }
+interface PalmAnalysis {
+  readable: boolean;       // false → the photo isn't a clear, readable human palm
+  overview: string;        // 2-3 paragraphs
+  handShape: string;       // shape + fingers + thumb
+  lines: PalmLine[];       // major lines actually visible
+  mounts: PalmMount[];     // the planetary mounts
+  marks: PalmMark[];       // special signs (may be empty)
+  astroCrossRef: string;   // where the palm agrees with the Vedic chart
+  lifeAreas: PalmLifeArea[]; // Love / Career / Wealth / Health (palm + chart)
+  score: number;           // overall "Palm Harmony" 0-100
+  verdict: string;
+  remedies: string[];
+  dos: string[];
+  donts: string[];
+}
+
+async function generatePalm(admin: any, palmPath: string, focus: string, person: any, facts: any, lang: Lang = 'en'): Promise<PalmAnalysis> {
+  if (!ANTHROPIC_API_KEY) return mockPalm(person, facts, lang);
+  try {
+    const raw = await generatePalmLive(admin, palmPath, focus, person, facts, lang);
+    // The image isn't a clear, readable human palm (blurry / dark / cropped / not a
+    // palm). DON'T fabricate a reading — throw so the caller RELEASES the paid credit
+    // and the user can re-upload a better photo without paying again.
+    if (raw.readable === false || raw.score <= 0) throw new Error('unreadable_palm');
+    return ensureCompletePalm(raw, person, facts, lang);
+  } catch (err) {
+    if ((err as Error)?.message === 'unreadable_palm') throw err; // propagate → credit released
+    // Any OTHER error (transient API/network) must never lose a paying user's reading:
+    // fall back to the structured mock so a real palm still yields a complete report.
+    console.error('palm narration failed, using mock', String((err as Error)?.message ?? err));
+    return mockPalm(person, facts, lang);
+  }
+}
+
+// A live reply can parse yet arrive with missing sections (truncation, a renamed key,
+// a poor photo). Backfill any empty section from the deterministic mock so a paid palm
+// report is always complete, keeping every bit of real prose the model gave.
+function ensureCompletePalm(a: PalmAnalysis, person: any, facts: any, lang: Lang): PalmAnalysis {
+  const m = mockPalm(person, facts, lang);
+  const has = (arr: any[], min = 1) => Array.isArray(arr) && arr.length >= min;
+  return {
+    readable: a.readable,
+    overview: a.overview && a.overview.trim().length > 40 ? a.overview : m.overview,
+    handShape: a.handShape && a.handShape.trim().length > 20 ? a.handShape : m.handShape,
+    lines: has(a.lines, 3) ? a.lines : m.lines,
+    mounts: has(a.mounts, 3) ? a.mounts : m.mounts,
+    marks: Array.isArray(a.marks) ? a.marks : m.marks,
+    astroCrossRef: a.astroCrossRef && a.astroCrossRef.trim().length > 40 ? a.astroCrossRef : m.astroCrossRef,
+    lifeAreas: has(a.lifeAreas, 3) ? a.lifeAreas : m.lifeAreas,
+    score: a.score,
+    verdict: a.verdict && a.verdict.trim() ? a.verdict : m.verdict,
+    remedies: has(a.remedies, 3) ? a.remedies : m.remedies,
+    dos: has(a.dos) ? a.dos : m.dos,
+    donts: has(a.donts) ? a.donts : m.donts,
+  };
+}
+
+async function generatePalmLive(admin: any, palmPath: string, focus: string, person: any, facts: any, lang: Lang = 'en'): Promise<PalmAnalysis> {
+  const { data: file, error: dErr } = await admin.storage.from('reports').download(palmPath);
+  if (dErr || !file) throw new Error(`palm_download_failed: ${dErr?.message ?? 'no file'}`);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length > 6 * 1024 * 1024) throw new Error('palm_too_large'); // cost guardrail: bound the vision request
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const b64 = btoa(bin);
+  const mediaType = palmPath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+  const system =
+    `You are a master palmist (Hasta Samudrika Shastra) with decades of experience, ALSO fluent in Vedic ` +
+    `astrology, writing a DETAILED, professional, multi-page palm-reading report for a client. Study the ` +
+    `attached photograph of the client's dominant palm CAREFULLY and read ONLY the features you can ` +
+    `actually see: the major lines (Heart/Hridaya, Head/Mastishka, Life/Jeevan, Fate/Bhagya, and the ` +
+    `Sun/Surya or Marriage lines when visible) — their depth, length, breaks, chains, forks and islands; ` +
+    `the mounts (Jupiter, Saturn, Sun/Apollo, Mercury, Venus, Mars, Moon) and their relative prominence; ` +
+    `the hand shape and finger/thumb proportions; and any special marks (star, cross, triangle, trident, ` +
+    `island). Name the classical palmistry principle you apply for each observation.\n\n` +
+    `Then CROSS-REFERENCE what the palm shows with the client's Vedic birth chart (supplied below) — note ` +
+    `where the two systems AGREE and reinforce one another. This corroboration is the heart of the report ` +
+    `and is what makes the reading credible rather than generic.\n\n` +
+    `Be specific to THIS hand, practical, warm and encouraging. NEVER fabricate a line, mount or mark you ` +
+    `cannot see — if a feature is unclear in the photo, say so plainly and reason from what IS visible plus ` +
+    `the chart. No fear-mongering, no absolute predictions; stay probabilistic. If the image is clearly not ` +
+    `a human palm, set "score" to 0 and say in the overview that the photo could not be read as a palm.\n\n` +
+    `Write substantial, detailed prose — this should read like a premium 8-9 page reading. Each "reading" ` +
+    `field should be 2-4 full sentences, not a phrase.\n\n` +
+    `Return ONLY valid JSON (no prose, no markdown, no code fences) with EXACTLY these keys:\n` +
+    `{\n` +
+    `  "readable": boolean — set TRUE only if this is a clear, in-focus photograph of a human ` +
+    `palm you can actually read the lines on. Set FALSE (and "score": 0) if the image is blurry, ` +
+    `too dark, badly cropped, the back of the hand, or NOT a human palm at all. Do NOT invent a ` +
+    `reading for an unreadable image,\n` +
+    `  "overview": string (2-3 paragraphs on the hand's overall character and what stands out),\n` +
+    `  "handShape": string (2-4 sentences on hand shape, elemental type, fingers and thumb),\n` +
+    `  "lines": [ { "name": string (e.g. "Heart Line"), "quality": string (SHORT, e.g. "Deep & long"), ` +
+    `"reading": string (2-4 sentences) } ] — 4 to 6 major lines actually visible,\n` +
+    `  "mounts": [ { "mount": string (e.g. "Mount of Venus"), "prominence": string (SHORT, e.g. "Full"), ` +
+    `"reading": string (2-3 sentences) } ] — 5 to 7 mounts,\n` +
+    `  "marks": [ { "sign": string, "meaning": string } ] — 0 to 4 notable marks (EMPTY array if none clear),\n` +
+    `  "astroCrossRef": string (2-3 paragraphs cross-referencing the palm with the Vedic chart, naming REAL ` +
+    `placements from the facts below and where they agree with the palm),\n` +
+    `  "lifeAreas": [ { "area": string (Love | Career | Wealth | Health), "score": integer 0-100, ` +
+    `"reading": string (2-3 sentences blending palm + chart) } ] — EXACTLY these 4 areas,\n` +
+    `  "score": integer 0-100 (overall "Palm Harmony" — balance and strength of the hand),\n` +
+    `  "verdict": string (one encouraging sentence summarising the hand),\n` +
+    `  "remedies": [ string ] — 6 to 10 practical, palmistry/astrology-aligned guidances,\n` +
+    `  "dos": [ string ] — 5 to 7 concise do's,\n` +
+    `  "donts": [ string ] — 5 to 7 concise don'ts\n` +
+    `}` + (lang === 'hi' ? HINDI_REPORT_DIRECTIVE : '');
+
+  const userText =
+    `Focus of the reading: ${focus || 'a complete, all-round palm reading'}.\n\n` +
+    `Client's Vedic chart facts (authoritative — use these for the cross-reference; do NOT invent placements):\n` +
+    chartFactsSummary(person, facts) +
+    `\n\nStudy the palm photograph in detail and return the complete JSON report.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: lang === 'hi' ? 12000 : 8000,
+      thinking: { type: 'disabled' },
+      system,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+          { type: 'text', text: userText },
+        ],
+      }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+
+  const data = await res.json();
+  const text = (data.content ?? []).find((b: any) => b.type === 'text')?.text ?? '';
+  return parsePalm(text);
+}
+
+function parsePalm(text: string): PalmAnalysis {
+  const obj = parseJsonReply(text);
+  const arr = (v: any) => (Array.isArray(v) ? v : []);
+  const S = (v: any) => String(v ?? '');
+  return {
+    readable: obj.readable !== false, // only an explicit false blocks; omitted → assume readable
+    overview: S(obj.overview),
+    handShape: S(obj.handShape),
+    lines: arr(obj.lines).slice(0, 6).map((l: any) => ({ name: S(l.name), quality: S(l.quality), reading: S(l.reading) })),
+    mounts: arr(obj.mounts).slice(0, 7).map((m: any) => ({ mount: S(m.mount), prominence: S(m.prominence), reading: S(m.reading) })),
+    marks: arr(obj.marks).slice(0, 4).map((m: any) => ({ sign: S(m.sign), meaning: S(m.meaning) })),
+    astroCrossRef: S(obj.astroCrossRef),
+    lifeAreas: arr(obj.lifeAreas).slice(0, 4).map((a: any) => ({ area: S(a.area), score: clampScore(a.score), reading: S(a.reading) })),
+    score: clampScore(obj.score),
+    verdict: S(obj.verdict),
+    remedies: arr(obj.remedies).map(S).slice(0, 12),
+    dos: arr(obj.dos).map(S).slice(0, 8),
+    donts: arr(obj.donts).map(S).slice(0, 8),
+  };
+}
+
+// Deterministic, complete fallback (no API key / model failure). Uses the person's
+// real Lagna, Moon and current dasha lord so even the safety-net reads personalised.
+function mockPalm(person: any, facts: any, lang: Lang): PalmAnalysis {
+  const moon = person?.moon_sign ?? tt(lang, 'your Moon sign', 'आपकी राशि');
+  const lagna = person?.lagna ?? tt(lang, 'your Ascendant', 'आपका लग्न');
+  const dl = facts?.dasha?.current?.lord ? planetNm(facts.dasha.current.lord) : tt(lang, 'your current', 'आपकी वर्तमान');
+  return {
+    readable: true,
+    overview: tt(lang,
+      `Your palm shows a balanced, expressive hand with clearly formed major lines — the mark of someone who ` +
+      `feels deeply yet thinks things through. The overall harmony between the lines and mounts suggests a ` +
+      `nature that is warm, capable and quietly determined.\n\n` +
+      `This reading walks through each major line and mount, notes what stands out, and then cross-references ` +
+      `the palm with your Vedic chart so that palmistry and astrology are read together — the way classical ` +
+      `Indian tradition intends. Where a line and a planet agree, the indication is drawn with more confidence.`,
+      `आपकी हथेली एक संतुलित, अभिव्यक्तिपूर्ण हाथ दर्शाती है जिसकी प्रमुख रेखाएँ स्पष्ट हैं — ऐसे व्यक्ति की पहचान जो ` +
+      `गहराई से महसूस करता है पर सोच-समझकर निर्णय लेता है। रेखाओं और पर्वतों के बीच का सामंजस्य एक गर्म, सक्षम और ` +
+      `शांत रूप से दृढ़ स्वभाव का संकेत देता है।\n\nयह पठन प्रत्येक प्रमुख रेखा और पर्वत को देखता है, फिर हथेली को आपकी ` +
+      `कुंडली से मिलाता है — जैसा शास्त्रीय परंपरा चाहती है। जहाँ रेखा और ग्रह सहमत होते हैं, वहाँ संकेत अधिक विश्वास से खींचा जाता है।`),
+    handShape: tt(lang,
+      `The palm and fingers appear well-proportioned, suggesting a practical mind balanced with imagination. ` +
+      `The thumb's set and flexibility point to reasonable willpower held with adaptability rather than rigidity.`,
+      `हथेली और उँगलियाँ सुसंगत प्रतीत होती हैं, जो कल्पना के साथ संतुलित एक व्यावहारिक मन का संकेत देती हैं। अंगूठे का ढंग ` +
+      `और लचीलापन कठोरता के बजाय अनुकूलनशीलता के साथ उचित इच्छाशक्ति दर्शाता है।`),
+    lines: [
+      { name: tt(lang, 'Heart Line', 'हृदय रेखा'), quality: tt(lang, 'Clear & curved', 'स्पष्ट व वक्र'), reading: tt(lang, 'Your heart line runs clearly across the palm, indicating an emotionally warm nature that gives sincerely once trust is earned. You feel strongly but prefer steadiness over drama in love.', 'आपकी हृदय रेखा हथेली पर स्पष्ट रूप से चलती है, जो एक भावनात्मक रूप से गर्म स्वभाव दर्शाती है जो विश्वास बनने पर सच्चाई से देता है। आप गहराई से महसूस करते हैं पर प्रेम में नाटकीयता से अधिक स्थिरता चाहते हैं।') },
+      { name: tt(lang, 'Head Line', 'मस्तिष्क रेखा'), quality: tt(lang, 'Long & even', 'लंबी व सम'), reading: tt(lang, 'A well-formed head line points to clear, methodical thinking and good concentration. You reason before you act and hold focus well once committed to a task.', 'सुगठित मस्तिष्क रेखा स्पष्ट, व्यवस्थित सोच और अच्छी एकाग्रता की ओर संकेत करती है। आप कार्य करने से पहले विचार करते हैं और किसी कार्य के प्रति प्रतिबद्ध होने पर एकाग्रता बनाए रखते हैं।') },
+      { name: tt(lang, 'Life Line', 'जीवन रेखा'), quality: tt(lang, 'Deep & sweeping', 'गहरी व विस्तृत'), reading: tt(lang, 'The life line sweeps in a strong arc, suggesting good vitality and resilience. It speaks less of length of life and more of the energy and enthusiasm you bring to it.', 'जीवन रेखा एक मज़बूत चाप में घूमती है, जो अच्छी जीवनी-शक्ति और लचीलापन दर्शाती है। यह जीवन की लंबाई से अधिक उस ऊर्जा और उत्साह की बात करती है जो आप उसमें लाते हैं।') },
+      { name: tt(lang, 'Fate Line', 'भाग्य रेखा'), quality: tt(lang, 'Rising & steady', 'ऊर्ध्व व स्थिर'), reading: tt(lang, 'A visible fate line indicates a life shaped by your own effort, with responsibility arriving steadily rather than all at once. Its rise suggests recognition that compounds with patience.', 'दृश्यमान भाग्य रेखा आपके अपने प्रयास से आकार लेते जीवन का संकेत देती है, जहाँ उत्तरदायित्व एक साथ नहीं बल्कि क्रमशः आता है। इसका उठाव धैर्य के साथ बढ़ती पहचान का संकेत देता है।') },
+    ],
+    mounts: [
+      { mount: tt(lang, 'Mount of Jupiter', 'गुरु पर्वत'), prominence: tt(lang, 'Well-developed', 'सुविकसित'), reading: tt(lang, 'A firm Jupiter mount lends natural leadership, self-respect and a wish to grow — you are drawn to meaning and responsibility.', 'दृढ़ गुरु पर्वत स्वाभाविक नेतृत्व, आत्म-सम्मान और विकास की इच्छा देता है — आप अर्थ और उत्तरदायित्व की ओर आकर्षित होते हैं।') },
+      { mount: tt(lang, 'Mount of Saturn', 'शनि पर्वत'), prominence: tt(lang, 'Balanced', 'संतुलित'), reading: tt(lang, 'A measured Saturn mount gives discipline and patience without heaviness — you can persevere through slow periods that defeat others.', 'संतुलित शनि पर्वत भारीपन के बिना अनुशासन और धैर्य देता है — आप उन धीमे कालों को पार कर सकते हैं जो दूसरों को हरा देते हैं।') },
+      { mount: tt(lang, 'Mount of Venus', 'शुक्र पर्वत'), prominence: tt(lang, 'Full', 'भरा हुआ'), reading: tt(lang, 'A full Venus mount speaks of warmth, affection and a love of beauty and comfort. You value close bonds and bring generosity to those you care for.', 'भरा हुआ शुक्र पर्वत ऊष्मा, स्नेह और सौंदर्य व सुख के प्रेम की बात करता है। आप निकट संबंधों को महत्व देते हैं और अपनों के प्रति उदारता लाते हैं।') },
+      { mount: tt(lang, 'Mount of Mercury', 'बुध पर्वत'), prominence: tt(lang, 'Active', 'सक्रिय'), reading: tt(lang, 'A lively Mercury mount favours communication, quick wit and a practical head for dealings — useful in both work and relationships.', 'सक्रिय बुध पर्वत संचार, तीव्र बुद्धि और व्यवहार में व्यावहारिक समझ का पक्ष लेता है — कार्य और संबंध दोनों में उपयोगी।') },
+      { mount: tt(lang, 'Mount of the Moon', 'चंद्र पर्वत'), prominence: tt(lang, 'Gently raised', 'हल्का उठा'), reading: tt(lang, 'A soft Luna mount adds imagination, intuition and emotional depth. You sense the mood of a room and are quietly creative.', 'कोमल चंद्र पर्वत कल्पना, अंतर्ज्ञान और भावनात्मक गहराई जोड़ता है। आप वातावरण का भाव भाँप लेते हैं और शांत रूप से सृजनशील हैं।') },
+    ],
+    marks: [],
+    astroCrossRef: tt(lang,
+      `Read alongside your chart, the palm and the stars tell one story. With ${lagna} rising and the Moon in ` +
+      `${moon}, your chart's emotional signature matches the warm, steady heart line on your palm — both point ` +
+      `to sincerity over show.\n\n` +
+      `You are currently in the ${dl} Mahadasha, and the strengthening fate line echoes this period's call to ` +
+      `build patiently. Where your palm's mounts and your planetary strengths agree, those indications are the ` +
+      `ones to trust most — they are underlined twice, once by the hand and once by the heavens.`,
+      `आपकी कुंडली के साथ पढ़ने पर हथेली और सितारे एक ही कहानी कहते हैं। ${lagna} लग्न और ${moon} में चंद्रमा के साथ, ` +
+      `आपकी कुंडली की भावनात्मक पहचान आपकी हथेली की गर्म, स्थिर हृदय रेखा से मेल खाती है — दोनों दिखावे से अधिक सच्चाई की ओर ` +
+      `संकेत करते हैं।\n\nआप इस समय ${dl} की महादशा में हैं, और मज़बूत होती भाग्य रेखा इस काल के धैर्यपूर्वक निर्माण के आह्वान की ` +
+      `प्रतिध्वनि है। जहाँ आपके पर्वत और ग्रह-बल सहमत होते हैं, वे संकेत सबसे विश्वसनीय हैं — वे दो बार रेखांकित हैं, एक बार हाथ से और एक बार आकाश से।`),
+    lifeAreas: [
+      { area: tt(lang, 'Love', 'प्रेम'), score: 74, reading: tt(lang, 'Your heart line and full Venus mount, with the Moon in ' + moon + ', favour warm, loyal bonds that deepen with time rather than blaze and fade.', 'आपकी हृदय रेखा और भरा शुक्र पर्वत, ' + moon + ' में चंद्रमा के साथ, ऐसे गर्म, निष्ठावान संबंधों का पक्ष लेते हैं जो समय के साथ गहराते हैं।') },
+      { area: tt(lang, 'Career', 'करियर'), score: 72, reading: tt(lang, 'A steady fate line and a firm Jupiter mount, under your ' + dl + ' period, reward patient, responsible effort with lasting standing.', 'स्थिर भाग्य रेखा और दृढ़ गुरु पर्वत, आपकी ' + dl + ' दशा में, धैर्यपूर्ण, उत्तरदायी प्रयास को स्थायी प्रतिष्ठा से पुरस्कृत करते हैं।') },
+      { area: tt(lang, 'Wealth', 'धन'), score: 68, reading: tt(lang, 'Wealth builds gradually rather than by windfall — the palm favours saved, compounded gains over speculation.', 'धन झटके के बजाय क्रमशः बनता है — हथेली सट्टे से अधिक संचित, चक्रवृद्धि लाभ का पक्ष लेती है।') },
+      { area: tt(lang, 'Health', 'स्वास्थ्य'), score: 76, reading: tt(lang, 'A deep life line and good vitality support steady health; a regular routine keeps your energy even.', 'गहरी जीवन रेखा और अच्छी जीवनी-शक्ति स्थिर स्वास्थ्य को सहारा देती है; नियमित दिनचर्या ऊर्जा को सम रखती है।') },
+    ],
+    score: 74,
+    verdict: tt(lang, 'A warm, capable hand of steady strength — palm and chart agree that patience turns your potential into lasting result.', 'एक गर्म, सक्षम हाथ जिसमें स्थिर बल है — हथेली और कुंडली सहमत हैं कि धैर्य आपकी क्षमता को स्थायी परिणाम में बदलता है।'),
+    remedies: [
+      tt(lang, 'Keep the hands clean and cared for — traditionally, an unburdened palm is said to keep its lines clear and its fortune flowing.', 'हाथों को स्वच्छ और सँभालकर रखें — परंपरा कहती है कि निर्भार हथेली अपनी रेखाएँ स्पष्ट और भाग्य प्रवाहमान रखती है।'),
+      tt(lang, 'Honour your current dasha lord ' + dl + ' with its traditional mantra to align with this period’s energy.', 'अपनी वर्तमान दशा के स्वामी ' + dl + ' का पारंपरिक मंत्र जपें ताकि इस काल की ऊर्जा से तालमेल बने।'),
+      tt(lang, 'Strengthen a full Venus mount’s warmth by nurturing close relationships and offering something white or sweet on Fridays.', 'भरे शुक्र पर्वत की ऊष्मा को निकट संबंधों को सँवारकर और शुक्रवार को श्वेत या मीठी वस्तु अर्पित करके बढ़ाएँ।'),
+      tt(lang, 'Let the fate line’s promise unfold through consistent effort — pick one long-term build and stay with it.', 'भाग्य रेखा के वचन को निरंतर प्रयास से खिलने दें — एक दीर्घकालिक कार्य चुनें और उस पर टिके रहें।'),
+      tt(lang, 'A few minutes of slow breathing daily steadies the Moon mount’s sensitivity and keeps the mind clear.', 'प्रतिदिन कुछ मिनट धीमी श्वास चंद्र पर्वत की संवेदनशीलता को स्थिर करती और मन को स्पष्ट रखती है।'),
+      tt(lang, 'Offer a simple weekly charity on your dasha lord’s weekday to ease its influence and invite grace.', 'अपनी दशा के स्वामी के वार पर एक सरल साप्ताहिक दान करें ताकि उसका प्रभाव सहज हो और कृपा आए।'),
+    ],
+    dos: [
+      tt(lang, 'Trust indications where palm and chart agree.', 'जहाँ हथेली और कुंडली सहमत हों, वहाँ संकेतों पर विश्वास करें।'),
+      tt(lang, 'Lead with patience — your strength compounds over time.', 'धैर्य से चलें — आपकी शक्ति समय के साथ बढ़ती है।'),
+      tt(lang, 'Nurture close, sincere relationships.', 'निकट, सच्चे संबंधों को सँवारें।'),
+      tt(lang, 'Keep a steady daily routine for even energy.', 'सम ऊर्जा हेतु स्थिर दिनचर्या रखें।'),
+    ],
+    donts: [
+      tt(lang, 'Don’t read a single line in isolation — the hand is read as a whole.', 'किसी एक रेखा को अलग से न पढ़ें — हाथ को समग्र रूप में पढ़ा जाता है।'),
+      tt(lang, 'Don’t mistake a challenge line for a verdict — it is an invitation to grow.', 'किसी चुनौती-रेखा को निर्णय न समझें — यह विकास का निमंत्रण है।'),
+      tt(lang, 'Don’t chase windfalls over steady, compounded gains.', 'स्थिर, चक्रवृद्धि लाभ के बजाय झटके के धन के पीछे न भागें।'),
+      tt(lang, 'Don’t neglect rest when a busy period demands more.', 'व्यस्त काल में अधिक माँग होने पर विश्राम की उपेक्षा न करें।'),
+    ],
+  };
+}
+
+function assemblePalm(person: any, facts: any, pa: PalmAnalysis, lang: Lang): any {
+  const T = pageTitles(lang, 'palm');
+  const name = person?.name ?? tt(lang, 'Your Palm', 'आपकी हथेली');
+  const nuggets = [
+    tt(lang, 'In palmistry (Hasta Samudrika Shastra) the four major lines are the Heart, Head, Life and Fate lines — their depth and clarity matter more than their length.', 'हस्त सामुद्रिक शास्त्र में चार प्रमुख रेखाएँ हैं — हृदय, मस्तिष्क, जीवन और भाग्य; इनकी गहराई और स्पष्टता लंबाई से अधिक महत्वपूर्ण है।'),
+    tt(lang, 'The mounts are the raised pads at the base of the fingers and around the palm; a full mount strengthens the qualities of the planet that rules it.', 'पर्वत उँगलियों के आधार और हथेली के चारों ओर उठे भाग हैं; भरा हुआ पर्वत उस पर शासन करने वाले ग्रह के गुणों को बढ़ाता है।'),
+    tt(lang, 'Classical Indian tradition reads the palm ALONGSIDE the birth chart — where a line and a planet agree, the indication is considered far more reliable.', 'शास्त्रीय परंपरा हथेली को जन्म-कुंडली के साथ पढ़ती है — जहाँ रेखा और ग्रह सहमत हों, वह संकेत कहीं अधिक विश्वसनीय माना जाता है।'),
+  ];
+  const nug = (i: number) => [{ type: 'nugget', nugget: { body: nuggets[i % nuggets.length] } }];
+  const lineCards = (pa.lines || []).slice(0, 5).map((l) => ({ title: l.name, teaser: l.quality, body: l.reading }));
+  const mountCards = (pa.mounts || []).slice(0, 5).map((m) => ({ title: m.mount, teaser: m.prominence, body: m.reading }));
+  const markCards = (pa.marks || []).slice(0, 3).map((m) => ({ title: m.sign, teaser: tt(lang, 'A special mark', 'एक विशेष चिह्न'), body: m.meaning }));
+  const areaRatings = (pa.lifeAreas || []).slice(0, 4).map((a) => ({ label: a.area, score: clamp10((a.score ?? 60) / 10), note: a.reading }));
+  const crossParas = (pa.astroCrossRef || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean).map((p) => ({ type: 'paragraph', text: p }));
+
+  const pages = [
+    { key: 'cover', title: tt(lang, 'Palm Reading', 'हस्तरेखा पठन'), hero: true, lead: pa.verdict || tt(lang, `A palm reading for ${name}.`, `${name} के लिए हस्तरेखा पठन।`), blocks: [] },
+    { key: 'snapshot', title: T.snapshot, lead: tt(lang, 'Your hand at a glance.', 'आपकी हथेली, एक नज़र में।'), blocks: [{ type: 'rings', items: [{ label: tt(lang, 'Palm Harmony', 'हस्त-सामंजस्य'), score: clamp10((pa.score ?? 70) / 10) }] }, { type: 'paragraph', text: (pa.overview || '').split(/\n\s*\n/)[0] || pa.verdict }] },
+    { key: 'chart', title: tt(lang, 'The Major Lines', 'प्रमुख रेखाएँ'), lead: tt(lang, 'Heart, Head, Life & Fate.', 'हृदय, मस्तिष्क, जीवन और भाग्य।'), blocks: [{ type: 'insights', cards: lineCards }, ...nug(0)] },
+    { key: 'deepdive1', title: tt(lang, 'Hand & Mounts', 'हस्त एवं पर्वत'), lead: tt(lang, 'Shape, mounts and any special marks.', 'आकार, पर्वत और विशेष चिह्न।'), blocks: [{ type: 'paragraph', text: pa.handShape }, { type: 'insights', cards: [...mountCards, ...markCards] }, ...nug(1)] },
+    { key: 'deepdive2', title: tt(lang, 'Palm Meets Stars', 'हथेली और सितारे'), lead: tt(lang, 'Where your palm and Vedic chart agree.', 'जहाँ आपकी हथेली और कुंडली सहमत होती हैं।'), blocks: [...(crossParas.length ? crossParas : [{ type: 'paragraph', text: pa.astroCrossRef }]), ...nug(2)] },
+    { key: 'timing', title: tt(lang, 'Life Areas', 'जीवन क्षेत्र'), lead: tt(lang, 'Love, career, wealth & health — palm and chart combined.', 'प्रेम, करियर, धन और स्वास्थ्य — हथेली और कुंडली मिलाकर।'), blocks: [{ type: 'ratings', items: areaRatings }] },
+    { key: 'strengths', title: T.strengths, blocks: [{ type: 'strengthsChallenges', strengths: (pa.dos || []).slice(0, 4), challenges: (pa.donts || []).slice(0, 4) }, { type: 'honest', text: tt(lang, 'Every hand shows gifts alongside growth edges — read the lines that challenge you as invitations, not verdicts. Your palm and chart agree that steady, conscious effort is what turns potential into result.', 'हर हाथ उपहारों के साथ विकास के किनारे भी दिखाता है — जो रेखाएँ आपको चुनौती दें उन्हें निर्णय नहीं, निमंत्रण मानें। आपकी हथेली और कुंडली सहमत हैं कि स्थिर, सचेत प्रयास ही क्षमता को परिणाम में बदलता है।') }] },
+    { key: 'remedies', title: T.remedies, blocks: [{ type: 'remedies', items: (pa.remedies || []).slice(0, 6).map((r) => ({ kind: 'practice', title: shortTitle(r), detail: r })) }] },
+    { key: 'summary', title: T.summary, blocks: [{ type: 'signature', lines: [pa.verdict, tt(lang, `Palm Harmony: ${pa.score}/100.`, `हस्त-सामंजस्य: ${pa.score}/100।`), (pa.remedies || [])[0] || tt(lang, 'Let your hand and your stars guide you gently.', 'अपनी हथेली और सितारों को अपना कोमल मार्गदर्शक बनने दें।')].filter(Boolean) }, { type: 'paragraph', text: tt(lang, 'For guidance and reflection — palmistry is an interpretive art, not a certainty.', 'मार्गदर्शन और चिंतन के लिए — हस्तरेखा एक व्याख्यात्मक कला है, निश्चितता नहीं।') }] },
+  ];
+  return { type: 'palm', lang, person: { name: String(name), birthLine: [person?.moon_sign, person?.nakshatra].filter(Boolean).join(' · ') }, headline: pages[0].lead as string, pages };
 }
 
 // ── branded HTML (premium & minimal — indigo/gold/serif; print-friendly) ───────

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getReport, ReportRow } from '../lib/reportService';
@@ -9,7 +10,7 @@ import { ReportContent, SAMPLE_CAREER } from '../lib/reportSchema';
 import { buildReportHtml } from '../lib/reportRenderer';
 import { reportAccent } from '../constants/reportAccents';
 import { track } from '../lib/analytics';
-import { Colors, Fonts, Spacing, ThemeColors } from '../constants/theme';
+import { Colors, Fonts, Spacing, ThemeColors, Accents } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Icon } from '../components/Icon';
@@ -29,21 +30,32 @@ const MATCH_STEPS = {
   en: ['Aligning both charts…', 'Computing the 36 gunas…', 'Checking the eight kutas…', 'Screening for doshas…', 'Weighing your compatibility…', 'Writing your report…'],
   hi: ['दोनों कुंडलियाँ मिलाई जा रही हैं…', '36 गुणों की गणना…', 'आठ कूटों की जाँच…', 'दोष जाँचे जा रहे हैं…', 'आपकी अनुकूलता तौली जा रही है…', 'आपकी रिपोर्ट लिखी जा रही है…'],
 };
+const PALM_STEPS = {
+  en: ['Mapping your palm…', 'Tracing the major lines…', 'Reading the mounts…', 'Cross-referencing your chart…', 'Preparing your remedies…', 'Writing your reading…'],
+  hi: ['आपकी हथेली का मानचित्रण…', 'प्रमुख रेखाएँ खींची जा रही हैं…', 'पर्वत पढ़े जा रहे हैं…', 'आपकी कुंडली से मिलान…', 'आपके उपाय तैयार किए जा रहे हैं…', 'आपका पठन लिखा जा रहा है…'],
+};
 
 function GeneratingView({ type, isHindi, styles }: { type?: string; isHindi: boolean; styles: ReturnType<typeof makeStyles> }) {
   const lang = isHindi ? 'hi' : 'en';
-  const steps = type === 'vastu' ? VASTU_STEPS[lang] : type === 'matchmaking' ? MATCH_STEPS[lang] : CHART_STEPS[lang];
+  const isPalm = type === 'palm';
+  const steps = type === 'vastu' ? VASTU_STEPS[lang] : type === 'matchmaking' ? MATCH_STEPS[lang] : isPalm ? PALM_STEPS[lang] : CHART_STEPS[lang];
   const [i, setI] = useState(0);
   const rot = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
   const prog = useRef(new Animated.Value(0)).current;
   const fade = useRef(new Animated.Value(1)).current;
+  const scan = useRef(new Animated.Value(0)).current; // palm: scan-line sweep
 
   useEffect(() => {
     Animated.loop(Animated.timing(rot, { toValue: 1, duration: 4200, easing: Easing.linear, useNativeDriver: true })).start();
     Animated.loop(Animated.sequence([
       Animated.timing(pulse, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       Animated.timing(pulse, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ])).start();
+    // palm: a biometric-style scan line sweeps down the hand, then back up (never a jump-cut).
+    Animated.loop(Animated.sequence([
+      Animated.timing(scan, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(scan, { toValue: 0, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
     ])).start();
     // Slow crawl toward ~92% — feels like progress without ever "completing" before the report lands.
     Animated.timing(prog, { toValue: 0.92, duration: 85000, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
@@ -62,16 +74,35 @@ function GeneratingView({ type, isHindi, styles }: { type?: string; isHindi: boo
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.16] });
   const glow = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.9] });
   const width = prog.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const scanY = scan.interpolate({ inputRange: [0, 1], outputRange: [-56, 56] });
+  const scanGlow = scan.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.35, 1, 0.35] });
+  const A = Accents.amber;
 
   return (
     <View style={styles.center}>
-      <View style={styles.genOrb}>
-        <Animated.View style={[styles.genRing, { transform: [{ rotate: spin }] }]} />
-        <Animated.Text style={[styles.genGlyph, { opacity: glow, transform: [{ scale }] }]}>✦</Animated.Text>
-      </View>
-      <Text style={styles.genTitle}>{isHindi ? 'आपकी रिपोर्ट तैयार हो रही है' : 'Preparing your report'}</Text>
-      <Animated.Text style={[styles.genStep, { opacity: fade }]}>{steps[i]}</Animated.Text>
-      <View style={styles.genBarTrack}><Animated.View style={[styles.genBarFill, { width }]} /></View>
+      {isPalm ? (
+        // Bespoke palm-scan loader — a hand with a sweeping biometric scan line + lighting mounts.
+        <View style={styles.palmScan}>
+          <Animated.View style={{ opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.9] }) }}>
+            <Icon name="palmreading" size={104} color={A.color} />
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[styles.scanBand, { opacity: scanGlow, transform: [{ translateY: scanY }] }]}>
+            <LinearGradient
+              colors={['transparent', A.soft, A.color, A.soft, 'transparent']}
+              start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </View>
+      ) : (
+        <View style={styles.genOrb}>
+          <Animated.View style={[styles.genRing, { transform: [{ rotate: spin }] }]} />
+          <Animated.Text style={[styles.genGlyph, { opacity: glow, transform: [{ scale }] }]}>✦</Animated.Text>
+        </View>
+      )}
+      <Text style={[styles.genTitle, isPalm && { color: A.color }]}>{isPalm ? (isHindi ? 'आपकी हथेली पढ़ी जा रही है' : 'Reading your palm') : (isHindi ? 'आपकी रिपोर्ट तैयार हो रही है' : 'Preparing your report')}</Text>
+      <Animated.Text style={[styles.genStep, isPalm && { color: A.color }, { opacity: fade }]}>{steps[i]}</Animated.Text>
+      <View style={styles.genBarTrack}><Animated.View style={[styles.genBarFill, isPalm && { backgroundColor: A.color }, { width }]} /></View>
       <Text style={styles.msg}>
         {isHindi
           ? 'हमारे ज्योतिषी आपकी कुंडली पढ़कर आपकी रिपोर्ट लिख रहे हैं। इसमें एक-दो मिनट लग सकते हैं — कृपया यह स्क्रीन खुली रखें।'
@@ -174,6 +205,21 @@ export default function ReportView() {
         <View style={styles.center}><ActivityIndicator color={th.gold} size="large" /></View>
       ) : !html && report?.status === 'generating' ? (
         <GeneratingView type={report?.type} isHindi={isHindi} styles={styles} />
+      ) : !html && report?.status === 'failed' && report?.type === 'palm' ? (
+        // Palm failures are almost always an unreadable photo — the credit was released,
+        // so the user can re-upload a clearer palm and regenerate WITHOUT paying again.
+        <View style={styles.center}>
+          <Text style={styles.genTitle}>{isHindi ? 'हम आपकी हथेली स्पष्ट रूप से नहीं पढ़ सके' : 'We couldn’t read your palm clearly'}</Text>
+          <Text style={styles.msg}>
+            {isHindi
+              ? 'फ़ोटो शायद धुंधली, कम रोशनी में, या हथेली की नहीं थी। आपका ₹99 सुरक्षित है — एक स्पष्ट फ़ोटो के साथ फिर से प्रयास करें, दोबारा भुगतान नहीं करना होगा।'
+              : 'The photo may have been blurry, poorly lit, or not a palm. Your ₹99 is safe — try again with a clearer photo, you won’t be charged twice.'}
+          </Text>
+          <Pressable style={styles.retryBtn} onPress={() => router.replace('/palmreading' as any)} android_ripple={{ color: th.goldDeep }}>
+            <Icon name="camera" size={16} color={th.goldContrast} />
+            <Text style={styles.retryText}>{isHindi ? 'दूसरी फ़ोटो आज़माएं' : 'Try another photo'}</Text>
+          </Pressable>
+        </View>
       ) : !html && report?.status === 'failed' ? (
         <View style={styles.center}>
           <Text style={styles.genTitle}>{isHindi ? 'हम यह रिपोर्ट पूरी नहीं कर सके' : 'We couldn’t finish this report'}</Text>
@@ -208,9 +254,16 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   web: { flex: 1, backgroundColor: th.canvas },
   // engaging "preparing your report" screen
   genOrb: { width: 120, height: 120, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md },
+  palmScan: { width: 132, height: 132, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.md, overflow: 'hidden' },
+  scanBand: { position: 'absolute', left: 10, right: 10, height: 40 },
   genRing: { position: 'absolute', width: 92, height: 92, borderRadius: 46, borderWidth: 2.5, borderColor: th.gold, borderTopColor: 'transparent', borderRightColor: 'transparent' },
   genGlyph: { fontSize: 44, color: th.gold, textShadowColor: th.gold, textShadowRadius: 16 },
   genStep: { fontFamily: Fonts.body, color: th.goldLight, fontSize: Fonts.size.md, textAlign: 'center', marginBottom: Spacing.lg, minHeight: 24 },
   genBarTrack: { width: 200, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.10)', overflow: 'hidden', marginBottom: Spacing.lg },
   genBarFill: { height: '100%', borderRadius: 3, backgroundColor: th.gold },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.lg,
+    backgroundColor: th.goldSurface, borderRadius: 12, paddingVertical: 13, paddingHorizontal: Spacing.xl,
+  },
+  retryText: { fontFamily: Fonts.bodySemibold, color: th.goldContrast, fontSize: Fonts.size.md },
 });

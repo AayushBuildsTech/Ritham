@@ -148,6 +148,7 @@ const en: Dict = {
   'report.vastu.title': 'Vaastu Report',
   'report.matchmaking.title': 'Matchmaking Report',
   'report.pastlife.title': 'Past Life Predictions',
+  'report.palm.title': 'Palm Reading',
 
   // ── Store ──────────────────────────────────────────────────────────
   'store.title': 'Store',
@@ -355,6 +356,7 @@ const hi: Dict = {
   'report.vastu.title': 'वास्तु रिपोर्ट',
   'report.matchmaking.title': 'मिलान (कुंडली मिलान) रिपोर्ट',
   'report.pastlife.title': 'पूर्व जन्म भविष्यवाणी',
+  'report.palm.title': 'हस्तरेखा पठन',
 
   // ── स्टोर ───────────────────────────────────────────────────────────
   'store.title': 'स्टोर',

@@ -38,6 +38,7 @@ const REPORT_ACCENT_NAME: Record<ReportType, AccentName> = {
   education: 'turquoise',
   vastu: 'saffron',
   pastlife: 'amethyst',
+  palm: 'amber',         // palmistry × astrology — warm mystic gold (its own hue)
   matchmaking: 'gold',   // convergence hue; partners are ruby + sapphire (see `dual`)
 };
 

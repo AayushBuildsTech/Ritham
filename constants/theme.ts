@@ -72,6 +72,9 @@ export const Accents = {
   ruby: { color: '#E5004C', faint: 'rgba(229,0,76,0.10)', soft: 'rgba(229,0,76,0.32)', grad: ['#FF2D78', '#B4003C'] as [string, string] },
   sapphire: { color: '#6C5CE7', faint: 'rgba(108,92,231,0.10)', soft: 'rgba(108,92,231,0.32)', grad: ['#8B7BFF', '#5B4BD6'] as [string, string] },
   turquoise: { color: '#00B8D9', faint: 'rgba(0,184,217,0.10)', soft: 'rgba(0,184,217,0.32)', grad: ['#3AD0EA', '#0092AD'] as [string, string] },
+  // Warm mystic gold — reserved for Palm Reading (golden palm lines); the one hue
+  // outside the magenta/violet family, so palmistry reads as its own thing.
+  amber: { color: '#D98A2B', faint: 'rgba(217,138,43,0.12)', soft: 'rgba(217,138,43,0.34)', grad: ['#F0B24A', '#C7761A'] as [string, string] },
 } as const;
 export type AccentName = keyof typeof Accents;
 

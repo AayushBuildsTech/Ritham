@@ -16,7 +16,7 @@ const REPORT_FUNCTION = 'report';
 // The single-person chart reports (life/career/love/health/education/pastlife)
 // plus the two original reports (vastu, property-based; matchmaking, two-person).
 export type ChartReportType = 'life' | 'career' | 'love' | 'health' | 'education' | 'pastlife';
-export type ReportType = 'vastu' | 'matchmaking' | ChartReportType;
+export type ReportType = 'vastu' | 'matchmaking' | 'palm' | ChartReportType;
 
 export interface ReportRow {
   id: string;

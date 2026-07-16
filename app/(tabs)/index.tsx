@@ -220,6 +220,11 @@ export default function HomeScreen() {
       sub: isHindi ? 'अपने सपने का अर्थ जानें' : 'Decode what your dream means',
       onPress: () => router.push({ pathname: '/dream', params: { profileId: profile.id } }),
     },
+    {
+      icon: 'palmreading', accent: 'amber', title: isHindi ? 'हस्तरेखा' : 'Palm Reading',
+      sub: isHindi ? 'अपने हाथ की रेखाओं का अर्थ' : 'Read your palm, decode your path',
+      onPress: () => router.push({ pathname: '/palmreading' as any, params: { profileId: profile.id } }),
+    },
   ] : [];
 
   // ── auto-carousel: chat (unchanged) + every feature ─────────────────────────
@@ -277,6 +282,12 @@ export default function HomeScreen() {
       sub: isHindi ? 'अपने सपने का अर्थ जानें' : 'Decode what your dream means', cta: isHindi ? 'देखें' : 'Read',
       image: require('../../assets/carousel/dream.png'),
       onPress: () => router.push({ pathname: '/dream', params: { profileId: profile.id } }),
+    },
+    {
+      key: 'palmreading', icon: 'palmreading', badge: isHindi ? 'प्रीमियम' : 'PREMIUM', title: isHindi ? 'हस्तरेखा पठन' : 'Palm Reading',
+      sub: isHindi ? 'आपकी नियति आपके हाथ में' : 'Your destiny, in your hands', cta: isHindi ? 'खोलें' : 'Reveal',
+      image: require('../../assets/carousel/palmreading.png'),
+      onPress: () => router.push({ pathname: '/palmreading' as any, params: { profileId: profile.id } }),
     },
     {
       key: 'store', icon: 'store', badge: isHindi ? 'स्टोर' : 'SHOP', title: isHindi ? 'रिदम स्टोर' : 'Ritham Store',

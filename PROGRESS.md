@@ -4,7 +4,40 @@
 
 ---
 
-## 0. Latest Session (2026-07-16) — New brand identity (ऋ logo), animated splash, icons, banner WebP
+## 0. Latest Session (2026-07-16, later) — Palm Reading (new paid feature) + bad-photo guard
+
+**New paid feature: Palm Reading (`palm`, ₹99)** — Hasta Samudrika Shastra × astrology. The user uploads a photo of their dominant palm; a **zero-cost hint** entices, then ₹99 unlocks a full 9-page reading (vision) cross-referenced with their own Kundli. It rides the existing report pipeline — **palm is just a new report `type`**, so it reuses entitlements, the `reports` table, the renderer, `/report-view` (PDF export), and the `REPORT_META`-driven cards.
+
+**Two-tier, cost-safe design (locked with user):**
+- **Free hint (ZERO AI cost):** `lib/palmService.ts::buildPalmHint(kundli, lang)` composes a 2–3-sentence teaser purely from the cached chart (Moon sign, Lagna, current Mahadasha) — **no network/AI call**, so an upload that never converts costs ₹0. Locked sections shown as dimmed cards to entice the unlock.
+- **Paid reading (₹99):** `purchasePack('report','palm')` → `uploadPalm` (→ `reports` bucket) → `report` Edge Fn (`type:'palm'`) claims the credit, runs **ONE Claude Sonnet-5 vision call**, caches a 9-page `ReportContent`. New in `supabase/functions/report/index.ts` (modelled on the Vastu path): `generatePalm`/`generatePalmLive`, `parsePalm`, `ensureCompletePalm`, `mockPalm` (complete offline fallback), `assemblePalm` (cover → snapshot → major lines → hand & mounts → **Palm × Chart cross-ref** → life areas → strengths → remedies → summary). Vision prompt reads ONLY visible features, names the classical principle, cross-references real chart placements, and never fabricates.
+
+**Bad-photo handling (3 layers) — the key robustness work:**
+1. **Client, on upload (free):** reject images < 500px per side.
+2. **Cheap AI gate — NEW `supabase/functions/palm-check/index.ts`:** a Claude **Haiku** call ("is this a clear human palm?") runs BEFORE the hint/unlock appear. Blurry/dark/back-of-hand/non-palm → blocked, never reaches payment. **Fails open** (validator error/over-cap → let through), **capped 15 checks/user/day** client-side (AsyncStorage), mock-passthrough when no key. Client: `palmService.ts::checkPalmImage`.
+3. **Server, on paid generation:** the vision reply carries a `readable` flag; if false (or score 0) `generatePalm` **throws `unreadable_palm`** → the existing claim/release path frees the credit + marks the report failed. `report-view` shows a palm-specific failed screen ("couldn't read your palm — your ₹99 is safe, try another photo") → the user regenerates **free** (credit intact → `unlock()` skips payment). Transient API errors still fall back to `mockPalm` (a genuine palm is never punished).
+
+**Rejection UI is themed, not a native Alert:** the palm-check / too-small feedback renders an **inline amber notice card** in the upload area (`palmreading.tsx` `photoError` state) — no jarring Android popup.
+
+**Unique identity (user asked — palm was reusing pastlife's purple):**
+- New accent **`amber`** (`#D98A2B`, warm mystic gold) in `constants/theme.ts` — the only hue outside the magenta/violet family — used everywhere palm (report accent, cards, screen, home tile).
+- **Bespoke generating animation:** `report-view.tsx` renders a **biometric palm-scan** (hand + sweeping amber scan line) for `type==='palm'` instead of the shared rotating-✦ orb; `palmreading.tsx`'s brief loader is a pulsing amber hand.
+
+**Reports library reordered (user):** **Palm Reading + Past Life now lead `REPORT_META`** (`config/pricing.ts`), above the flagship Kundli — surfacing the two most distinctive readings first (drives both the Reports tab & My Reports, which render the array in order).
+
+**Files —** new: `app/palmreading.tsx`, `lib/palmService.ts`, `supabase/functions/palm-check/index.ts`, `supabase/migrations/024_palm_reading.sql`, `assets/{banners/palmreading,reports/palm,carousel/palmreading}.png`. Modified: `config/pricing.ts` (palm price + `REPORT_META` + `divination` group), `supabase/functions/{create-order,report}/index.ts`, `lib/{reportService,i18n,analytics}.ts`, `constants/{theme,reportAccents,reportArt,appArt}.ts`, `components/Icon.tsx` (`palmreading` glyph), `app/(tabs)/index.tsx` (feature card + carousel slide), `app/report-view.tsx` (palm scan + failed screen), `AI_ART_PROMPTS.md` (3 palm art prompts, #35–37).
+
+**DB:** migration `024_palm_reading.sql` widens the `reports.type` CHECK to include `'palm'` (money layer unchanged — purchases use `kind='report'`, `plan_id='palm'`, already permitted). Applied via the Supabase SQL Editor.
+
+**Deploys (production, all done, user-authorized):** `create-order` (palm price 9900 paise), `report` (palm generation + `readable` guard), `palm-check` (new). All share the project `ANTHROPIC_API_KEY`. Verified end-to-end on device: hint shows with no network call, pay → palm-scan animation → reading → PDF; a non-palm photo is blocked pre-payment with the themed notice; an unreadable paid image refunds the credit and offers a free retry.
+
+**Models & margin:** reading = `claude-sonnet-5` (vision, 8000 tok); validator = `claude-haiku-4-5-20251001` (~80 tok). ₹99 vs ~₹8–12 API cost ≈ **~90% margin**, in line with the other reports.
+
+**Deploy note (unchanged):** Supabase CLI is logged in + linked (`eaxdqizerkuqkujxacru`); `npx supabase functions deploy <name> --project-ref eaxdqizerkuqkujxacru` works (Docker not required). Production deploys are gated by the safety classifier and need explicit user go-ahead. Wireless ADB: `adb connect 192.168.1.14:5555` + `adb reverse tcp:8081 tcp:8081`.
+
+---
+
+## Prior Session (2026-07-16) — New brand identity (ऋ logo), animated splash, icons, banner WebP
 
 **Full rebrand around a new logo: the Devanagari letter ऋ (the seed-sound of "Ritham" / the Vedic word Ṛta = cosmic rhythm & order), drawn as a neon magenta→violet calligraphic stroke with a warm-gold bindu, on near-black `#0D0D1A`.** Brand source-of-truth files live OUTSIDE the app in `../brand identity/`: `logo.svg` (the real, finished logo — mark + bindu on dark), `mark.png` (transparent ऋ, no bindu), `bindu.png` (transparent gold orb), `bg.png` (nebula starfield, empty centre), plus `Static splash.png` / `Wordmark.png`. **Always regenerate icons from `logo.svg`** (its composition/bindu placement is authoritative — do NOT re-composite mark+bindu by hand).
 

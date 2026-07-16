@@ -11,6 +11,7 @@ export const REPORT_IMG: Record<string, any> = {
   vastu: require('../assets/reports/vastu.png'),
   matchmaking: require('../assets/reports/matchmaking.png'),
   pastlife: require('../assets/reports/pastlife.png'),
+  palm: require('../assets/reports/palm.png'),
 };
 
 export const REPORT_ACCENT: Record<string, AccentName> = {
@@ -22,4 +23,5 @@ export const REPORT_ACCENT: Record<string, AccentName> = {
   vastu: 'saffron',
   matchmaking: 'ruby',
   pastlife: 'amethyst',
+  palm: 'amber',
 };
