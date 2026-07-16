@@ -60,9 +60,10 @@ export default function NumerologyScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <HeroBanner
-            source={require('../assets/numerology/numerology-hero.png')}
+            source={require('../assets/numerology/numerology-hero.webp')}
             aspectRatio={1}
-            style={{ width: '72%', alignSelf: 'center', marginBottom: Spacing.lg }}
+            vignette
+            style={{ width: '82%', alignSelf: 'center', marginBottom: Spacing.sm }}
           />
           <Text style={styles.intro}>
             {isHindi

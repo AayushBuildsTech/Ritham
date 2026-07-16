@@ -50,7 +50,7 @@ export default function PanchangScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <HeroBanner source={FEATURE_BANNER.panchang} style={{ marginBottom: Spacing.lg }} />
+          <HeroBanner source={FEATURE_BANNER.panchang} blend style={{ marginBottom: Spacing.lg }} />
           <Text style={styles.dateLine}>
             {isHindi ? hiVaara(data?.vaara ?? '') : data?.vaara}{data?.place ? `  ·  ${data.place}` : ''}
           </Text>

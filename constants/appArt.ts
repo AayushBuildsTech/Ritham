@@ -17,18 +17,18 @@ export const TEMPLE_IMG: Record<string, any> = {
 
 // ── Per-sign horoscope banners (constellation art, one shown per moon sign) ──────
 const SIGN_BANNER: Record<string, any> = {
-  mesha: require('../assets/horoscope/mesha.png'),
-  vrishabha: require('../assets/horoscope/vrishabha.png'),
-  mithuna: require('../assets/horoscope/mithuna.png'),
-  karka: require('../assets/horoscope/karka.png'),
-  simha: require('../assets/horoscope/simha.png'),
-  kanya: require('../assets/horoscope/kanya.png'),
-  tula: require('../assets/horoscope/tula.png'),
-  vrishchika: require('../assets/horoscope/vrishchika.png'),
-  dhanu: require('../assets/horoscope/dhanu.png'),
-  makara: require('../assets/horoscope/makara.png'),
-  kumbha: require('../assets/horoscope/kumbha.png'),
-  meena: require('../assets/horoscope/meena.png'),
+  mesha: require('../assets/horoscope/mesha.webp'),
+  vrishabha: require('../assets/horoscope/vrishabha.webp'),
+  mithuna: require('../assets/horoscope/mithuna.webp'),
+  karka: require('../assets/horoscope/karka.webp'),
+  simha: require('../assets/horoscope/simha.webp'),
+  kanya: require('../assets/horoscope/kanya.webp'),
+  tula: require('../assets/horoscope/tula.webp'),
+  vrishchika: require('../assets/horoscope/vrishchika.webp'),
+  dhanu: require('../assets/horoscope/dhanu.webp'),
+  makara: require('../assets/horoscope/makara.webp'),
+  kumbha: require('../assets/horoscope/kumbha.webp'),
+  meena: require('../assets/horoscope/meena.webp'),
 };
 
 // English sign (the base word before any Sanskrit paren) → rashi asset key.
@@ -47,8 +47,8 @@ export function signBanner(sign?: string | null): any | undefined {
 
 // ── Feature header vignettes ─────────────────────────────────────────────────────
 export const FEATURE_BANNER = {
-  panchang: require('../assets/banners/panchang.png'),
-  muhurat: require('../assets/banners/muhurat.png'),
-  sadesati: require('../assets/banners/sadesati.png'),
-  vakri: require('../assets/banners/vakri.png'),
+  panchang: require('../assets/banners/panchang.webp'),
+  muhurat: require('../assets/banners/muhurat.webp'),
+  sadesati: require('../assets/banners/sadesati.webp'),
+  vakri: require('../assets/banners/vakri.webp'),
 } as const;

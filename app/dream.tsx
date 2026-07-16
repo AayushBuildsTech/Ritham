@@ -91,7 +91,7 @@ export default function DreamScreen() {
       <ScreenHeader title={isHindi ? 'स्वप्न फल' : 'Dream Oracle'} onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
-        <HeroBanner source={require('../assets/dream/dream-hero.png')} aspectRatio={3 / 2} style={{ marginBottom: Spacing.lg }} />
+        <HeroBanner source={require('../assets/dream/dream-hero.webp')} aspectRatio={3 / 2} blend style={{ marginBottom: Spacing.lg }} />
         <Text style={styles.intro}>
           {isHindi
             ? 'आपने स्वप्न में जो देखा, उसे चुनें। पारंपरिक स्वप्न शास्त्र और आज के पंचांग से उसका फल जानें।'

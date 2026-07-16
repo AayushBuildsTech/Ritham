@@ -70,7 +70,7 @@ export default function MuhuratScreen() {
       {/* ── Activity picker ─────────────────────────────────────────────────── */}
       {!current ? (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <HeroBanner source={FEATURE_BANNER.muhurat} style={{ marginBottom: Spacing.lg }} />
+          <HeroBanner source={FEATURE_BANNER.muhurat} blend style={{ marginBottom: Spacing.lg }} />
           <Text style={styles.lead}>{isHindi ? 'शुभ तिथियां खोजें…' : 'Find auspicious dates for…'}</Text>
           {MUHURAT_ACTIVITIES.map((a, i) => (
             <Reveal key={a.id} index={i}>

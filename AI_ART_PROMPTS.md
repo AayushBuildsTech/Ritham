@@ -11,8 +11,10 @@ Notes:
 - Where a **transparent** background is needed, the prompt says so. If ChatGPT gives a
   flat dark background instead, that's fine — I'll cut it out.
 - Save each result at the **filename** in its heading.
-- For the two guru images (#2 and #3), generate #2 first, then start #3 with
-  *"same woman, same face and purple saree as before"* so they stay one person.
+- **Temples (#8–#15) are NOT AI-generated — they use REAL photographs.** For those, the
+  block is not a ChatGPT prompt: it lists where to download a genuine licensed photo of the
+  actual temple and how to process it to fit the app. See the "Temple photo — how to do it"
+  box just below the TIER 2 heading before starting any temple.
 
 ---
 
@@ -44,17 +46,8 @@ magenta #FF007F and violet #7B2CBF with warm gold. Do NOT include any text, word
 watermark, UI, or borders.
 ```
 
-### 3. Guru seated / chat welcome → `assets/guru/guru-seated.png`
-```
-Create a square image on a fully TRANSPARENT background (PNG cutout, no background) of a
-serene young Indian woman astrologer seated cross-legged in a calm meditative pose, hands
-in a gentle welcoming gesture. She wears a deep-magenta silk saree with a fine gold zari
-border, a small red bindi, and gold jewellery. Behind her head floats a softly glowing
-magenta-and-gold sacred-geometry mandala like a halo, with tiny orbiting planets and
-stardust. Soft neon violet-magenta glow and gold accents. Mood: warm, welcoming,
-"ask me anything". Colour palette: magenta #FF007F, violet #7B2CBF, warm gold. Do NOT
-include any text, words, logos, watermark, UI, or borders.
-```
+<!-- #3 (guru seated / chat welcome) removed — the chat screen no longer shows a guru
+     image; the seated portrait looked out of place. Slot 3 intentionally left empty. -->
 
 ### 4. Store hero → `assets/store/store-hero.png`
 ```
@@ -101,92 +94,103 @@ borders.
 
 # TIER 2 — feature screens
 
+## Temples (#8–#15) — REAL PHOTOS, not AI
+
+These eight are **genuine photographs of the real temples**, not generated art. For each one
+below: download a real, licence-clear photo from one of the sources, then run the same simple
+processing so it fits the app. Don't paste these blocks into ChatGPT.
+
+**Temple photo — how to do it (same steps for all 8):**
+1. **Find a real photo.** Best free, licence-clear sources, in order:
+   - **Wikimedia Commons** (`commons.wikimedia.org`) — most of these temples have several
+     high-res photos under Public Domain / CC0 / CC-BY / CC-BY-SA. Prefer PD or CC0; CC-BY /
+     CC-BY-SA are fine if I keep the attribution (see step 4).
+   - **Unsplash** / **Pexels** / **Pixabay** — free to use commercially, no attribution
+     required. Good fallback when Commons is thin.
+   - Use the **search terms** given in each entry. Pick a sharp, well-lit, wide shot of the
+     temple exterior — daytime or golden-hour/twilight both work.
+2. **Check the licence** before downloading. Avoid anything marked "editorial only",
+   "all rights reserved", or a stock watermark. When unsure, skip it and pick another.
+3. **Process to fit the app:**
+   - Crop to a **wide landscape ~16:9** (e.g. 1600×900), temple as the clear subject.
+   - Darken the **lower ~third** with a black→transparent gradient so app text stays readable.
+   - Optional, keep it subtle (10–15%): a soft magenta/violet grade in the sky/shadows to
+     nod to the app palette (magenta #FF007F, violet #7B2CBF, warm gold). Do **not**
+     over-process — it must still read as a real photograph.
+   - Export as PNG at the **filename** in the heading.
+4. **Save attribution.** If the photo is CC-BY / CC-BY-SA, record the author, title, source
+   URL and licence in `assets/temples/CREDITS.md` so a credits screen can show them.
+
 ### 8. Tirupati temple → `assets/temples/tirupati.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the Sri
-Venkateswara temple on the Tirumala hills, with its golden vimana tower and gopuram glowing
-at dawn. Warm devotional atmosphere, soft magenta-and-violet twilight sky, gold light, faint
-oil-lamp (diya) flames and a few floating marigolds. Keep the LOWER edge darker so app text
-can sit over it. Colour palette: cyber magenta #FF007F, neon violet #7B2CBF, warm gold, deep
-near-black. Cinematic, dignified, respectful. Do NOT depict any deity faces. Do NOT include
-any text, words, logos, watermark, UI, or borders.
+REAL PHOTO. Temple: Sri Venkateswara Temple, Tirumala (Tirupati), Andhra Pradesh.
+Search terms: "Tirumala temple", "Sri Venkateswara temple gopuram", "Tirupati temple".
+Want: a wide exterior shot of the gopuram / vimana tower. Then crop 16:9, darken the lower
+third for text, optional subtle magenta/violet grade. Save to assets/temples/tirupati.png.
 ```
 
 ### 9. Vaishno Devi → `assets/temples/vaishno_devi.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the
-Trikuta mountains at Katra, with a lit pilgrim path winding up toward the Vaishno Devi cave
-shrine and tricolour flags fluttering. Warm devotional atmosphere, soft magenta-and-violet
-twilight sky, gold light, faint diya flames, floating marigolds. Keep the LOWER edge darker
-for app text. Colour palette: cyber magenta #FF007F, neon violet #7B2CBF, warm gold, deep
-near-black. Cinematic, dignified, respectful. Do NOT depict any deity faces. Do NOT include
-any text, words, logos, watermark, UI, or borders.
+REAL PHOTO. Temple: Vaishno Devi shrine, Trikuta mountains, Katra, Jammu & Kashmir.
+Search terms: "Vaishno Devi Bhawan", "Vaishno Devi temple Katra", "Trikuta mountains shrine".
+Want: the shrine building or the lit pilgrim path up the mountain. Then crop 16:9, darken the
+lower third for text, optional subtle magenta/violet grade. Save to assets/temples/vaishno_devi.png.
 ```
 
 ### 10. Shirdi Sai Baba → `assets/temples/shirdi.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the
-white-marble Shirdi Sai Baba samadhi temple in the evening, with rows of glowing oil diyas
-and a warm devotional glow. Soft magenta-and-violet twilight sky, gold light, floating
-marigolds. Keep the LOWER edge darker for app text. Colour palette: cyber magenta #FF007F,
-neon violet #7B2CBF, warm gold, deep near-black. Cinematic, dignified, respectful. Do NOT
-depict any deity faces. Do NOT include any text, words, logos, watermark, UI, or borders.
+REAL PHOTO. Temple: Shirdi Sai Baba Samadhi Mandir, Shirdi, Maharashtra.
+Search terms: "Shirdi Sai Baba temple", "Samadhi Mandir Shirdi", "Sai Baba temple Shirdi".
+Want: a wide exterior of the white-marble temple. Then crop 16:9, darken the lower third for
+text, optional subtle magenta/violet grade. Save to assets/temples/shirdi.png.
 ```
 
 ### 11. Kashi Vishwanath → `assets/temples/kashi_vishwanath.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the
-Varanasi Ganga ghats during the Ganga aarti, with the golden spire of the Kashi Vishwanath
-temple behind and floating oil lamps drifting on the river. Warm devotional atmosphere, soft
-magenta-and-violet twilight sky, gold light, marigolds. Keep the LOWER edge darker for app
-text. Colour palette: cyber magenta #FF007F, neon violet #7B2CBF, warm gold, deep near-black.
-Cinematic, dignified, respectful. Do NOT depict any deity faces. Do NOT include any text,
-words, logos, watermark, UI, or borders.
+REAL PHOTO. Temple: Kashi Vishwanath Temple / Varanasi Ganga ghats, Uttar Pradesh.
+Search terms: "Kashi Vishwanath temple golden spire", "Varanasi Ganga aarti Dashashwamedh
+ghat", "Varanasi ghats evening". Want: the golden spire, or the ghats during Ganga aarti with
+the temple behind. Then crop 16:9, darken the lower third for text, optional subtle
+magenta/violet grade. Save to assets/temples/kashi_vishwanath.png.
 ```
 
 ### 12. Mahakaleshwar → `assets/temples/mahakaleshwar.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the
-Mahakaleshwar Jyotirlinga shrine at Ujjain during the Bhasma aarti — a Shiva lingam wreathed
-in sacred ash and a warm fire glow, incense smoke, glowing diyas. Devotional atmosphere, soft
-magenta-and-violet twilight, gold light. Keep the LOWER edge darker for app text. Colour
-palette: cyber magenta #FF007F, neon violet #7B2CBF, warm gold, deep near-black. Cinematic,
-dignified, respectful. Do NOT depict any deity faces. Do NOT include any text, words, logos,
-watermark, UI, or borders.
+REAL PHOTO. Temple: Mahakaleshwar Jyotirlinga Temple, Ujjain, Madhya Pradesh.
+Search terms: "Mahakaleshwar temple Ujjain", "Mahakaleshwar Jyotirlinga shikhara",
+"Ujjain Mahakal temple". Want: a wide exterior of the temple / shikhara (choose an exterior
+shot, not the inner sanctum). Then crop 16:9, darken the lower third for text, optional subtle
+magenta/violet grade. Save to assets/temples/mahakaleshwar.png.
 ```
 
 ### 13. Somnath → `assets/temples/somnath.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the
-seaside Somnath Shiva temple with its tall shikhara silhouetted against Arabian-sea waves at
-sunset. Warm devotional glow, soft magenta-and-violet sky, gold light on the temple, a few
-floating marigolds. Keep the LOWER edge darker for app text. Colour palette: cyber magenta
-#FF007F, neon violet #7B2CBF, warm gold, deep near-black. Cinematic, dignified, respectful.
-Do NOT depict any deity faces. Do NOT include any text, words, logos, watermark, UI, or
-borders.
+REAL PHOTO. Temple: Somnath Temple, Prabhas Patan, Gujarat (seaside Shiva temple).
+Search terms: "Somnath temple", "Somnath temple sea", "Somnath Jyotirlinga shikhara".
+Want: the tall shikhara against the Arabian Sea, ideally at sunset. Then crop 16:9, darken the
+lower third for text, optional subtle magenta/violet grade. Save to assets/temples/somnath.png.
 ```
 
 ### 14. Siddhivinayak → `assets/temples/siddhivinayak.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the
-Siddhivinayak Ganesha temple in Mumbai, with its gold dome, marigold garlands and festive oil
-lamps glowing warmly. Devotional atmosphere, soft magenta-and-violet twilight sky, gold light.
-Keep the LOWER edge darker for app text. Colour palette: cyber magenta #FF007F, neon violet
-#7B2CBF, warm gold, deep near-black. Cinematic, dignified, respectful. Do NOT depict any
-deity faces. Do NOT include any text, words, logos, watermark, UI, or borders.
+REAL PHOTO. Temple: Siddhivinayak Ganapati Temple, Prabhadevi, Mumbai, Maharashtra.
+Search terms: "Siddhivinayak temple Mumbai", "Siddhivinayak temple dome", "Shree
+Siddhivinayak temple". Want: a wide exterior with the gold dome. Then crop 16:9, darken the
+lower third for text, optional subtle magenta/violet grade. Save to assets/temples/siddhivinayak.png.
 ```
 
 ### 15. Golden Temple → `assets/temples/golden_temple.png`
 ```
-Create a wide landscape (horizontal) image: a reverent, painterly illustration of the Golden
-Temple (Harmandir Sahib) at Amritsar at dawn, its gold dome mirrored in the still sacred
-sarovar pool, with lamps glowing along the marble causeway. Warm devotional atmosphere, soft
-magenta-and-violet dawn sky, gold light. Keep the LOWER edge darker for app text. Colour
-palette: cyber magenta #FF007F, neon violet #7B2CBF, warm gold, deep near-black. Cinematic,
-dignified, respectful. Do NOT include any text, words, logos, watermark, UI, or borders.
+REAL PHOTO. Temple: Golden Temple (Harmandir Sahib), Amritsar, Punjab.
+Search terms: "Golden Temple Amritsar", "Harmandir Sahib", "Golden Temple reflection sarovar".
+Want: the gold temple reflected in the sarovar pool, dawn or night both look great. Then crop
+16:9, darken the lower third for text, optional subtle magenta/violet grade. Save to
+assets/temples/golden_temple.png.
 ```
 
 ### 16. Dream Oracle hero → `assets/dream/dream-hero.png`
+> DONE — final image already supplied and in place (1535×1024, ~3:2, matches the screen's
+> aspectRatio). Prompt kept below for reference only; no need to regenerate.
 ```
 Create a wide landscape (horizontal) image: a sleeping person's silhouette dissolving into a
 swirl of dream symbols — a crescent moon, an owl, a serpent, a lotus and a flowing river —
@@ -372,11 +376,6 @@ glowing planet nearby. Keep the LOWER edge darker for app text. Colour palette: 
 words, logos, watermark, UI, or borders.
 ```
 
-### 34. Paywall unlock relic → `assets/paywall/unlock.png`
-```
-Create a square 3D-render image on a fully TRANSPARENT background (PNG cutout, no background):
-an ornate warm-gold key crossed with a blooming lotus flower, wrapped in a magenta-and-violet
-aura with gold sparkles, radiating a sense of unlocking something precious and premium.
-Colour palette: cyber magenta #FF007F, neon violet #7B2CBF, warm gold. Mood: premium,
-rewarding, mystical. Do NOT include any text, words, logos, watermark, UI, or borders.
-```
+<!-- #34 (paywall unlock relic) removed — the paywall no longer shows a relic image; it
+     looked out of place. The paywall now opens straight to the eyebrow + title. -->
+

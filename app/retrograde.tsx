@@ -74,7 +74,7 @@ export default function RetrogradeScreen() {
         <View style={styles.center}><Text style={styles.errorText}>{isHindi ? 'अभी आकाश नहीं पढ़ा जा सका। कृपया फिर कोशिश करें।' : 'Couldn’t read the sky right now. Please try again.'}</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <HeroBanner source={FEATURE_BANNER.vakri} style={{ marginBottom: Spacing.lg }} />
+          <HeroBanner source={FEATURE_BANNER.vakri} blend style={{ marginBottom: Spacing.lg }} />
           <Text style={styles.sectionLabel}>{isHindi ? 'अभी' : 'RIGHT NOW'}</Text>
 
           {current.length === 0 ? (

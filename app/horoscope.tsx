@@ -86,7 +86,7 @@ export default function HoroscopeScreen() {
         <Text style={styles.h1}>{isHindi ? 'तारे, आपके लिए' : 'The stars, for you'}</Text>
 
         {signBanner(moonSign) && (
-          <HeroBanner source={signBanner(moonSign)} style={{ marginBottom: Spacing.lg }} />
+          <HeroBanner source={signBanner(moonSign)} blend style={{ marginBottom: Spacing.lg }} />
         )}
 
         {/* underline segmented control */}
