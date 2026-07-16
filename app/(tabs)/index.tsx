@@ -311,9 +311,6 @@ export default function HomeScreen() {
 
         <View style={styles.headerTop}>
           <View style={styles.brandRow}>
-            <View style={styles.brandTile}>
-              <Image source={require('../../assets/logo-transparent.png')} style={styles.brandMark} />
-            </View>
             <Text style={styles.brandName}>Ritham</Text>
           </View>
           <View style={styles.headerActions}>
@@ -514,12 +511,6 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   headerGlyph: { position: 'absolute', right: -24, top: 24 },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xl },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  brandTile: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFFFFF',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)',
-  },
-  brandMark: { width: 34, height: 34, resizeMode: 'contain' },
   brandName: { fontFamily: Fonts.displayBold, fontSize: 26, color: '#FFFFFF', letterSpacing: 0.5 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   kundliBtn: {

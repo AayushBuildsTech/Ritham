@@ -27,7 +27,8 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0D0D1A",
-        "foregroundImage": "./assets/android-icon-foreground.png"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.ritham.app",
       "permissions": ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"]

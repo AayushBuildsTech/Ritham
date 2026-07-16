@@ -1,78 +1,115 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Animated, Easing, Image, StyleSheet, Dimensions } from 'react-native';
 import { Fonts, Motion, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
 
-// Animated start screen shown after the (static) native splash and before the
-// app reveals. The Ritham mark's planet RING orbits continuously around the
-// static central glyph (2-D rotation on its own axis), while the wordmark +
-// tagline fade up. Pure RN Animated — no reanimated, no native deps.
+// Animated launch screen shown after the (static) native splash and before the
+// app reveals — "The First Beat". The brand's meaning is ऋत / Ṛta, cosmic rhythm,
+// so the sequence is a single cosmic heartbeat:
 //
-// Sequence (~2.6s total):
-//   1. ring begins an endless slow rotation immediately
-//   2. glyph + ring fade in and settle from 1.06→1.0
-//   3. the tracked-out wordmark + tagline fade in
-//   4. brief hold, then the whole overlay fades away → onFinish()
-const LOGO = 230;
+//   1. the nebula background settles in
+//   2. the gold BINDU (the seed the rhythm turns around) appears and blooms
+//   3. the neon ऋ MARK ignites over it
+//   4. a single ripple pulses outward — the beat
+//   5. the wordmark + tagline fade up; brief hold; the overlay fades → onFinish()
+//
+// Pure RN Animated — no reanimated, no native deps.
+const { width: SCREEN_W } = Dimensions.get('window');
+const MARK = Math.min(SCREEN_W * 0.66, 300);
+const BINDU = MARK * 0.13;
+const RING = MARK * 0.6;
 
 export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   const th = useColors();
   const styles = makeStyles(th);
 
-  const spin = useRef(new Animated.Value(0)).current;
+  const bgOpacity = useRef(new Animated.Value(0)).current;
+  const bgScale = useRef(new Animated.Value(1.06)).current;
+  const binduOpacity = useRef(new Animated.Value(0)).current;
+  const binduScale = useRef(new Animated.Value(0.2)).current;
   const markOpacity = useRef(new Animated.Value(0)).current;
-  const markScale = useRef(new Animated.Value(1.06)).current;
+  const markScale = useRef(new Animated.Value(1.08)).current;
+  const beat = useRef(new Animated.Value(0)).current;      // 0→1 drives the ripple
+  const pulse = useRef(new Animated.Value(1)).current;     // tiny mark scale kick on the beat
   const textOpacity = useRef(new Animated.Value(0)).current;
-  const textShift = useRef(new Animated.Value(10)).current;
+  const textShift = useRef(new Animated.Value(12)).current;
   const overlay = useRef(new Animated.Value(1)).current;
 
   const ease = Easing.bezier(...Motion.easeOut);
 
   useEffect(() => {
-    // endless orbit of the planet ring
-    Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1, duration: 5200, easing: Easing.linear, useNativeDriver: true,
-      }),
-    ).start();
+    // Background settles on its own timeline (slow, calm).
+    Animated.parallel([
+      Animated.timing(bgOpacity, { toValue: 1, duration: 650, easing: ease, useNativeDriver: true }),
+      Animated.timing(bgScale, { toValue: 1, duration: 1600, easing: ease, useNativeDriver: true }),
+    ]).start();
 
     Animated.sequence([
+      Animated.delay(220),
+      // 2. the gold seed appears and blooms
       Animated.parallel([
-        Animated.timing(markOpacity, { toValue: 1, duration: 460, easing: ease, useNativeDriver: true }),
-        Animated.timing(markScale, { toValue: 1, duration: 620, easing: ease, useNativeDriver: true }),
+        Animated.timing(binduOpacity, { toValue: 1, duration: 300, easing: ease, useNativeDriver: true }),
+        Animated.timing(binduScale, { toValue: 1, duration: 560, easing: Easing.out(Easing.back(2.2)), useNativeDriver: true }),
       ]),
+      // 3. the ऋ ignites over it
       Animated.parallel([
-        Animated.timing(textOpacity, { toValue: 1, duration: 380, easing: ease, useNativeDriver: true }),
-        Animated.timing(textShift, { toValue: 0, duration: 380, easing: ease, useNativeDriver: true }),
+        Animated.timing(markOpacity, { toValue: 1, duration: 520, easing: ease, useNativeDriver: true }),
+        Animated.timing(markScale, { toValue: 1, duration: 720, easing: ease, useNativeDriver: true }),
       ]),
-      Animated.delay(560),
-      Animated.timing(overlay, { toValue: 0, duration: 360, easing: ease, useNativeDriver: true }),
+      // 4. the beat — one ripple + a small kick of the mark
+      Animated.parallel([
+        Animated.timing(beat, { toValue: 1, duration: 720, easing: ease, useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1.09, duration: 180, easing: ease, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 360, easing: ease, useNativeDriver: true }),
+        ]),
+      ]),
+      // 5. the name rises up
+      Animated.parallel([
+        Animated.timing(textOpacity, { toValue: 1, duration: 440, easing: ease, useNativeDriver: true }),
+        Animated.timing(textShift, { toValue: 0, duration: 440, easing: ease, useNativeDriver: true }),
+      ]),
+      Animated.delay(680),
+      Animated.timing(overlay, { toValue: 0, duration: 440, easing: ease, useNativeDriver: true }),
     ]).start(({ finished }) => { if (finished) onFinish(); });
   }, []);
 
-  const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  // Two staggered rings make the beat read as a throb, not a faint line.
+  const ring1Scale = beat.interpolate({ inputRange: [0, 1], outputRange: [0.7, 2.0] });
+  const ring1Opacity = beat.interpolate({ inputRange: [0, 0.12, 0.55, 1], outputRange: [0, 0.9, 0.45, 0] });
+  const ring2Scale = beat.interpolate({ inputRange: [0, 1], outputRange: [0.7, 2.7] });
+  const ring2Opacity = beat.interpolate({ inputRange: [0, 0.16, 0.28, 0.7, 1], outputRange: [0, 0, 0.6, 0.3, 0] });
 
   return (
     <Animated.View style={[styles.root, { opacity: overlay }]} pointerEvents="none">
-      <LinearGradient
-        colors={['#2A1150', '#150A28', '#0D0D1A']}
-        start={{ x: 0.2, y: 0 }}
-        end={{ x: 0.8, y: 1 }}
-        style={StyleSheet.absoluteFill}
+      <Animated.Image
+        source={require('../assets/splash/bg.webp')}
+        style={[StyleSheet.absoluteFill, { opacity: bgOpacity, transform: [{ scale: bgScale }] }]}
+        resizeMode="cover"
       />
 
-      <Animated.View
-        style={[styles.mark, { opacity: markOpacity, transform: [{ scale: markScale }] }]}
-      >
+      <Animated.View style={styles.stage}>
+        {/* the beat — two rings pulsing outward from the mark */}
+        <Animated.View
+          style={[styles.ring, styles.ring2, { opacity: ring2Opacity, transform: [{ scale: ring2Scale }] }]}
+          pointerEvents="none"
+        />
+        <Animated.View
+          style={[styles.ring, { opacity: ring1Opacity, transform: [{ scale: ring1Scale }] }]}
+          pointerEvents="none"
+        />
+
+        {/* the neon ऋ mark */}
         <Animated.Image
-          source={require('../assets/logo-ring.png')}
-          style={[styles.layer, { transform: [{ rotate }] }]}
+          source={require('../assets/splash/mark.webp')}
+          style={[styles.mark, { opacity: markOpacity, transform: [{ scale: markScale }, { scale: pulse }] }]}
           resizeMode="contain"
         />
-        <Image
-          source={require('../assets/logo-center.png')}
-          style={styles.layer}
+
+        {/* the gold seed / bindu, resting just below the letter */}
+        <Animated.Image
+          source={require('../assets/splash/bindu.webp')}
+          style={[styles.bindu, { opacity: binduOpacity, transform: [{ scale: binduScale }] }]}
           resizeMode="contain"
         />
       </Animated.View>
@@ -92,24 +129,33 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
 const makeStyles = (_th: ThemeColors) => StyleSheet.create({
   root: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#0D0D1A',
   },
-  mark: { width: LOGO, height: LOGO, alignItems: 'center', justifyContent: 'center' },
-  layer: { position: 'absolute', width: LOGO, height: LOGO },
+  stage: { width: MARK, height: MARK, alignItems: 'center', justifyContent: 'center' },
+  mark: { position: 'absolute', width: MARK, height: MARK },
+  bindu: {
+    position: 'absolute', width: BINDU, height: BINDU,
+    top: MARK * 0.72, left: (MARK - BINDU) / 2,
+  },
+  ring: {
+    position: 'absolute', width: RING, height: RING, borderRadius: RING / 2,
+    borderWidth: 4, borderColor: 'rgba(255,0,127,1)',
+  },
+  ring2: { borderWidth: 2.5, borderColor: 'rgba(150,70,220,0.95)' },
   wordmark: {
     fontFamily: Fonts.displayBold,
     fontSize: 46,
-    color: '#FFFFFF',
+    color: '#F7EAD0',
     letterSpacing: 1,
-    marginTop: 34,
-    textShadowColor: 'rgba(255,0,127,0.55)',
+    marginTop: 40,
+    textShadowColor: 'rgba(233,180,76,0.45)',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 24,
+    textShadowRadius: 22,
   },
   tagline: {
     fontFamily: Fonts.bodyMedium,
     fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.72)',
     letterSpacing: 4,
     marginTop: 12,
   },
