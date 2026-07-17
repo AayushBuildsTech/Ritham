@@ -440,6 +440,19 @@ export default function HomeScreen() {
           </Reveal>
         )}
 
+        {/* ── Puja Booking promo banner ──────────────────────────────────────────── */}
+        {profile && (
+          <Reveal index={2} style={styles.bannerWrap}>
+            <Pressable
+              onPress={() => router.push('/puja' as any)}
+              android_ripple={{ color: th.goldFaint }}
+              style={styles.banner}
+            >
+              <Image source={require('../../assets/puja/banner.webp')} style={styles.bannerImg} resizeMode="cover" />
+            </Pressable>
+          </Reveal>
+        )}
+
         {/* ── Starsights & predictions grid ──────────────────────────────────────── */}
         {profile && (
           <>
@@ -604,6 +617,12 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   // carousel — break out of the body's horizontal padding to sit full-width
   carouselWrap: { marginTop: Spacing.lg, marginHorizontal: -Spacing.lg },
+  bannerWrap: { marginTop: Spacing.lg },
+  banner: {
+    width: '100%', aspectRatio: 1400 / 933, borderRadius: Radius.lg, overflow: 'hidden',
+    borderWidth: 1, borderColor: th.borderStrong, ...Depth.card,
+  },
+  bannerImg: { width: '100%', height: '100%' },
 
   // grid
   sectionTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginTop: Spacing.xl, marginBottom: Spacing.md },
