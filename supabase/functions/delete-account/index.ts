@@ -49,21 +49,22 @@ Deno.serve(async (req) => {
     if (files && files.length) {
       const paths = files.map((f) => `${uid}/${f.name}`);
       const { error: rmErr } = await admin.storage.from('reports').remove(paths);
-      if (rmErr) return json({ error: 'storage_delete_failed', detail: rmErr.message }, 500);
+      if (rmErr) { console.error('delete-account storage remove failed:', rmErr.message); return json({ error: 'storage_delete_failed' }, 500); }
     }
 
     // 2. Delete the domain row — cascades all app data (profiles, chat, payments,
     //    entitlements, reports). Do this before removing the auth identity so RLS /
     //    triggers still see a coherent state.
     const { error: rowErr } = await admin.from('users').delete().eq('id', uid);
-    if (rowErr) return json({ error: 'data_delete_failed', detail: rowErr.message }, 500);
+    if (rowErr) { console.error('delete-account row delete failed:', rowErr.message); return json({ error: 'data_delete_failed' }, 500); }
 
     // 3. Delete the auth identity itself (the Google login).
     const { error: authErr } = await admin.auth.admin.deleteUser(uid);
-    if (authErr) return json({ error: 'auth_delete_failed', detail: authErr.message }, 500);
+    if (authErr) { console.error('delete-account auth delete failed:', authErr.message); return json({ error: 'auth_delete_failed' }, 500); }
 
     return json({ ok: true });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('delete-account error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });

@@ -113,14 +113,16 @@ Deno.serve(async (req) => {
     });
     // 23505 = unique_violation → already granted; treat as success (idempotent)
     if (grantErr && (grantErr as any).code !== '23505') {
-      return json({ error: 'grant_failed', detail: grantErr.message }, 500);
+      console.error('verify-payment grant failed:', grantErr.message);
+      return json({ error: 'grant_failed' }, 500);
     }
 
     // return the fresh balance
     const balance = await computeBalance(admin, user.id);
     return json({ ok: true, balance });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('verify-payment error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });
 

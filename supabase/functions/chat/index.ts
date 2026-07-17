@@ -171,7 +171,8 @@ Deno.serve(async (req) => {
           // roll BOTH claims back so a transient error doesn't burn the free minute
           await admin.from('users').update({ free_minute_used_at: null }).eq('id', user.id);
           if (deviceHash && deviceReserved) await admin.from('device_free_trials').delete().eq('device_hash', deviceHash);
-          return json({ error: 'session_create_failed', detail: cErr.message }, 500);
+          console.error('chat session create failed:', cErr.message);
+          return json({ error: 'session_create_failed' }, 500);
         }
         session = created;
       } else {
@@ -232,7 +233,8 @@ Deno.serve(async (req) => {
     const balance = await computeBalance(admin, user.id);
     return json({ reply, session: sessionInfo(session), balance });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('chat error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });
 

@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
         .order('created_at', { ascending: false });
       if (body.status && ALLOWED_STATUS.has(String(body.status))) q = q.eq('status', String(body.status));
       const { data, error } = await q;
-      if (error) return json({ error: 'list_failed', detail: error.message }, 500);
+      if (error) { console.error('puja-admin list failed:', error.message); return json({ error: 'list_failed' }, 500); }
       return json({ ok: true, bookings: data ?? [] });
     }
 
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       const status = String(body.status ?? '');
       if (!bookingId || !ALLOWED_STATUS.has(status)) return json({ error: 'bad_input' }, 400);
       const { error } = await admin.from('puja_bookings').update({ status }).eq('id', bookingId);
-      if (error) return json({ error: 'update_failed', detail: error.message }, 500);
+      if (error) { console.error('puja-admin update failed:', error.message); return json({ error: 'update_failed' }, 500); }
       return json({ ok: true });
     }
 
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       const bookingId = String(body.bookingId ?? '');
       if (!bookingId) return json({ error: 'bad_input' }, 400);
       const { error } = await admin.from('puja_bookings').delete().eq('id', bookingId);
-      if (error) return json({ error: 'delete_failed', detail: error.message }, 500);
+      if (error) { console.error('puja-admin delete failed:', error.message); return json({ error: 'delete_failed' }, 500); }
       return json({ ok: true });
     }
 
@@ -85,12 +85,13 @@ Deno.serve(async (req) => {
       const bookingCloseAt = new Date(closeMs).toISOString();
       const { error } = await admin.from('puja_slots')
         .upsert({ puja_id: pujaId, puja_date: pujaDate, booking_close_at: bookingCloseAt }, { onConflict: 'puja_id' });
-      if (error) return json({ error: 'set_slot_failed', detail: error.message }, 500);
+      if (error) { console.error('puja-admin set_slot failed:', error.message); return json({ error: 'set_slot_failed' }, 500); }
       return json({ ok: true, puja_date: pujaDate, booking_close_at: bookingCloseAt });
     }
 
     return json({ error: 'unknown_action' }, 400);
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('puja-admin error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });

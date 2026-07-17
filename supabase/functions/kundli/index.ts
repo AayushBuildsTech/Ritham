@@ -30,9 +30,26 @@ const json = (body: unknown, status = 200) =>
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
-    // Require a valid Supabase JWT (any signed-in user).
+    // Require a valid Supabase JWT (any signed-in user). Verify it in-code (not just
+    // at the gateway) so this paid endpoint (VedAstro) can never be hit with a forged
+    // "Bearer x" header, and so we have a real user id to rate-limit on.
     const authHeader = req.headers.get('Authorization') ?? '';
-    if (!authHeader.toLowerCase().startsWith('bearer ')) return json({ error: 'unauthorized' }, 401);
+    const supabaseUrl0 = Deno.env.get('SUPABASE_URL') ?? '';
+    const anonKey0 = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const serviceKey0 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!supabaseUrl0 || !anonKey0) return json({ error: 'not_configured' }, 500);
+    const userClient0 = createClient(supabaseUrl0, anonKey0, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user: authedUser } } = await userClient0.auth.getUser();
+    if (!authedUser) return json({ error: 'unauthorized' }, 401);
+
+    // Rate limit the paid VedAstro call per user per day (fails open on limiter error).
+    if (serviceKey0) {
+      const admin0 = createClient(supabaseUrl0, serviceKey0);
+      const { data: allowed, error: rlErr } = await admin0.rpc('rate_limit_hit', {
+        p_bucket: `kundli:${authedUser.id}`, p_limit: 40, p_window_seconds: 86400,
+      });
+      if (!rlErr && allowed === false) return json({ error: 'rate_limited' }, 429);
+    }
 
     const body = await req.json();
     const { name, gender, dob, tob, latitude, longitude, timezone, birth_place } = body ?? {};
@@ -62,7 +79,8 @@ Deno.serve(async (req) => {
   } catch (e) {
     const msg = String((e as Error)?.message ?? e);
     if (msg === 'bad_datetime') return json({ error: 'bad_datetime' }, 400);
-    return json({ error: 'server_error', detail: msg }, 500);
+    console.error('kundli error:', msg);
+    return json({ error: 'server_error' }, 500);
   }
 });
 

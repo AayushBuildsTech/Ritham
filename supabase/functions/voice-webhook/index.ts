@@ -21,6 +21,14 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
+// Constant-time string compare (avoids leaking the secret via response timing).
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 // Dig a value out of the (nested, provider-shaped) payload from several likely spots.
 function pick<T>(obj: any, paths: string[]): T | undefined {
   for (const p of paths) {
@@ -36,7 +44,11 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   try {
-    if (VAPI_WEBHOOK_SECRET && req.headers.get('x-vapi-secret') !== VAPI_WEBHOOK_SECRET) {
+    // Fail CLOSED: a mutating webhook (ends sessions, decrements paid entitlements)
+    // must never be callable without the shared secret. If the secret isn't
+    // configured, reject everything rather than silently trusting anonymous posts.
+    if (!VAPI_WEBHOOK_SECRET) return json({ error: 'not_configured' }, 500);
+    if (!timingSafeEqual(req.headers.get('x-vapi-secret') ?? '', VAPI_WEBHOOK_SECRET)) {
       return json({ error: 'forbidden' }, 403);
     }
 
@@ -109,6 +121,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, seconds_used: billable });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('voice-webhook error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });

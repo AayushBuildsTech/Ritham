@@ -79,7 +79,8 @@ export async function startCall(opts: StartCallOptions): Promise<StartCallResult
   const { data, error } = await supabase.functions.invoke<VoiceTokenResp>(VOICE_TOKEN_FN, {
     body: { profileId, deviceId },
   });
-  console.log('[call] voice-token resp:', JSON.stringify({ error: error?.message, data }));
+  // Never log the token or full payload — it contains the signed voice credential.
+  console.log('[call] voice-token resp:', JSON.stringify({ error: error?.message, ok: data?.ok, kind: data?.kind, err: data?.error }));
   if (error || !data || data.error || !data.ok) {
     onState('idle');
     return { ok: false, error: data?.error ?? error?.message ?? 'authorize_failed' };

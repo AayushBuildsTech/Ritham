@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
       razorpay_order_id: order.id,
       status: 'created',
     }).select('id').single();
-    if (insErr || !orderRow) return json({ error: 'order_record_failed', detail: insErr?.message }, 500);
+    if (insErr || !orderRow) { console.error('create-order order insert failed:', insErr?.message); return json({ error: 'order_record_failed' }, 500); }
 
     // For a puja, write the fulfillment booking (status pending_payment). It flips
     // to 'paid' in verify-payment. Sankalp/delivery detail is captured client-side.
@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
         preferred_date: pujaSlotDate ?? PUJA_SLOT.pujaDate, // the slot this booking is for
         status: 'pending_payment',
       });
-      if (bookErr) return json({ error: 'booking_record_failed', detail: bookErr.message }, 500);
+      if (bookErr) { console.error('create-order booking insert failed:', bookErr.message); return json({ error: 'booking_record_failed' }, 500); }
     }
 
     return json({
@@ -231,6 +231,7 @@ Deno.serve(async (req) => {
       key_id: RZP_KEY_ID,     // publishable key for the checkout sheet
     });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('create-order error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });

@@ -36,6 +36,18 @@ Deno.serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return json({ error: 'unauthorized' }, 401);
 
+    // Rate limit: this endpoint calls a paid Claude vision model. Cap it per user
+    // per day so it can't be looped to run up an AI bill. Fails open on limiter
+    // error so a DB hiccup never blocks a genuine user (matches this fn's ethos).
+    const serviceKey2 = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (serviceKey2) {
+      const admin = createClient(supabaseUrl, serviceKey2);
+      const { data: allowed, error: rlErr } = await admin.rpc('rate_limit_hit', {
+        p_bucket: `palm:${user.id}`, p_limit: 30, p_window_seconds: 86400,
+      });
+      if (!rlErr && allowed === false) return json({ error: 'rate_limited' }, 429);
+    }
+
     const { image, mime } = await req.json();
     if (!image || typeof image !== 'string') return json({ error: 'missing_image' }, 400);
     // Bound the request: base64 is ~4/3 of the byte size. ~8MB base64 ≈ 6MB image.
@@ -87,6 +99,7 @@ Deno.serve(async (req) => {
     const palm = parsed.palm !== false;
     return json({ palm, reason: palm ? '' : String(parsed.reason ?? '') });
   } catch (e) {
-    return json({ palm: true, reason: 'server_error', detail: String((e as Error)?.message ?? e) }); // fail open
+    console.error('palm-check error:', String((e as Error)?.message ?? e));
+    return json({ palm: true, reason: 'server_error' }); // fail open
   }
 });

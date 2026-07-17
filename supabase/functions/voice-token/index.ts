@@ -174,7 +174,8 @@ Deno.serve(async (req) => {
         const deviceHash = deviceId ? await sha256(String(deviceId)) : null;
         if (deviceHash) await admin.from('device_free_call_trials').delete().eq('device_hash', deviceHash);
       }
-      return json({ error: 'session_create_failed', detail: sErr?.message }, 500);
+      console.error('voice-token session create failed:', sErr?.message);
+      return json({ error: 'session_create_failed' }, 500);
     }
 
     // ── mint the signed token ──────────────────────────────────────────────────
@@ -268,6 +269,7 @@ Deno.serve(async (req) => {
       },
     });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('voice-token error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });

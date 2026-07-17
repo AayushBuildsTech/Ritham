@@ -252,7 +252,8 @@ Deno.serve(async (req) => {
     return streamText(replyText, MODEL);
   } catch (e) {
     console.log('[voice-llm] SERVER ERROR', String((e as Error)?.message ?? e), String((e as Error)?.stack ?? '').slice(0, 400));
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('voice-llm error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });
 

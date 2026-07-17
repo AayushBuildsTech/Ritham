@@ -41,6 +41,16 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
+    // Rate limit (defense in depth): reads hit the per-profile/day cache cheaply,
+    // but a cache miss generates via paid Claude. Cap requests per user per day so
+    // spinning up many profiles can't be looped into unbounded generation.
+    {
+      const { data: allowed, error: rlErr } = await admin.rpc('rate_limit_hit', {
+        p_bucket: `horoscope:${user.id}`, p_limit: 100, p_window_seconds: 86400,
+      });
+      if (!rlErr && allowed === false) return json({ error: 'rate_limited' }, 429);
+    }
+
     const { profileId, period, lang: langRaw } = await req.json();
     if (period !== 'daily' && period !== 'weekly' && period !== 'monthly') {
       return json({ error: 'bad_period' }, 400);
@@ -92,7 +102,8 @@ Deno.serve(async (req) => {
 
     return json({ sign, period, period_key: periodKey, body, cached: false });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('horoscope error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });
 

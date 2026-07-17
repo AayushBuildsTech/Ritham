@@ -83,7 +83,8 @@ Deno.serve(async (req) => {
     }
     return json({ ...data, cached: false });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('panchang error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });
 

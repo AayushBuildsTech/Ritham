@@ -147,7 +147,8 @@ Deno.serve(async (req) => {
       .from('reports').insert(insertRow).select().single();
     if (rErr) {
       await admin.from('entitlements_ledger').update({ consumed_at: null }).eq('id', ent.id);
-      return json({ error: 'report_create_failed', detail: rErr.message }, 500);
+      console.error('report row create failed:', rErr.message);
+      return json({ error: 'report_create_failed' }, 500);
     }
 
     // Generate in the BACKGROUND. A report is a long, non-streaming Claude call
@@ -206,7 +207,8 @@ Deno.serve(async (req) => {
 
     return json({ report_id: report.id, status: 'generating' });
   } catch (e) {
-    return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
+    console.error('report error:', String((e as Error)?.message ?? e));
+    return json({ error: 'server_error' }, 500);
   }
 });
 
