@@ -51,7 +51,7 @@ export default function PujaListingScreen() {
               android_ripple={{ color: th.goldFaint }}
             >
               <View style={styles.heroWrap}>
-                <HeroBanner source={p.hero} aspectRatio={16 / 9} scrim radius={0}>
+                <HeroBanner source={p.hero} aspectRatio={3 / 2} scrim radius={0}>
                   <Text style={styles.cardTitle}>{tr(p.title)}</Text>
                   <View style={styles.locRow}>
                     <Icon name="mapPin" size={13} color={th.goldLight} />
@@ -65,7 +65,7 @@ export default function PujaListingScreen() {
               </View>
               <View style={styles.cardBody}>
                 <Text style={styles.cardSub}>{tr(p.subtitle)}</Text>
-                <SacredDivider style={{ marginVertical: Spacing.md }} />
+                <SacredDivider style={{ marginVertical: Spacing.lg }} />
                 <View style={styles.cardFooter}>
                   <View>
                     <Text style={styles.fromLabel}>{isHindi ? 'शुरुआत' : 'Starting from'}</Text>
@@ -136,14 +136,14 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   flex1: { flex: 1 },
   intro: {
     fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.textMuted,
-    lineHeight: 25, textAlign: 'center', marginTop: Spacing.md, marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.sm,
+    lineHeight: 26, textAlign: 'center', marginTop: Spacing.lg, marginBottom: Spacing.xxl,
+    paddingHorizontal: Spacing.md,
   },
 
   // live puja card
   liveCard: {
     backgroundColor: th.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: th.borderStrong,
-    overflow: 'hidden', marginBottom: Spacing.xl, ...Depth.glow,
+    overflow: 'hidden', marginBottom: Spacing.xxl, ...Depth.glow,
   },
   heroWrap: { position: 'relative' },
   cardTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: '#FFFFFF', letterSpacing: 0.3 },
@@ -156,8 +156,8 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: th.goldLight },
   livePillText: { fontFamily: Fonts.bodyBold, fontSize: 10, color: '#FFFFFF', letterSpacing: 1.5 },
-  cardBody: { padding: Spacing.md, paddingTop: Spacing.md },
-  cardSub: { fontFamily: Fonts.display, fontSize: Fonts.size.md, color: th.goldLight, lineHeight: 22, textAlign: 'center' },
+  cardBody: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.lg },
+  cardSub: { fontFamily: Fonts.display, fontSize: Fonts.size.lg, color: th.goldLight, lineHeight: 26, textAlign: 'center', marginTop: Spacing.xs },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   fromLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, letterSpacing: 0.5 },
   fromPrice: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginTop: 1 },
@@ -181,13 +181,13 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   soonCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.border,
-    padding: Spacing.md, marginBottom: Spacing.sm,
+    paddingVertical: Spacing.md + 2, paddingHorizontal: Spacing.md, marginBottom: Spacing.md,
   },
   soonEmblem: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: th.goldFaint,
+    width: 46, height: 46, borderRadius: 23, backgroundColor: th.goldFaint,
     borderWidth: 1, borderColor: th.borderStrong, alignItems: 'center', justifyContent: 'center',
   },
-  soonTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.md, color: th.text },
+  soonTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.md, color: th.text, marginBottom: 3 },
   soonLoc: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim },
   soonPill: {
     borderWidth: 1, borderColor: th.borderStrong, backgroundColor: th.goldFaint, borderRadius: Radius.pill,
