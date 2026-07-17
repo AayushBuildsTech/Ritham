@@ -444,7 +444,7 @@ export default function HomeScreen() {
         {profile && (
           <Reveal index={2} style={styles.bannerWrap}>
             <Pressable
-              onPress={() => router.push('/puja' as any)}
+              onPress={() => router.push('/puja/pitra_dosha_rameswaram' as any)}
               android_ripple={{ color: th.goldFaint }}
               style={styles.banner}
             >
