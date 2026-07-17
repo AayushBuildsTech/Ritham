@@ -7,11 +7,18 @@
 // This is the authoritative meter — the client timer is only a UX guard. Vapi's own
 // maxDurationSeconds hard-caps the call, so we can never bill past the allowance.
 //
-// Secrets: VAPI_WEBHOOK_SECRET (set as the Vapi Server URL secret) + SUPABASE_*.
+// AUTH (Option B — "wristband"): voice-token signs the call session id into the
+// Vapi call metadata using VOICE_TOKEN_SECRET; Vapi echoes that metadata back here,
+// so a genuine report carries a signature we can verify and a forged one cannot.
+// (An optional second layer accepts a matching x-vapi-secret header if the Vapi
+// Server URL secret / VAPI_WEBHOOK_SECRET is ever configured.)
+//
+// Secrets: VOICE_TOKEN_SECRET (required) + optional VAPI_WEBHOOK_SECRET + SUPABASE_*.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const VAPI_WEBHOOK_SECRET = Deno.env.get('VAPI_WEBHOOK_SECRET') ?? '';
+const VOICE_TOKEN_SECRET = Deno.env.get('VOICE_TOKEN_SECRET') ?? '';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -29,6 +36,16 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// HMAC-SHA256 hex keyed by VOICE_TOKEN_SECRET — mirrors voice-token's signer so we
+// can recompute the expected signature for a given session id and compare.
+async function hmacHex(data: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(VOICE_TOKEN_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Dig a value out of the (nested, provider-shaped) payload from several likely spots.
 function pick<T>(obj: any, paths: string[]): T | undefined {
   for (const p of paths) {
@@ -44,14 +61,6 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   try {
-    // Fail CLOSED: a mutating webhook (ends sessions, decrements paid entitlements)
-    // must never be callable without the shared secret. If the secret isn't
-    // configured, reject everything rather than silently trusting anonymous posts.
-    if (!VAPI_WEBHOOK_SECRET) return json({ error: 'not_configured' }, 500);
-    if (!timingSafeEqual(req.headers.get('x-vapi-secret') ?? '', VAPI_WEBHOOK_SECRET)) {
-      return json({ error: 'forbidden' }, 403);
-    }
-
     const body = await req.json().catch(() => ({}));
     const msg = body?.message ?? body;
     const type = pick<string>(msg, ['type']) ?? '';
@@ -68,6 +77,20 @@ Deno.serve(async (req) => {
         'assistant.metadata.callSessionId',
       ]);
     if (!callSessionId) return json({ ok: true, ignored: 'no_session_id' });
+
+    // ── AUTHENTICATE the report (fail CLOSED) ────────────────────────────────
+    // Primary: the signature voice-token stamped into the call metadata must match
+    // HMAC(callSessionId, VOICE_TOKEN_SECRET) — proves the report is for a session
+    // WE created and hasn't been forged. Secondary (optional): a matching
+    // x-vapi-secret header, if VAPI_WEBHOOK_SECRET is configured on Vapi's side.
+    const sig = pick<string>(msg, [
+      'call.metadata.sig', 'metadata.sig',
+      'call.assistantOverrides.metadata.sig', 'assistant.metadata.sig',
+    ]) ?? '';
+    const okSig = !!(VOICE_TOKEN_SECRET && sig && timingSafeEqual(sig, await hmacHex(callSessionId)));
+    const okSecret = !!(VAPI_WEBHOOK_SECRET &&
+      timingSafeEqual(req.headers.get('x-vapi-secret') ?? '', VAPI_WEBHOOK_SECRET));
+    if (!okSig && !okSecret) return json({ error: 'forbidden' }, 403);
 
     // duration in seconds — Vapi may send seconds, minutes, or start/end timestamps
     let durationSec = pick<number>(msg, ['durationSeconds', 'call.durationSeconds', 'artifact.durationSeconds']);

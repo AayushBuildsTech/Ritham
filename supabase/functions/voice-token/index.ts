@@ -66,6 +66,17 @@ async function signToken(claims: Record<string, unknown>): Promise<string> {
   return `${strToB64url(payload)}.${bytesToB64url(sig)}`;
 }
 
+// HMAC-SHA256 hex of a string, keyed by VOICE_TOKEN_SECRET. Used to sign the call
+// session id into the Vapi call metadata so the end-of-call webhook can verify the
+// report is genuine (Vapi echoes the metadata back). See voice-webhook.
+async function hmacHex(data: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(VOICE_TOKEN_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Active paid call balance = Σ (seconds_total − seconds_used) over unconsumed 'call' rows.
 async function callBalance(admin: any, userId: string): Promise<number> {
   const { data } = await admin
@@ -199,6 +210,9 @@ Deno.serve(async (req) => {
       }).catch(() => {});
     }
 
+    // Sign the session id so the end-of-call webhook can prove the report is genuine.
+    const sessionSig = await hmacHex(session.id);
+
     return json({
       ok: true,
       callSessionId: session.id,
@@ -263,7 +277,7 @@ Deno.serve(async (req) => {
               onNumberSeconds: 0.4,
             },
           },
-          metadata: { callSessionId: session.id },
+          metadata: { callSessionId: session.id, sig: sessionSig },
           // Vapi requires the FULL model object on an override (provider + model + url),
           // not just the url — otherwise POST /call/web returns 400.
           ...(modelUrl ? { model: { provider: 'custom-llm', model: 'ritham', url: modelUrl } } : {}),
