@@ -180,6 +180,11 @@ export default function HomeScreen() {
 
   const features: { icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }[] = profile ? [
     {
+      icon: 'puja', accent: 'ruby', title: isHindi ? 'पूजा बुक करें' : 'Book a Puja',
+      sub: isHindi ? 'रामेश्वरम् में पितृ दोष निवारण पूजा' : 'Pitra Dosha Puja at Rameswaram',
+      onPress: () => router.push('/puja' as any),
+    },
+    {
       icon: 'panchang', accent: 'saffron', title: isHindi ? 'पंचांग' : 'Panchang',
       sub: panchang ? `${panchang.tithi} · ${isHindi ? hiNakshatra(panchang.nakshatra?.split(' (')[0] ?? '') : panchang.nakshatra?.split(' (')[0]}` : (isHindi ? 'आज का पंचांग और समय' : 'Today’s almanac & timings'),
       onPress: () => router.push({ pathname: '/panchang', params: { profileId: profile.id } }),
@@ -288,6 +293,12 @@ export default function HomeScreen() {
       sub: isHindi ? 'आपकी नियति आपके हाथ में' : 'Your destiny, in your hands', cta: isHindi ? 'खोलें' : 'Reveal',
       image: require('../../assets/carousel/palmreading.png'),
       onPress: () => router.push({ pathname: '/palmreading' as any, params: { profileId: profile.id } }),
+    },
+    {
+      key: 'puja', icon: 'puja', badge: isHindi ? 'नया' : 'NEW', title: isHindi ? 'पितृ दोष पूजा' : 'Pitra Dosha Puja',
+      sub: isHindi ? 'रामेश्वरम् में पूर्वजों के लिए पूजा' : 'Ancestral rites at Rameswaram', cta: isHindi ? 'बुक करें' : 'Book',
+      image: require('../../assets/puja/carousel.png'),
+      onPress: () => router.push('/puja' as any),
     },
     {
       key: 'store', icon: 'store', badge: isHindi ? 'स्टोर' : 'SHOP', title: isHindi ? 'रिदम स्टोर' : 'Ritham Store',

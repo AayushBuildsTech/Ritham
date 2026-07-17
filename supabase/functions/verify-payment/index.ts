@@ -82,6 +82,19 @@ Deno.serve(async (req) => {
     await admin.from('payment_orders')
       .update({ status: 'paid', razorpay_payment_id }).eq('id', order.id);
 
+    // ── Puja bookings are fulfillment orders, NOT entitlements ────────────────
+    // Flip the linked booking to 'paid' (idempotent — only while pending) and
+    // notify the owner so they can perform the ritual. No ledger grant.
+    if (order.kind === 'puja') {
+      const { data: booking } = await admin.from('puja_bookings')
+        .update({ status: 'paid' })
+        .eq('order_id', order.id).eq('status', 'pending_payment')
+        .select('*').maybeSingle();
+      // best-effort owner notification (never blocks the response)
+      if (booking) await notifyOwner(booking).catch(() => {});
+      return json({ ok: true });
+    }
+
     // grant the entitlement — idempotent via unique(order_id)
     const questions = order.kind === 'questions' ? (QUESTION_PACKS[order.plan_id] ?? 0) : 0;
     const seconds =
@@ -110,6 +123,31 @@ Deno.serve(async (req) => {
     return json({ error: 'server_error', detail: String((e as Error)?.message ?? e) }, 500);
   }
 });
+
+// Fire the paid puja booking to the owner so they can perform it manually.
+// Set OWNER_NOTIFY_URL (Edge secret) to any webhook that accepts a JSON POST
+// (e.g. a Make/Zapier hook that emails or WhatsApps you). No-op if unset — the
+// booking is always readable in the Supabase dashboard as a fallback.
+async function notifyOwner(booking: any): Promise<void> {
+  const url = Deno.env.get('OWNER_NOTIFY_URL');
+  if (!url) return;
+  const text =
+    `🪔 New Puja booking (PAID)\n` +
+    `Puja: ${booking.puja_id} • Tier: ${booking.tier_id}\n` +
+    `Amount: ₹${(booking.amount_paise / 100).toFixed(0)}\n` +
+    `Devotees: ${(booking.devotee_names ?? []).join(', ') || '—'}\n` +
+    `Gotra(s): ${(booking.gotras ?? []).join(', ') || booking.gotra || '—'}\n` +
+    `Add-ons: ${(booking.add_on_ids ?? []).join(', ') || 'none'}\n` +
+    `Dakshina: ₹${((booking.dakshina_paise ?? 0) / 100).toFixed(0)}\n` +
+    `Wish: ${booking.puja_wish ?? '—'}\n` +
+    `WhatsApp: ${booking.contact_phone ?? '—'}\n` +
+    `Booking id: ${booking.id}`;
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, booking }),
+  });
+}
 
 async function computeBalance(admin: any, userId: string) {
   const { data } = await admin

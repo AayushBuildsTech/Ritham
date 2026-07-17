@@ -25,6 +25,7 @@ const MAP = {
   numerology: ['mci', 'numeric'],
   muhurat: ['mci', 'calendar-star'],
   temple: ['mci', 'temple-hindu'],
+  puja: ['mci', 'hands-pray'],
   dream: ['mci', 'weather-night'],
   leaf: ['mci', 'leaf'],
   paw: ['mci', 'paw'],

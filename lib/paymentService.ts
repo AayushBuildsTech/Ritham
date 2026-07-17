@@ -17,7 +17,7 @@ import { track } from './analytics';
 const CREATE_ORDER_FN = 'create-order';
 const VERIFY_PAYMENT_FN = 'verify-payment';
 
-export type PackKind = 'questions' | 'time' | 'report' | 'call';
+export type PackKind = 'questions' | 'time' | 'report' | 'call' | 'puja';
 
 export interface Balance {
   questions: number;    // remaining questions across active question packs
@@ -92,6 +92,79 @@ export async function purchasePack(
 
   track('purchase', { kind, planId, amount_paise: data.amount });
   return { ok: true, balance: v.balance };
+}
+
+// ── Puja booking checkout ─────────────────────────────────────────────────────
+// A puja is a fulfillment order (not an entitlement): create-order records a
+// puja_bookings row + Razorpay order; verify-payment flips it to 'paid' and
+// notifies the owner. The client sends the full sankalp/delivery detail; the
+// server recomputes the price from tier + add-ons + clamped dakshina (rule #3).
+export interface PujaBookingPayload {
+  pujaId: string;
+  tierId: string;
+  addOnIds: string[];
+  dakshinaPaise: number;
+  profileId?: string | null;
+  preferredDate?: string | null; // YYYY-MM-DD
+  sankalp: { devoteeNames: string[]; gotra?: string; gotras?: string[]; wish?: string };
+  delivery: { phone?: string };
+}
+
+export interface PujaPurchaseResult {
+  ok: boolean;
+  error?: string; // 'cancelled' | 'payment_failed' | server error code
+}
+
+export async function purchasePuja(
+  payload: PujaBookingPayload,
+  prefill?: { contact?: string; email?: string; name?: string },
+): Promise<PujaPurchaseResult> {
+  // 1. create the order + pending booking server-side
+  const { data, error } = await supabase.functions.invoke<CreateOrderResp>(CREATE_ORDER_FN, {
+    body: { kind: 'puja', puja: payload },
+  });
+  if (error || !data || data.error || !data.order_id) {
+    return { ok: false, error: data?.error ?? error?.message ?? 'order_failed' };
+  }
+
+  // 2. open the Razorpay checkout sheet (native)
+  let checkout: any;
+  try {
+    checkout = await RazorpayCheckout.open({
+      key: data.key_id,
+      order_id: data.order_id,
+      amount: data.amount,
+      currency: data.currency,
+      name: 'Ritham',
+      description: 'Puja booking',
+      theme: { color: '#FF007F' },
+      prefill: {
+        contact: prefill?.contact ?? '',
+        email: prefill?.email ?? '',
+        name: prefill?.name ?? '',
+      },
+    });
+  } catch (e: any) {
+    const desc = e?.description ?? e?.error?.description ?? '';
+    const cancelled = e?.code === 0 || /cancel/i.test(String(desc));
+    return { ok: false, error: cancelled ? 'cancelled' : 'payment_failed' };
+  }
+
+  // 3. verify server-side → booking flips to 'paid'
+  const { data: v, error: vErr } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+    VERIFY_PAYMENT_FN,
+    {
+      body: {
+        razorpay_order_id: checkout.razorpay_order_id,
+        razorpay_payment_id: checkout.razorpay_payment_id,
+        razorpay_signature: checkout.razorpay_signature,
+      },
+    },
+  );
+  if (vErr || !v?.ok) return { ok: false, error: v?.error ?? vErr?.message ?? 'verify_failed' };
+
+  track('purchase', { kind: 'puja', planId: payload.tierId, amount_paise: data.amount });
+  return { ok: true };
 }
 
 // Read the current entitlement balance directly (RLS: user sees only their own rows).

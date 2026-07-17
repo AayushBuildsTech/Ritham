@@ -4,7 +4,33 @@
 
 ---
 
-## 0. Latest Session (2026-07-16, later) — Palm Reading (new paid feature) + bad-photo guard
+## 0. Latest Session (2026-07-17) — Puja Booking (new paid feature): Pitra Dosha Puja at Rameswaram
+
+**New paid feature: Puja Booking** — users book a real **Pitra Dosha Nivaran Puja** performed on their behalf at **Agni Theertham, Rameswaram** (the ocean shore beside Ramanathaswamy Temple where ancestral Tarpanam/Thila Homam rites are done). Unlike everything else in the app this is **NOT AI-automated** — fulfillment is **manual** (the owner takes the order and coordinates the ritual, video and updates over WhatsApp). Competitor reference (Utsav) screenshots were in `../puja/`.
+
+**Key architecture — a puja is a FULFILLMENT ORDER, not a consumable entitlement.** It reuses the proven Razorpay rails (`create-order` → Razorpay → `verify-payment`, `payment_orders`) with a **new `kind='puja'`**, but writes a **new `puja_bookings` table** instead of `entitlements_ledger`. `verify-payment` flips the booking `pending_payment → paid` (idempotent) and fires an **owner notification** (POST to Edge secret `OWNER_NOTIFY_URL` — email/WhatsApp webhook; falls back to reading the row in the Supabase dashboard). No entitlement is granted for pujas.
+
+**Single source of truth: `config/pujas.ts`** (client) **mirrored in `create-order`/`verify-payment`** (server owns money, rule #3 — server recomputes the total from tier + add-ons + clamped dakshina; validates puja/tier/add-on ids, rejects unknowns; dakshina clamped to ≤₹51,000).
+- **4 packages (price_paise):** `pkg_individual_personal` "Personal Shanti Puja" ₹2999 (1 name) · `pkg_couple_blessing` "Couple's Blessing Puja" ₹4499 (2 names/2 gotras, *Most Chosen*) · `pkg_family_protection` "Family Protection Puja" ₹5999 (up to 4, 1 gotra, *Best Value*) · `pkg_joint_lineage` "Full Lineage Maha Puja" ₹7499 (up to 6 names). Per-tier `perDevoteeGotra` flag (couple/joint collect a gotra per name → `puja_bookings.gotras text[]`; individual/family share one).
+- **5 add-on bhet/daan** (Pitru-specific, exact copy from user): Kaka Bali Seva ₹101, Gau Seva ₹351, Tila Daan ₹91, Vastra Daan ₹401, Brahman Bhojan ₹501. (**Pinda Daan Arpan was added then removed at user's request.**) Plus optional **Dakshina** presets `[51,101,251,501,1001]` + custom.
+- **Gotra is a fixed 54-entry dropdown** (`GOTRAS`, not free text) with a **themed help modal** (not a native Alert) showing the Kashyapa universal-gotra explanation (`GOTRA_HELP`).
+- **No prasad** — Pitru rites deliver no prasad box; booking collects only a WhatsApp number (video + updates), **no delivery address**.
+
+**Screens (`app/puja/`, expo-router, all bilingual EN/HI, themed):** `index.tsx` (listing — live puja card + 5 curated **Coming Soon** cards: Kaal Sarp/Trimbakeshwar, Maha Mrityunjaya/Ujjain, Navagraha/Suryanar Kovil, Shani/Shingnapur, Lakshmi-Kubera/Kolhapur), `[id].tsx` (detail — hero, tier picker, why-perform, includes, sticky book bar), `book.tsx` (**3-step wizard**: Offerings → Sankalp → Pay, with a connected gold stepper + itemized **Puja Bill** with Total), `confirmation.tsx` (success + timeline), `my-bookings.tsx` (status list via RLS). Home entry: **feature card + carousel slide** in `app/(tabs)/index.tsx` (Store tab untouched, per user); new `puja` icon in `components/Icon.tsx`.
+
+**Design — "Sacred gold on deep night" polish pass (user: first cut looked copied/dull).** New reusable **`components/SacredDivider.tsx`** (gold rule + central diamond, optional caption) used across all puja screens; gradient-gold CTAs (`Accents.gold.grad`), gold-bordered glowing cards, Fraunces serif headers, tier badge ribbons, gold stepper, receipt-style bill, gold gradient confirmation ring + connected timeline. `purchasePuja()` added to `lib/paymentService.ts`; analytics `puja_viewed`/`puja_detail_viewed`/`puja_book_started`.
+
+**Assets** — real AI art in `assets/puja/`: `hero.png`, `carousel.png`, and 5 add-on thumbnails (`kaka_bali_seva`, `gau_seva_pitru`, `tila_daan_homam`, `vastra_daan_brahmin`, `brahman_bhojan`). Prompts followed the house convention (magenta #FF007F + violet #7B2CBF + gold; transparent cut-outs for thumbnails/carousel, opaque hero).
+
+**Files —** new: `app/puja/{index,[id],book,confirmation,my-bookings}.tsx`, `config/pujas.ts`, `components/SacredDivider.tsx`, `supabase/migrations/025_puja_bookings.sql`, `assets/puja/*`. Modified: `supabase/functions/{create-order,verify-payment}/index.ts` (kind `'puja'` + booking write + owner notify), `lib/paymentService.ts` (`purchasePuja`, PackKind), `lib/analytics.ts`, `components/Icon.tsx`, `app/(tabs)/index.tsx`.
+
+**Verification:** client `npx tsc --noEmit` = **0 errors**; verified live on device via Metro Fast Refresh (wireless ADB `192.168.1.14:5555` + `adb reverse tcp:8081`). ColorOS gotcha: the OS freezes the app when the screen sleeps — `adb shell svc power stayon true` while testing.
+
+**⚠️ Deploy needed (nothing shipped this session — code only):** (1) apply **`025_puja_bookings.sql`** (Supabase SQL editor — creates `puja_bookings` + RLS, widens `payment_orders.kind` to include `'puja'`); (2) **redeploy `create-order` + `verify-payment`**; (3) set Edge secret **`OWNER_NOTIFY_URL`** (else bookings are only visible in the dashboard). **Open (non-blocker):** refund path + `refunded` status (manual via Razorpay), GST/invoice + booking T&Cs in `app/legal/`, `preferred_date` captured but no real slot inventory, Kundli→Pitra-Dosha detection funnel (subtle, deferred to Phase 2).
+
+---
+
+## Prior Session (2026-07-16, later) — Palm Reading (new paid feature) + bad-photo guard
 
 **New paid feature: Palm Reading (`palm`, ₹99)** — Hasta Samudrika Shastra × astrology. The user uploads a photo of their dominant palm; a **zero-cost hint** entices, then ₹99 unlocks a full 9-page reading (vision) cross-referenced with their own Kundli. It rides the existing report pipeline — **palm is just a new report `type`**, so it reuses entitlements, the `reports` table, the renderer, `/report-view` (PDF export), and the `REPORT_META`-driven cards.
 

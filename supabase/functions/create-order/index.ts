@@ -54,6 +54,24 @@ const REPORT_PRICES: Record<string, { price_paise: number }> = {
   palm:        { price_paise: 9900 },
 };
 
+// ── Puja booking pricing (kind 'puja'). Mirror of config/pujas.ts ─────────────
+// A puja total = tier price + Σ selected add-on prices + clamped dakshina.
+const PUJA_TIERS: Record<string, { price_paise: number }> = {
+  pkg_individual_personal: { price_paise: 299900 },
+  pkg_couple_blessing:     { price_paise: 449900 },
+  pkg_family_protection:   { price_paise: 599900 },
+  pkg_joint_lineage:       { price_paise: 749900 },
+};
+const PUJA_ADDONS: Record<string, { price_paise: number }> = {
+  kaka_bali_seva:      { price_paise: 10100 },
+  gau_seva_pitru:      { price_paise: 35100 },
+  tila_daan_homam:     { price_paise: 9100 },
+  vastra_daan_brahmin: { price_paise: 40100 },
+  brahman_bhojan:      { price_paise: 50100 },
+};
+const PUJA_IDS = new Set(['pitra_dosha_rameswaram']);
+const DAKSHINA_MAX_PAISE = 5100000; // ₹51,000 ceiling (reject abuse)
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -79,26 +97,53 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    const { kind, planId } = await req.json();
-    if (kind !== 'questions' && kind !== 'time' && kind !== 'report' && kind !== 'call') return json({ error: 'bad_kind' }, 400);
-
-    const plan =
-      kind === 'questions' ? QUESTION_PACKS[planId] :
-      kind === 'time'      ? SESSION_PLANS[planId] :
-      kind === 'call'      ? CALL_PACKS[planId] :
-                             REPORT_PRICES[planId];
-    if (!plan) return json({ error: 'unknown_plan' }, 400);
-
-    // first-purchase-only guard (e.g. Bindu ₹5): reject if already bought once.
-    if (kind === 'questions' && (plan as any).first_purchase_only) {
-      const { count } = await admin
-        .from('payment_orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id).eq('plan_id', planId).eq('status', 'paid');
-      if ((count ?? 0) > 0) return json({ error: 'first_purchase_only_used' }, 409);
+    const body = await req.json();
+    const { kind, planId } = body;
+    if (kind !== 'questions' && kind !== 'time' && kind !== 'report' && kind !== 'call' && kind !== 'puja') {
+      return json({ error: 'bad_kind' }, 400);
     }
 
-    const amount = plan.price_paise; // paise — trusted server value
+    // ── Puja bookings compute their total from tier + add-ons + dakshina ──────
+    // and store plan_id = the tier id (to fit the existing payment_orders shape).
+    let amount = 0;
+    let orderPlanId = planId as string;
+    let pujaData: {
+      pujaId: string; tierId: string; addOnIds: string[]; dakshinaPaise: number;
+    } | null = null;
+
+    if (kind === 'puja') {
+      const p = body.puja ?? {};
+      const pujaId = String(p.pujaId ?? '');
+      const tierId = String(p.tierId ?? '');
+      const addOnIds: string[] = Array.isArray(p.addOnIds) ? p.addOnIds.map(String) : [];
+      if (!PUJA_IDS.has(pujaId)) return json({ error: 'unknown_puja' }, 400);
+      const tier = PUJA_TIERS[tierId];
+      if (!tier) return json({ error: 'unknown_tier' }, 400);
+      // reject any add-on id we don't recognise (rule #3 — validate everything)
+      for (const id of addOnIds) if (!PUJA_ADDONS[id]) return json({ error: 'unknown_addon', detail: id }, 400);
+      const addOnTotal = addOnIds.reduce((s, id) => s + PUJA_ADDONS[id].price_paise, 0);
+      const dakshina = Math.max(0, Math.min(Math.floor(Number(p.dakshinaPaise) || 0), DAKSHINA_MAX_PAISE));
+      amount = tier.price_paise + addOnTotal + dakshina;
+      orderPlanId = tierId;
+      pujaData = { pujaId, tierId, addOnIds, dakshinaPaise: dakshina };
+    } else {
+      const plan =
+        kind === 'questions' ? QUESTION_PACKS[planId] :
+        kind === 'time'      ? SESSION_PLANS[planId] :
+        kind === 'call'      ? CALL_PACKS[planId] :
+                               REPORT_PRICES[planId];
+      if (!plan) return json({ error: 'unknown_plan' }, 400);
+
+      // first-purchase-only guard (e.g. Bindu ₹5): reject if already bought once.
+      if (kind === 'questions' && (plan as any).first_purchase_only) {
+        const { count } = await admin
+          .from('payment_orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id).eq('plan_id', planId).eq('status', 'paid');
+        if ((count ?? 0) > 0) return json({ error: 'first_purchase_only_used' }, 409);
+      }
+      amount = plan.price_paise; // paise — trusted server value
+    }
 
     // ── create the Razorpay order ────────────────────────────────────────────
     const receipt = `ritham_${user.id.slice(0, 8)}_${Date.now()}`;
@@ -110,7 +155,7 @@ Deno.serve(async (req) => {
         amount,               // paise
         currency: 'INR',
         receipt,
-        notes: { user_id: user.id, kind, plan_id: planId },
+        notes: { user_id: user.id, kind, plan_id: orderPlanId },
       }),
     });
     if (!rzpRes.ok) {
@@ -120,16 +165,49 @@ Deno.serve(async (req) => {
     const order = await rzpRes.json();
 
     // record it (status 'created' — becomes 'paid' after verify)
-    const { error: insErr } = await admin.from('payment_orders').insert({
+    const { data: orderRow, error: insErr } = await admin.from('payment_orders').insert({
       user_id: user.id,
       kind,
-      plan_id: planId,
+      plan_id: orderPlanId,
       amount_paise: amount,
       currency: 'INR',
       razorpay_order_id: order.id,
       status: 'created',
-    });
-    if (insErr) return json({ error: 'order_record_failed', detail: insErr.message }, 500);
+    }).select('id').single();
+    if (insErr || !orderRow) return json({ error: 'order_record_failed', detail: insErr?.message }, 500);
+
+    // For a puja, write the fulfillment booking (status pending_payment). It flips
+    // to 'paid' in verify-payment. Sankalp/delivery detail is captured client-side.
+    if (kind === 'puja' && pujaData) {
+      const s = body.puja.sankalp ?? {};
+      const d = body.puja.delivery ?? {};
+      const devoteeNames: string[] = Array.isArray(s.devoteeNames)
+        ? s.devoteeNames.map((n: unknown) => String(n).trim()).filter(Boolean) : [];
+      const gotras: string[] = Array.isArray(s.gotras)
+        ? s.gotras.map((g: unknown) => String(g).trim()).filter(Boolean) : [];
+      const { error: bookErr } = await admin.from('puja_bookings').insert({
+        user_id: user.id,
+        profile_id: body.puja.profileId ?? null,
+        order_id: orderRow.id,
+        puja_id: pujaData.pujaId,
+        tier_id: pujaData.tierId,
+        add_on_ids: pujaData.addOnIds,
+        dakshina_paise: pujaData.dakshinaPaise,
+        amount_paise: amount,
+        currency: 'INR',
+        devotee_names: devoteeNames,
+        gotra: gotras[0] ?? (s.gotra ? String(s.gotra).trim() : null),
+        gotras,
+        puja_wish: s.wish ? String(s.wish).trim() : null,
+        // Pitru rites deliver no prasad — only the contact number for the video & updates.
+        want_prasad: false,
+        contact_phone: d.phone ? String(d.phone).trim() : null,
+        address: null,
+        preferred_date: body.puja.preferredDate ?? null,
+        status: 'pending_payment',
+      });
+      if (bookErr) return json({ error: 'booking_record_failed', detail: bookErr.message }, 500);
+    }
 
     return json({
       order_id: order.id,     // Razorpay order id → RazorpayCheckout.open({ order_id })
