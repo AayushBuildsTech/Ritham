@@ -286,6 +286,68 @@ Until step 1 is done, the fail-closed code is committed but intentionally **not 
 
 ---
 
+## 10. Remaining-areas audit (completion pass)
+
+Coverage of the categories not yet reported. New findings below; existing scores updated in § 11.
+
+### 🟠 M-6 · 59 MB of un-optimized raster assets (violates the project's own WebP standard)
+- **Category:** Android Performance / Play app size
+- **Affected:** `assets/**` — 55 raster files totalling **59.2 MB**; **25 PNGs exceed 1 MB** (e.g. `assets/guru/guru-portrait.png` 2.9 MB, `assets/store/store-hero.png` 2.9 MB, most `assets/store/*` and `assets/temples/*` 2–2.9 MB). Only 29 assets are WebP.
+- **Description:** These ship inside the app bundle, so the install size balloons (raster payload alone ≈ 59 MB → APK/AAB likely 80 MB+). The project already mandates "trimmed WebP, never multi-MB PNGs."
+- **Risk:** Lower install conversion, slow first paint on the screens that load these, more data usage — at "thousands of users" this is real drop-off.
+- **Reproduce:** `git ls-files assets | grep .png` → 25 files > 1 MB.
+- **Recommended fix:** Convert the 25 large PNGs to sized WebP (Pillow, quality ~80, dimension-capped to their on-screen size). Expected saving ~40–50 MB. Keep alpha where needed (`guru-portrait`, icons).
+- **Estimated impact:** Materially smaller download; faster image screens.
+
+### 🟠 M-7 · No accessibility annotations anywhere (screen-reader unusable)
+- **Category:** Accessibility (WCAG / Play "Accessibility" best practice)
+- **Affected:** all `app/**` + `components/**` — **0** occurrences of `accessibilityLabel` / `accessibilityRole` / `accessibilityHint` / `accessibilityState`.
+- **Description:** The UI is icon-heavy (custom `Icon` component, gradient `Pressable` cards, no text on many controls). With no labels, TalkBack announces controls as unlabeled/generic, and state (selected/disabled) isn't conveyed.
+- **Risk:** App is effectively unusable for blind/low-vision users; fails an accessibility review and excludes a user segment.
+- **Recommended fix:** Add `accessibilityRole="button"` + a meaningful `accessibilityLabel` to every `Pressable`/icon control (Settings rows, tab bar, paywall buttons, carousel, call orb). Add `accessibilityState={{ selected, disabled }}` to segmented controls. Verify contrast (the magenta-on-dark theme) meets 4.5:1 and touch targets are ≥ 48 dp.
+- **Estimated impact:** Opens the app to assistive-tech users; passes a11y review.
+
+### 🟡 L-8 · 14 moderate npm-audit advisories (build-time tooling)
+- **Category:** Dependencies / Supply chain
+- **Affected:** `@expo/config-plugins` (transitive via `expo-sharing`, `expo-splash-screen`). `npm audit`: **14 moderate, 0 high/critical.**
+- **Description:** The advisories are in Expo **build-time** config plugins, not runtime app code, so device exposure is low. Still worth clearing before launch.
+- **Recommended fix:** `npm audit` review; bump Expo patch releases when available (`npx expo install --fix`). Don't `npm audit fix --force` blindly (it can cross-grade RN/Expo).
+
+### Areas reviewed with no new blocking findings
+- **Client payment flow** (`paymentService.ts`, `reportService.ts`, `palmService.ts`) — clean: client sends only `kind`+`planId` (or the puja payload); price/verify are fully server-side. ✅
+- **Pricing parity** — `config/pricing.ts` **matches** the server tables in `create-order`/`verify-payment` today (session, call, question, report). The drift *risk* (L-3) remains because it's hand-synced, but there is no current mismatch. ✅
+- **Function slug integrity** — every client `*_FUNCTION` constant resolves to the real deployed slug (`chat`,`kundli`,`horoscope`,`panchang`,`muhurat`,`report`,…); **no orphaned `bright-processor`** exists. The historical rename hazard is not currently live. ✅
+- **verify_jwt configuration** — confirmed per-function via `functions list`: app-facing = `true`, `voice-llm`/`voice-webhook` = `false`. Correct. ✅
+- **i18n** — dual EN/HI is threaded throughout (`lib/i18n.ts` + `isHindi` branches + server `lang` param to chat/report/horoscope). Broadly complete; a full string-coverage diff wasn't done (recommend a lint that flags untranslated keys).
+- **Business logic / dates** — the astro engine defaults birth timezone to `Asia/Kolkata` and stores a per-profile `timezone`; money is integer paise throughout (rule #6). **Not exhaustively verified:** DST/historical-timezone correctness for pre-1970 or non-IST births, and leap/edge dates — these are exactly what the missing unit tests (H-3) should cover.
+- **Storage security** — `reports` bucket is private with per-folder `auth.uid()` RLS on all four ops. ✅
+- **Notifications / deep links** — `scheme: ritham`, minimal permissions (`RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`), no custom exported intent handlers beyond Expo defaults. Low risk; not deeply fuzzed.
+
+### 11. Updated scorecard (post-completion)
+
+| Dimension | Was | Now | Note |
+|---|---:|---:|---|
+| Security | 78 | **83** | H-1 rate limiting + kundli auth deployed; H-2 pending Vapi coordination. |
+| Architecture | 82 | 82 | Unchanged. |
+| Performance | 70* | **62** | 59 MB un-optimized assets (M-6) pulls this down; still no runtime profiling. |
+| Code Quality | 82 | 82 | Unchanged. |
+| Production Readiness | 60 | **66** | Real AI + keys confirmed set; migration/functions deployed; tests/CI/monitoring still absent. |
+| Play Readiness | 68 | 68 | App-size (M-6) and a11y (M-7) offset the deployment progress; Data Safety still pending. |
+| **Accessibility** | — | **25** | *New dimension.* No annotations at all (M-7). |
+| Test Coverage | 5 | 5 | Unchanged. |
+
+---
+
+## 12. Audit complete — final status
+
+All 20 requested areas have been reviewed. Depth was risk-weighted (payments/auth/RLS/edge functions line-by-line; UI/perf/a11y at survey level with concrete evidence). Nothing critical (data breach / payment bypass / secret leak) was found — the core is well built. The gating issues for a public launch are **operational** (H-2 Vapi coordination, live-key verification, Data Safety, crash reporting), **cost-safety** (H-1 — now deployed), and **quality/coverage** (H-3 tests, M-6 app size, M-7 accessibility).
+
+**Verdict stands: ❌ NOT READY (as-is) → clears to ⚠ once the § 4 blockers + M-5 are done, then ✅ with tests/a11y/asset polish.**
+
+Deployed this session (live now): rate limiting, kundli in-code auth, error-detail hygiene, migration 028. Not deployed (needs you): voice-webhook (H-2). Everything else in § 4/§ 5 is on you to schedule.
+
+---
+
 ## L-7 · Duplicate migration version `024` (repo housekeeping)
 - **Category:** DevOps / migration hygiene
 - **Affected:** `supabase/migrations/024_palm_reading.sql` and `024_report_pages.sql`
