@@ -292,7 +292,9 @@ Until step 1 is done, the fail-closed code is committed but intentionally **not 
 
 Coverage of the categories not yet reported. New findings below; existing scores updated in § 11.
 
-### 🟠 M-6 · 59 MB of un-optimized raster assets (violates the project's own WebP standard)
+### 🟠 M-6 · 59 MB of un-optimized raster assets (violates the project's own WebP standard) — ✅ PARTIALLY ADDRESSED
+> **Status (2026-07-17):** The 25 content PNGs >1 MB were converted to **lossless WebP** (pixel-identical, zero quality loss) and all `require()` refs repointed — raster weight **55.4 MB → 36.6 MB (−18.7 MB, 34%)**, committed. Launcher/splash/notification icons intentionally kept as PNG (Android requirement). *Further ~15–20 MB is available via visually-identical lossy WebP (q≈90) if the owner accepts non-pixel-identical (but imperceptible) compression; deferred per the "don't degrade quality" instruction.*
+
 - **Category:** Android Performance / Play app size
 - **Affected:** `assets/**` — 55 raster files totalling **59.2 MB**; **25 PNGs exceed 1 MB** (e.g. `assets/guru/guru-portrait.png` 2.9 MB, `assets/store/store-hero.png` 2.9 MB, most `assets/store/*` and `assets/temples/*` 2–2.9 MB). Only 29 assets are WebP.
 - **Description:** These ship inside the app bundle, so the install size balloons (raster payload alone ≈ 59 MB → APK/AAB likely 80 MB+). The project already mandates "trimmed WebP, never multi-MB PNGs."
