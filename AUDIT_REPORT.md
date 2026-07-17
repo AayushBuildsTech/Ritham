@@ -295,8 +295,9 @@ Coverage of the categories not yet reported. New findings below; existing scores
 ### 🟠 M-6 · 59 MB of un-optimized raster assets (violates the project's own WebP standard) — ✅ RESOLVED
 > **Status (2026-07-17):**
 > - **Pass 1 (lossless):** all 25 content PNGs >1 MB → lossless WebP (pixel-identical); refs repointed. 55.4 MB → 36.6 MB.
-> - **Pass 2 (lossy q90, owner-approved):** the 8 temple + 9 report photographic images re-encoded to visually-identical q90 WebP (full resolution kept; spot-checked, no perceptible artifacts). 27.0 MB → 4.3 MB.
-> - **Net: total large-raster weight ≈59 MB → ≈14 MB (~−45 MB, ~76%).** Launcher/splash/notification icons intentionally remain PNG (Android requirement). *Remaining optional win: the store/guru/auth/banner art (still lossless) could also go q90 for a few more MB if desired.*
+> - **Pass 2 (lossy q90):** the 8 temple + 9 report photographic images → visually-identical q90 WebP (full res kept; spot-checked). 27.0 MB → 4.3 MB.
+> - **Pass 3 (high-quality q95):** the 4 store cutouts + guru portrait + login hero + palm banner → crystal-clear q95 WebP, alpha kept lossless (full res + transparency preserved; face + cutout spot-checked, no artifacts). 8.9 MB → 3.0 MB.
+> - **Net: all 25 large images ≈59 MB → ≈8 MB (~−51 MB, ~86%).** Launcher/splash/notification icons intentionally remain PNG (Android requirement). M-6 fully resolved.
 
 - **Category:** Android Performance / Play app size
 - **Affected:** `assets/**` — 55 raster files totalling **59.2 MB**; **25 PNGs exceed 1 MB** (e.g. `assets/guru/guru-portrait.png` 2.9 MB, `assets/store/store-hero.png` 2.9 MB, most `assets/store/*` and `assets/temples/*` 2–2.9 MB). Only 29 assets are WebP.
