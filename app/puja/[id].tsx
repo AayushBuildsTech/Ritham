@@ -11,6 +11,7 @@ import { Reveal } from '../../components/Reveal';
 import { HeroBanner } from '../../components/HeroBanner';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { SacredDivider } from '../../components/SacredDivider';
+import { SlotCountdown, useSlotTick } from '../../components/SlotCountdown';
 import { getPuja, PUJA_TIERS, PujaTier, L, paiseTo } from '../../config/pujas';
 import { track } from '../../lib/analytics';
 
@@ -27,6 +28,7 @@ export default function PujaDetailScreen() {
   const [tierId, setTierId] = useState<string>(
     PUJA_TIERS.find((t) => t.badge === 'most_chosen')?.id ?? PUJA_TIERS[0].id,
   );
+  const slot = useSlotTick();
 
   useEffect(() => { if (puja) track('puja_detail_viewed', { pujaId: puja.id }); }, [puja?.id]);
 
@@ -79,8 +81,13 @@ export default function PujaDetailScreen() {
             </View>
           </Reveal>
 
-          {/* ── Tier selector ─────────────────────────────────────────── */}
+          {/* ── Next-slot countdown ───────────────────────────────────── */}
           <Reveal index={2}>
+            <SlotCountdown style={styles.slot} />
+          </Reveal>
+
+          {/* ── Tier selector ─────────────────────────────────────────── */}
+          <Reveal index={3}>
             <SacredDivider label={isHindi ? 'अपना पैकेज चुनें' : 'Choose Your Package'} style={styles.divider} />
           </Reveal>
           {PUJA_TIERS.map((t2, i) => (
@@ -141,19 +148,31 @@ export default function PujaDetailScreen() {
       {/* ── Sticky book bar ─────────────────────────────────────────── */}
       <View style={[styles.bookBar, { paddingBottom: insets.bottom + Spacing.sm }]}>
         <View>
-          <Text style={styles.bookBarLabel}>{tr(selected.label)}</Text>
-          <Text style={styles.bookBarPrice}>{paiseTo(selected.price_paise)}</Text>
+          {slot.open ? (
+            <>
+              <Text style={styles.bookBarLabel}>{tr(selected.label)}</Text>
+              <Text style={styles.bookBarPrice}>{paiseTo(selected.price_paise)}</Text>
+            </>
+          ) : (
+            <Text style={styles.bookBarClosedNote}>{isHindi ? 'नया स्लॉट जल्द' : 'Next slot opening soon'}</Text>
+          )}
         </View>
-        <Pressable
-          onPress={() => router.push({ pathname: '/puja/book' as any, params: { pujaId: puja.id, tierId } })}
-          android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
-          style={styles.bookBtnWrap}
-        >
-          <LinearGradient colors={Accents.gold.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bookBtn}>
-            <Text style={styles.bookBtnText}>{isHindi ? 'अभी बुक करें' : 'Book Now'}</Text>
-            <Icon name="arrowRight" size={17} color="#FFFFFF" />
-          </LinearGradient>
-        </Pressable>
+        {slot.open ? (
+          <Pressable
+            onPress={() => router.push({ pathname: '/puja/book' as any, params: { pujaId: puja.id, tierId } })}
+            android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
+            style={styles.bookBtnWrap}
+          >
+            <LinearGradient colors={Accents.gold.grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bookBtn}>
+              <Text style={styles.bookBtnText}>{isHindi ? 'अभी बुक करें' : 'Book Now'}</Text>
+              <Icon name="arrowRight" size={17} color="#FFFFFF" />
+            </LinearGradient>
+          </Pressable>
+        ) : (
+          <View style={[styles.bookBtn, styles.bookBtnClosed]}>
+            <Text style={styles.bookBtnClosedText}>{isHindi ? 'बुकिंग बंद' : 'Bookings Closed'}</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -202,6 +221,7 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   heroLoc: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.sm, color: 'rgba(255,255,255,0.92)' },
 
   body: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg },
+  slot: { marginTop: Spacing.lg },
   subtitle: { fontFamily: Fonts.display, fontSize: Fonts.size.lg, color: th.goldLight, textAlign: 'center' },
   trustRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md, justifyContent: 'center' },
   trustChip: {
@@ -267,6 +287,9 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   },
   bookBarLabel: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim },
   bookBarPrice: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xxl, color: th.text },
+  bookBarClosedNote: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.lg, color: th.textMuted },
+  bookBtnClosed: { backgroundColor: th.surfaceSunken, borderWidth: 1, borderColor: th.border, borderRadius: Radius.pill },
+  bookBtnClosedText: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.md, color: th.textDim },
   bookBtnWrap: { borderRadius: Radius.pill, overflow: 'hidden' },
   bookBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

@@ -15,7 +15,7 @@ import { ScreenHeader } from '../../components/ScreenHeader';
 import { SacredDivider } from '../../components/SacredDivider';
 import { SelectModal, Option } from '../../components/SelectModal';
 import {
-  getPuja, getTier, getAddOn, PUJA_ADDONS, DAKSHINA, GOTRAS, GOTRA_HELP, L, paiseTo, computePujaTotalPaise,
+  getPuja, getTier, getAddOn, PUJA_ADDONS, DAKSHINA, GOTRAS, GOTRA_HELP, L, paiseTo, computePujaTotalPaise, getSlotStatus,
 } from '../../config/pujas';
 import { purchasePuja } from '../../lib/paymentService';
 import { track } from '../../lib/analytics';
@@ -108,6 +108,10 @@ export default function PujaBookScreen() {
 
   const onPay = async () => {
     setError('');
+    if (!getSlotStatus().open) {
+      setError(isHindi ? 'इस स्लॉट की बुकिंग बंद हो गई है — नया स्लॉट जल्द।' : 'Bookings for this slot have closed — next slot opening soon.');
+      return;
+    }
     if (!canPay) { setError(isHindi ? 'कृपया वैध व्हाट्सएप नंबर दर्ज करें।' : 'Please enter a valid WhatsApp number.'); return; }
     setPaying(true);
     const res = await purchasePuja(

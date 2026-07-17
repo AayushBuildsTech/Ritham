@@ -265,6 +265,31 @@ export function getPuja(id: string): Puja | undefined {
   return PUJAS.find((p) => p.id === id);
 }
 
+// ── Next puja slot (the owner updates this each cycle) ────────────────────────
+// The puja is performed on `pujaDateISO`; bookings close at `bookingCloseISO`
+// (3 days before — end of 30 Sep IST for the 3 Oct slot). Both instants are in
+// IST (+05:30). `label`/`closeLabel` are the display strings (avoids any device
+// timezone drift when formatting). To roll to the next slot, edit these five.
+export const NEXT_SLOT = {
+  pujaDateISO: '2026-10-03T06:00:00+05:30',
+  bookingCloseISO: '2026-10-01T00:00:00+05:30', // bookings close end of 30 Sep 2026 IST
+  label: L('Fri, 3 October 2026', 'शुक्र, 3 अक्टूबर 2026'),
+  closeLabel: L('30 September 2026', '30 सितंबर 2026'),
+};
+
+export interface SlotStatus { open: boolean; msToClose: number; msToPuja: number }
+export function getSlotStatus(nowMs: number = Date.now()): SlotStatus {
+  const close = new Date(NEXT_SLOT.bookingCloseISO).getTime();
+  const puja = new Date(NEXT_SLOT.pujaDateISO).getTime();
+  return { open: nowMs < close, msToClose: close - nowMs, msToPuja: puja - nowMs };
+}
+
+// ms → { d, h, m, s } (clamped at 0) for a countdown display.
+export function fmtCountdown(ms: number): { d: number; h: number; m: number; s: number } {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  return { d: Math.floor(t / 86400), h: Math.floor((t % 86400) / 3600), m: Math.floor((t % 3600) / 60), s: t % 60 };
+}
+
 // ── Upcoming pujas (shown as locked "Coming Soon" cards in the listing) ───────
 export interface ComingSoonPuja { id: string; title: L; location: L }
 export const COMING_SOON_PUJAS: ComingSoonPuja[] = [

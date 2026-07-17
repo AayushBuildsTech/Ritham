@@ -71,6 +71,9 @@ const PUJA_ADDONS: Record<string, { price_paise: number }> = {
 };
 const PUJA_IDS = new Set(['pitra_dosha_rameswaram']);
 const DAKSHINA_MAX_PAISE = 5100000; // ₹51,000 ceiling (reject abuse)
+// Next puja slot — mirror of config/pujas.ts NEXT_SLOT. Bookings past the close
+// instant are rejected server-side (the client also blocks). Update each cycle.
+const PUJA_SLOT = { pujaDate: '2026-10-03', bookingCloseISO: '2026-10-01T00:00:00+05:30' };
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -112,6 +115,8 @@ Deno.serve(async (req) => {
     } | null = null;
 
     if (kind === 'puja') {
+      // reject bookings once the slot's cutoff has passed
+      if (Date.now() >= new Date(PUJA_SLOT.bookingCloseISO).getTime()) return json({ error: 'slot_closed' }, 409);
       const p = body.puja ?? {};
       const pujaId = String(p.pujaId ?? '');
       const tierId = String(p.tierId ?? '');
@@ -203,7 +208,7 @@ Deno.serve(async (req) => {
         want_prasad: false,
         contact_phone: d.phone ? String(d.phone).trim() : null,
         address: null,
-        preferred_date: body.puja.preferredDate ?? null,
+        preferred_date: PUJA_SLOT.pujaDate, // the slot this booking is for
         status: 'pending_payment',
       });
       if (bookErr) return json({ error: 'booking_record_failed', detail: bookErr.message }, 500);

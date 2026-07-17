@@ -11,6 +11,7 @@ import { Reveal } from '../../components/Reveal';
 import { HeroBanner } from '../../components/HeroBanner';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { SacredDivider } from '../../components/SacredDivider';
+import { SlotCountdown } from '../../components/SlotCountdown';
 import { PUJAS, PUJA_TIERS, COMING_SOON_PUJAS, L, paiseTo } from '../../config/pujas';
 import { track } from '../../lib/analytics';
 
@@ -65,6 +66,7 @@ export default function PujaListingScreen() {
               </View>
               <View style={styles.cardBody}>
                 <Text style={styles.cardSub}>{tr(p.subtitle)}</Text>
+                <SlotCountdown compact style={{ marginTop: Spacing.sm }} />
                 <SacredDivider style={{ marginVertical: Spacing.lg }} />
                 <View style={styles.cardFooter}>
                   <View>
