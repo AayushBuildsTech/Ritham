@@ -63,7 +63,9 @@ I have **not** fabricated per-file 1–10 scores for all 130 files (that would b
 
 ---
 
-#### H-3 · Near-zero automated test coverage on a money-handling app
+> **Correction (completion pass):** the astronomy engine *does* have a validation harness (`_shared/astro.test.ts`) checked against astronomical anchors. H-3 stands because that harness (a) isn't wired into CI and (b) covers only the astro math — **payments, entitlements, RLS, and auth remain untested**, which is the money-critical gap.
+
+#### H-3 · No automated tests for the money/auth path (astro engine aside)
 - **Category:** QA / Product Reliability
 - **Affected:** whole repo — only `supabase/functions/_shared/astro.test.ts` exists; no tests for payments, entitlements, RLS, or auth.
 - **Description:** The payment/entitlement pipeline is the highest-value, highest-risk code and has **no regression tests**. Migration `022_fix_entitlements_report_kind.sql` documents a real production incident where a CHECK-constraint change silently broke **every report payment** — exactly the class of bug a test would catch.
@@ -270,7 +272,7 @@ It is **not yet releasable to "thousands of users"** because of a small, well-de
 | Secret | State | Impact |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | ✅ set | **Real AI in prod** (not mock) — resolves that part of H-4. |
-| `RAZORPAY_KEY_ID` / `_SECRET` | ✅ set | Present, but **live-vs-test cannot be read** (value is hashed) — still verify. |
+| `RAZORPAY_KEY_ID` / `_SECRET` | ✅ set | Present. **Intentionally kept on TEST keys for now** (owner decision, 2026-07-17) to keep testing the app; switching to **live** keys is a deliberate pre-public-launch step, not an oversight. |
 | `VEDASTRO_API_KEY`, `VAPI_PUBLIC_KEY`, `VAPI_ASSISTANT_ID`, `VOICE_TOKEN_SECRET`, `VOICE_LLM_URL`, `OWNER_EMAILS` | ✅ set | OK. |
 | **`VAPI_WEBHOOK_SECRET`** | ❌ **NOT set** | **Confirms H-2 is live** — the deployed webhook currently authenticates nothing. |
 | `OWNER_NOTIFY_URL` | ❌ not set | Puja owner notifications are a silent no-op (bookings still visible in dashboard). Operational, not security. |
@@ -322,6 +324,16 @@ Coverage of the categories not yet reported. New findings below; existing scores
 - **Business logic / dates** — the astro engine defaults birth timezone to `Asia/Kolkata` and stores a per-profile `timezone`; money is integer paise throughout (rule #6). **Not exhaustively verified:** DST/historical-timezone correctness for pre-1970 or non-IST births, and leap/edge dates — these are exactly what the missing unit tests (H-3) should cover.
 - **Storage security** — `reports` bucket is private with per-folder `auth.uid()` RLS on all four ops. ✅
 - **Notifications / deep links** — `scheme: ritham`, minimal permissions (`RECORD_AUDIO`, `MODIFY_AUDIO_SETTINGS`), no custom exported intent handlers beyond Expo defaults. Low risk; not deeply fuzzed.
+- **Birth-detail input validation** (`app/profile.tsx`) — requires name/gender/full DOB/TOB/place and **rejects impossible calendar dates** (e.g. 30 Feb, line 188). Inputs are structured pickers (no free-text injection); the `kundli` fn re-validates types server-side. ✅
+- **Astronomy engine** (`_shared/astro.ts`) — a real validation harness exists (`astro.test.ts`) asserting Sankranti ingress dates, Lahiri ayanamsa range, Rahu/Ketu opposition, and Delhi solstice sunrise/sunset against known values. Strong for the *astro* core (see H-3 correction). ✅
+- **`geocoding.ts`** — Open-Meteo (keyless), fixed host, `encodeURIComponent`'d query → no SSRF / no key exposure. ✅
+- **`muhurat` fn** — zero AI/provider cost (pure compute), cached per (activity, city, range), and bounded (`MAX_HORIZON` 90d, `MAX_RESULTS` 20). Not a cost-abuse surface. ✅
+
+### 🟡 L-9 · Numerology "Expression" number is 0 for non-Latin names
+- **Category:** Business logic / product edge case
+- **Affected:** `lib/numerology.ts:55-60` (`expressionFromName`) — strips to `[A-Z]`, so a name entered in Devanagari (Hindi users) reduces to `wrap(0)`.
+- **Risk:** The Expression/Destiny number shows as 0, and the meaning lookup (`constants/numerology.ts`) has no entry for 0 → blank/absent guidance for Hindi-script names. Cosmetic, not a crash if the UI guards it — verify it does.
+- **Fix:** Transliterate to Latin before mapping, or fall back to the romanised name already captured elsewhere, or hide the Expression card when it can't be computed.
 
 ### 11. Updated scorecard (post-completion)
 
