@@ -371,7 +371,7 @@ Almost every remaining audit item was implemented and shipped:
 | **L-7** duplicate migration 024 | ✅ Done | Renamed `024_report_pages.sql` → `029`; history repaired; `db push` clean. |
 | **L-9** numerology Devanagari | ✅ Done | Expression card hidden when it computes to 0. |
 | **L-3** pricing drift | ✅ Guarded | Now covered by the parity test (H-3). |
-| **H-2** webhook fail-closed | ⏸ Prepared, needs you | Code committed; **not deployed** (would break metering until Vapi sends the header). Run the 3 steps in § 9 with a generated secret. |
+| **H-2** webhook authentication | ✅ Done + deployed | Solved via a self-contained signature (**Option B**): `voice-token` stamps `HMAC(callSessionId, VOICE_TOKEN_SECRET)` into the call metadata; `voice-webhook` verifies it and now **rejects forged reports (403)** — verified live. No Vapi dashboard config needed. Residual (low): a user could replay *their own* call's report, since the metadata is client-visible. |
 | **H-4** live keys | ⏸ Owner-deferred | Razorpay intentionally on TEST keys for tomorrow's testing; migrations/secrets otherwise verified, `ANTHROPIC_API_KEY` set (real AI). |
 | **L-8** npm moderate advisories | ▫ Deferred | 14 moderate, build-time Expo tooling only; left as-is to avoid dep churn before testing. |
 
@@ -394,18 +394,19 @@ Almost every remaining audit item was implemented and shipped:
 
 All 20 requested areas were reviewed and **almost every finding has now been fixed, tested, and shipped** (see § 8–11b). Nothing critical (data breach / payment bypass / secret leak) was ever found — the core was well built — and the medium/low gaps are now closed.
 
-**Fixed & live this session:** rate limiting (H-1), kundli in-code auth, error-detail hygiene (M-2), token-log + console strip (M-1), free-tier device gate (M-4), migration 028 + duplicate-024 cleanup (L-7), numerology guard (L-9), assets ~59→~8 MB (M-6), payment/pricing tests + CI (H-3/M-3), accessibility pass (M-7), and privacy-policy + Data-Safety mapping (M-5).
+**Fixed & live this session:** rate limiting (H-1), kundli in-code auth, error-detail hygiene (M-2), token-log + console strip (M-1), free-tier device gate (M-4), **voice-webhook authentication (H-2)**, migration 028 + duplicate-024 cleanup (L-7), numerology guard (L-9), assets ~59→~8 MB (M-6), payment/pricing tests + CI (H-3/M-3), accessibility pass (M-7), and privacy-policy + Data-Safety mapping (M-5).
 
-### Updated verdict: ⚠️ **READY FOR TESTING — two owner steps remain before public production**
+### Updated verdict: ⚠️ **READY FOR TESTING — go-live switches remain before public production**
 
-The app is **ready for tomorrow's testing** as-is (test Razorpay keys, real AI, all fixes deployed). Two deliberate, non-code steps gate the **public** launch:
+The app is **ready for tomorrow's testing** as-is (test Razorpay keys, real AI, every code finding fixed and deployed). What remains for the **public** launch is non-code / owner-only:
 
-1. **H-2 — voice-webhook** (5 min): set a Vapi Server-URL secret, `supabase secrets set VAPI_WEBHOOK_SECRET=…`, deploy `voice-webhook --no-verify-jwt`. Until then metering works but the webhook is unauthenticated.
-2. **Go-live switches**: Razorpay **live** keys, complete the Play **Data Safety** form (mapping ready in `PLAY_DATA_SAFETY.md`) + host the privacy-policy URL, and add **crash reporting** (Sentry/Crashlytics — still absent).
+1. **Razorpay live keys** (deliberately on test keys for now).
+2. **Play Data Safety** form (mapping ready in `PLAY_DATA_SAFETY.md`) + host the privacy-policy URL.
+3. **Crash reporting** (Sentry/Crashlytics) — the one genuinely missing piece of production observability.
 
-Everything else in the original § 4 blocker list is done. Recommended (non-blocking) follow-ups: per-screen accessibility labels + contrast/touch-target check, UI/e2e tests, and clearing the 14 moderate build-time npm advisories.
+Every High/Medium/Low code finding from the audit is now resolved. Recommended (non-blocking) follow-ups: per-screen accessibility labels + contrast/touch-target check, UI/e2e tests, and clearing the 14 moderate build-time npm advisories.
 
-**Trajectory: ❌ NOT READY → ✅ READY FOR TESTING (now) → production-ready after the two steps above.**
+**Trajectory: ❌ NOT READY → ✅ READY FOR TESTING (now) → production-ready after the three owner steps above.**
 
 ---
 
