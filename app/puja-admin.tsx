@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import {
+  View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Modal, Linking,
+} from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +13,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { isOwner } from '../config/owner';
 import { getTier, getAddOn, paiseTo } from '../config/pujas';
 import {
-  fetchPujaSlot, formatSlotLabel, adminListBookings, adminUpdateStatus, adminSetSlot, AdminBooking,
+  fetchPujaSlot, formatSlotLabel, adminListBookings, adminUpdateStatus, adminDeleteBooking, adminSetSlot, AdminBooking,
 } from '../lib/pujaSlot';
 
 const FILTERS = ['paid', 'in_progress', 'completed', 'all'] as const;
@@ -21,6 +23,11 @@ const NEXT_STATUS: { label: string; value: string; accent: keyof typeof Accents 
   { label: 'Completed', value: 'completed', accent: 'emerald' },
   { label: 'Refunded', value: 'refunded', accent: 'ruby' },
 ];
+const STATUS_LABEL: Record<string, string> = {
+  paid: 'Paid', in_progress: 'In Progress', completed: 'Completed', refunded: 'Refunded', cancelled: 'Cancelled', pending_payment: 'Pending',
+};
+
+interface Confirm { title: string; message: string; confirmLabel: string; destructive?: boolean; run: () => Promise<void> }
 
 export default function PujaAdminScreen() {
   const th = useColors();
@@ -31,7 +38,7 @@ export default function PujaAdminScreen() {
   const owner = isOwner(user?.email);
 
   const [slotLabel, setSlotLabel] = useState('');
-  const [pujaDate, setPujaDate] = useState('');   // YYYY-MM-DD
+  const [pujaDate, setPujaDate] = useState('');
   const [cutoff, setCutoff] = useState('3');
   const [savingSlot, setSavingSlot] = useState(false);
   const [slotMsg, setSlotMsg] = useState('');
@@ -40,6 +47,12 @@ export default function PujaAdminScreen() {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [listErr, setListErr] = useState('');
+
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [working, setWorking] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2200); };
 
   const loadSlot = useCallback(async () => {
     const s = await fetchPujaSlot(true);
@@ -66,22 +79,55 @@ export default function PujaAdminScreen() {
     const res = await adminSetSlot(pujaDate, c);
     setSavingSlot(false);
     if (!res.ok) { setSlotMsg(res.error ?? 'Could not save.'); return; }
-    setSlotMsg('Slot updated.');
+    setSlotMsg('Slot updated ✓');
     loadSlot();
   };
 
-  const setStatus = async (id: string, status: string) => {
-    const res = await adminUpdateStatus(id, status);
-    if (res.ok) setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
+  const runConfirm = async () => {
+    if (!confirm) return;
+    setWorking(true);
+    await confirm.run();
+    setWorking(false);
+    setConfirm(null);
+  };
+
+  const askStatus = (b: AdminBooking, s: { label: string; value: string }) =>
+    setConfirm({
+      title: `Mark as ${s.label}?`,
+      message: `${who(b)} — ${getTier(b.tier_id)?.label.en ?? b.tier_id}`,
+      confirmLabel: `Mark ${s.label}`,
+      run: async () => {
+        const r = await adminUpdateStatus(b.id, s.value);
+        if (r.ok) { setBookings((prev) => prev.map((x) => (x.id === b.id ? { ...x, status: s.value } : x))); flash(`Marked ${s.label}`); }
+        else flash(r.error ?? 'Failed');
+      },
+    });
+
+  const askDelete = (b: AdminBooking) =>
+    setConfirm({
+      title: 'Delete this booking?',
+      message: `${who(b)} — ${paiseTo(b.amount_paise)}. This permanently removes the booking and can’t be undone.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+      run: async () => {
+        const r = await adminDeleteBooking(b.id);
+        if (r.ok) { setBookings((prev) => prev.filter((x) => x.id !== b.id)); flash('Booking deleted'); }
+        else flash(r.error ?? 'Failed');
+      },
+    });
+
+  const openWhatsApp = (phone?: string | null) => {
+    if (!phone) return;
+    const digits = phone.replace(/\D/g, '');
+    const full = digits.length === 10 ? `91${digits}` : digits;
+    Linking.openURL(`https://wa.me/${full}`).catch(() => flash('Could not open WhatsApp'));
   };
 
   if (!owner) {
     return (
       <View style={styles.root}>
         <ScreenHeader title="Puja Admin" onBack={() => router.back()} />
-        <View style={styles.center}>
-          <Text style={styles.notAuth}>You don’t have access to this screen.</Text>
-        </View>
+        <View style={styles.center}><Text style={styles.notAuth}>You don’t have access to this screen.</Text></View>
       </View>
     );
   }
@@ -148,20 +194,36 @@ export default function PujaAdminScreen() {
             <View key={b.id} style={styles.booking}>
               <View style={styles.bkHead}>
                 <Text style={styles.bkTitle}>{getTier(b.tier_id)?.label.en ?? b.tier_id}</Text>
-                <Text style={styles.bkAmount}>{paiseTo(b.amount_paise)}</Text>
+                <View style={styles.bkHeadRight}>
+                  <Text style={styles.bkAmount}>{paiseTo(b.amount_paise)}</Text>
+                  <Pressable onPress={() => askDelete(b)} hitSlop={8} style={styles.trashBtn} android_ripple={{ color: Accents.ruby.faint, borderless: true }}>
+                    <Icon name="trash" size={17} color={th.textDim} />
+                  </Pressable>
+                </View>
               </View>
-              <Text style={styles.bkStatus}>{b.status} · {new Date(b.created_at).toLocaleDateString()} · slot {b.preferred_date ?? '—'}</Text>
+              <View style={[styles.statusPill, { backgroundColor: statusAccent(b.status).faint }]}>
+                <Text style={[styles.statusPillText, { color: statusAccent(b.status).color }]}>{STATUS_LABEL[b.status] ?? b.status}</Text>
+                <Text style={styles.bkDate}>· {new Date(b.created_at).toLocaleDateString()} · slot {b.preferred_date ?? '—'}</Text>
+              </View>
+
               <Text style={styles.bkLine}><Text style={styles.bkKey}>Devotees: </Text>{(b.devotee_names ?? []).join(', ') || '—'}</Text>
               <Text style={styles.bkLine}><Text style={styles.bkKey}>Gotra: </Text>{(b.gotras?.length ? b.gotras.join(', ') : b.gotra) || '—'}</Text>
-              <Text style={styles.bkLine}><Text style={styles.bkKey}>WhatsApp: </Text>{b.contact_phone ?? '—'}</Text>
               {b.add_on_ids?.length ? (
                 <Text style={styles.bkLine}><Text style={styles.bkKey}>Add-ons: </Text>{b.add_on_ids.map((id) => getAddOn(id)?.name.en ?? id).join(', ')}</Text>
               ) : null}
               {b.dakshina_paise > 0 ? <Text style={styles.bkLine}><Text style={styles.bkKey}>Dakshina: </Text>{paiseTo(b.dakshina_paise)}</Text> : null}
               {b.puja_wish ? <Text style={styles.bkLine}><Text style={styles.bkKey}>Wish: </Text>{b.puja_wish}</Text> : null}
+
+              {/* WhatsApp — one tap to reach the devotee */}
+              <Pressable style={styles.waBtn} onPress={() => openWhatsApp(b.contact_phone)} android_ripple={{ color: 'rgba(37,211,102,0.15)' }}>
+                <Icon name="message" size={15} color="#25D366" />
+                <Text style={styles.waText}>{b.contact_phone ?? '—'}</Text>
+                <Icon name="external" size={13} color={th.textDim} />
+              </Pressable>
+
               <View style={styles.actions}>
                 {NEXT_STATUS.filter((s) => s.value !== b.status).map((s) => (
-                  <Pressable key={s.value} style={[styles.actBtn, { borderColor: Accents[s.accent].color }]} onPress={() => setStatus(b.id, s.value)}>
+                  <Pressable key={s.value} style={[styles.actBtn, { borderColor: Accents[s.accent].color }]} onPress={() => askStatus(b, s)}>
                     <Text style={[styles.actText, { color: Accents[s.accent].color }]}>{s.label}</Text>
                   </Pressable>
                 ))}
@@ -170,8 +232,47 @@ export default function PujaAdminScreen() {
           ))
         )}
       </KeyboardAwareScrollView>
+
+      {/* toast */}
+      {toast ? (
+        <View style={[styles.toast, { bottom: insets.bottom + Spacing.lg }]} pointerEvents="none">
+          <Text style={styles.toastText}>{toast}</Text>
+        </View>
+      ) : null}
+
+      {/* themed confirm dialog */}
+      <Modal visible={!!confirm} transparent animationType="fade" statusBarTranslucent onRequestClose={() => !working && setConfirm(null)}>
+        <Pressable style={styles.confirmBackdrop} onPress={() => !working && setConfirm(null)}>
+          <Pressable style={styles.confirmCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.confirmTitle}>{confirm?.title}</Text>
+            {confirm?.message ? <Text style={styles.confirmMsg}>{confirm.message}</Text> : null}
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.confirmCancel} onPress={() => !working && setConfirm(null)} disabled={working}>
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmOk, confirm?.destructive && styles.confirmDanger, working && styles.btnDisabled]}
+                onPress={runConfirm}
+                disabled={working}
+              >
+                {working ? <ActivityIndicator color="#FFFFFF" />
+                  : <Text style={styles.confirmOkText}>{confirm?.confirmLabel}</Text>}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
+
+  function statusAccent(s: string) {
+    return s === 'completed' ? Accents.emerald : s === 'in_progress' ? Accents.sapphire
+      : s === 'refunded' || s === 'cancelled' ? Accents.ruby : Accents.gold;
+  }
+}
+
+function who(b: AdminBooking): string {
+  return (b.devotee_names ?? [])[0] ?? 'Booking';
 }
 
 const makeStyles = (th: ThemeColors) => StyleSheet.create({
@@ -208,12 +309,42 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   booking: { backgroundColor: th.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: th.border, padding: Spacing.md, marginBottom: Spacing.md },
   bkHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  bkHeadRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   bkTitle: { flex: 1, fontFamily: Fonts.displayBold, fontSize: Fonts.size.md, color: th.text },
   bkAmount: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.md, color: th.goldLight },
-  bkStatus: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.xs, color: th.textDim, marginTop: 2, marginBottom: Spacing.sm, textTransform: 'capitalize' },
+  trashBtn: { padding: 4 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', borderRadius: Radius.pill, paddingVertical: 3, paddingHorizontal: Spacing.sm, marginTop: 6, marginBottom: Spacing.sm, gap: 4 },
+  statusPillText: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.xs },
+  bkDate: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim },
   bkLine: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21 },
   bkKey: { fontFamily: Fonts.bodySemibold, color: th.text },
+
+  waBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md,
+    backgroundColor: th.surfaceSunken, borderRadius: Radius.sm, borderWidth: 1, borderColor: th.border,
+    paddingVertical: 10, paddingHorizontal: Spacing.md,
+  },
+  waText: { flex: 1, fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: th.text, letterSpacing: 0.3 },
+
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.md },
-  actBtn: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: 6, paddingHorizontal: Spacing.md },
+  actBtn: { borderWidth: 1, borderRadius: Radius.pill, paddingVertical: 8, paddingHorizontal: Spacing.md },
   actText: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.xs },
+
+  toast: { position: 'absolute', left: Spacing.lg, right: Spacing.lg, alignItems: 'center' },
+  toastText: {
+    fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.sm, color: th.goldContrast,
+    backgroundColor: th.goldSurface, borderRadius: Radius.pill, paddingVertical: 10, paddingHorizontal: Spacing.lg, overflow: 'hidden',
+    ...Depth.card,
+  },
+
+  confirmBackdrop: { flex: 1, backgroundColor: th.scrimBackdrop, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
+  confirmCard: { width: '100%', backgroundColor: th.scrimSheet, borderRadius: Radius.xl, borderWidth: 1, borderColor: th.border, padding: Spacing.lg, ...Depth.raised },
+  confirmTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginBottom: Spacing.sm },
+  confirmMsg: { fontFamily: Fonts.body, fontSize: Fonts.size.sm, color: th.textMuted, lineHeight: 21, marginBottom: Spacing.lg },
+  confirmActions: { flexDirection: 'row', gap: Spacing.md },
+  confirmCancel: { flex: 1, borderRadius: Radius.pill, borderWidth: 1, borderColor: th.border, paddingVertical: Spacing.md, alignItems: 'center' },
+  confirmCancelText: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: th.textMuted },
+  confirmOk: { flex: 1, borderRadius: Radius.pill, backgroundColor: th.goldSurface, paddingVertical: Spacing.md, alignItems: 'center' },
+  confirmDanger: { backgroundColor: th.error },
+  confirmOkText: { fontFamily: Fonts.bodyBold, fontSize: Fonts.size.md, color: '#FFFFFF' },
 });

@@ -4,7 +4,7 @@
 // Function). Add more emails here (and to that secret) to grant access.
 export const OWNER_EMAILS = [
   'aayush.kumarsep1984@gmail.com',
-  'pooja.singh72@gmail.com',
+  'patanvis.online@gmail.com',
   'santosh.singh077@gmail.com',
 ];
 

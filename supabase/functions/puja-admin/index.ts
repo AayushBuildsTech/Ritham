@@ -61,6 +61,15 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    // ── delete a booking ─────────────────────────────────────────────────────
+    if (action === 'delete_booking') {
+      const bookingId = String(body.bookingId ?? '');
+      if (!bookingId) return json({ error: 'bad_input' }, 400);
+      const { error } = await admin.from('puja_bookings').delete().eq('id', bookingId);
+      if (error) return json({ error: 'delete_failed', detail: error.message }, 500);
+      return json({ ok: true });
+    }
+
     // ── set the scheduled slot (date + cutoff days) ──────────────────────────
     if (action === 'set_slot') {
       const pujaId = String(body.pujaId ?? 'pitra_dosha_rameswaram');

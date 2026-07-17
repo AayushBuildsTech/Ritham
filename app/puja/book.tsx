@@ -89,7 +89,7 @@ export default function PujaBookScreen() {
   const canProceedSankalp =
     filledNames.length >= 1 &&
     (perDevoteeGotra ? filledIdx.every((i) => !!gotras[i]) : !!gotras[0]);
-  const canPay = phone.trim().length >= 8;
+  const canPay = /^[6-9]\d{9}$/.test(phone); // valid Indian 10-digit mobile
 
   const showGotraHelp = () => setHelpVisible(true);
 
@@ -114,7 +114,7 @@ export default function PujaBookScreen() {
       setError(isHindi ? 'इस स्लॉट की बुकिंग बंद हो गई है — नया स्लॉट जल्द।' : 'Bookings for this slot have closed — next slot opening soon.');
       return;
     }
-    if (!canPay) { setError(isHindi ? 'कृपया वैध व्हाट्सएप नंबर दर्ज करें।' : 'Please enter a valid WhatsApp number.'); return; }
+    if (!canPay) { setError(isHindi ? 'कृपया वैध 10-अंकीय व्हाट्सएप नंबर दर्ज करें।' : 'Please enter a valid 10-digit WhatsApp number.'); return; }
     setPaying(true);
     const res = await purchasePuja(
       {
@@ -124,9 +124,9 @@ export default function PujaBookScreen() {
         dakshinaPaise,
         profileId: active?.id ?? null,
         sankalp: { devoteeNames: filledNames, gotra: gotras[0], gotras: gotrasOut, wish: wish.trim() || undefined },
-        delivery: { phone: phone.trim() },
+        delivery: { phone: `+91${phone}` },
       },
-      { contact: phone.trim(), name: filledNames[0] },
+      { contact: `+91${phone}`, name: filledNames[0] },
     );
     setPaying(false);
     if (res.ok) {
@@ -436,20 +436,40 @@ function StepPay({
   return (
     <>
       {/* Contact */}
-      <View style={styles.field}>
-        <Text style={styles.label}>{isHindi ? 'व्हाट्सएप नंबर *' : 'WhatsApp number *'}</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="+91"
-          placeholderTextColor={th.textDim}
-          keyboardType="phone-pad"
-          value={phone}
-          onChangeText={setPhone}
-        />
-        <Text style={styles.hint}>
-          {isHindi ? 'पूजा वीडियो और लाइव अपडेट इसी नंबर पर भेजे जाएंगे।' : 'Your puja video & live updates are sent to this number.'}
-        </Text>
-      </View>
+      {(() => {
+        const phoneValid = /^[6-9]\d{9}$/.test(phone);
+        const showErr = phone.length > 0 && !phoneValid;
+        return (
+          <View style={styles.field}>
+            <Text style={styles.label}>{isHindi ? 'व्हाट्सएप नंबर *' : 'WhatsApp number *'}</Text>
+            <View style={[styles.phoneRow, showErr && styles.phoneRowErr]}>
+              <View style={styles.phonePrefix}><Text style={styles.phonePrefixText}>+91</Text></View>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder={isHindi ? '10 अंकों का मोबाइल नंबर' : '10-digit mobile number'}
+                placeholderTextColor={th.textDim}
+                keyboardType="number-pad"
+                maxLength={14}
+                value={phone}
+                onChangeText={(t) => {
+                  let d = t.replace(/\D/g, '');
+                  if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+                  else if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+                  setPhone(d.slice(0, 10));
+                }}
+              />
+              {phoneValid ? <Icon name="check" size={18} color={Accents.emerald.color} /> : null}
+            </View>
+            {showErr ? (
+              <Text style={styles.phoneErr}>{isHindi ? 'कृपया वैध 10-अंकों का मोबाइल नंबर दर्ज करें।' : 'Enter a valid 10-digit mobile number.'}</Text>
+            ) : (
+              <Text style={styles.hint}>
+                {isHindi ? 'पूजा वीडियो और लाइव अपडेट इसी नंबर पर भेजे जाएंगे।' : 'Your puja video & live updates are sent to this WhatsApp number.'}
+              </Text>
+            )}
+          </View>
+        );
+      })()}
 
       {/* Sankalp recap */}
       <SacredDivider label={isHindi ? 'संकल्प विवरण' : 'Sankalp Details'} style={styles.payDivider} />
@@ -613,6 +633,18 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   },
   textarea: { minHeight: 88, textAlignVertical: 'top', alignItems: 'flex-start' },
   hint: { fontFamily: Fonts.body, fontSize: Fonts.size.xs, color: th.textDim, marginTop: 5 },
+  phoneRow: {
+    flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: th.border,
+    borderRadius: Radius.sm, backgroundColor: th.surfaceSunken, paddingRight: Spacing.md, minHeight: 50,
+  },
+  phoneRowErr: { borderColor: th.error },
+  phonePrefix: {
+    paddingHorizontal: Spacing.md, alignSelf: 'stretch', justifyContent: 'center',
+    borderRightWidth: 1, borderRightColor: th.border,
+  },
+  phonePrefixText: { fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: th.textMuted },
+  phoneInput: { flex: 1, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, color: th.text, fontFamily: Fonts.body, fontSize: Fonts.size.md, letterSpacing: 1 },
+  phoneErr: { fontFamily: Fonts.bodyMedium, fontSize: Fonts.size.xs, color: th.error, marginTop: 5 },
   pickerVal: { flex: 1, fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.text },
   pickerPlaceholder: { flex: 1, fontFamily: Fonts.body, fontSize: Fonts.size.md, color: th.textDim },
   pickerChev: { marginLeft: Spacing.sm },

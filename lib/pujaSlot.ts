@@ -56,6 +56,11 @@ export async function adminUpdateStatus(bookingId: string, status: string): Prom
   if (error || (data as any)?.error) return { ok: false, error: (data as any)?.error ?? error?.message ?? 'failed' };
   return { ok: true };
 }
+export async function adminDeleteBooking(bookingId: string): Promise<{ ok: boolean; error?: string }> {
+  const { data, error } = await supabase.functions.invoke(ADMIN_FN, { body: { action: 'delete_booking', bookingId } });
+  if (error || (data as any)?.error) return { ok: false, error: (data as any)?.error ?? error?.message ?? 'failed' };
+  return { ok: true };
+}
 export async function adminSetSlot(pujaDate: string, cutoffDays: number): Promise<{ ok: boolean; error?: string }> {
   const { data, error } = await supabase.functions.invoke(ADMIN_FN, { body: { action: 'set_slot', pujaDate, cutoffDays } });
   if (error || (data as any)?.error) return { ok: false, error: (data as any)?.error ?? error?.message ?? 'failed' };
