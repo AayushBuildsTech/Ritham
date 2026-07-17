@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
+import { isOwner } from '../config/owner';
 import { useActiveProfile } from '../context/ProfileContext';
 import { deleteAccount } from '../lib/accountService';
 import { googleRevoke } from '../lib/googleAuth';
@@ -160,6 +161,16 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <Row icon="send" label={isHindi ? 'संपर्क करें' : 'Contact us'} chevron onPress={() => router.push('/contact')} last />
         </View>
+
+        {/* Owner only — puja admin (view bookings + set slot) */}
+        {isOwner(user?.email) && (
+          <>
+            <Text style={styles.sectionLabel}>OWNER</Text>
+            <View style={styles.group}>
+              <Row icon="temple" label="Puja Admin" chevron onPress={() => router.push('/puja-admin' as any)} last />
+            </View>
+          </>
+        )}
 
         <Pressable style={styles.signOutBtn} onPress={confirmSignOut} disabled={deleting} android_ripple={{ color: 'rgba(199,82,75,0.15)' }}>
           <Icon name="logout" size={16} color={th.error} />

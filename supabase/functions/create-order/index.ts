@@ -113,15 +113,25 @@ Deno.serve(async (req) => {
     let pujaData: {
       pujaId: string; tierId: string; addOnIds: string[]; dakshinaPaise: number;
     } | null = null;
+    let pujaSlotDate: string | null = null;
 
     if (kind === 'puja') {
-      // reject bookings once the slot's cutoff has passed
-      if (Date.now() >= new Date(PUJA_SLOT.bookingCloseISO).getTime()) return json({ error: 'slot_closed' }, 409);
       const p = body.puja ?? {};
       const pujaId = String(p.pujaId ?? '');
       const tierId = String(p.tierId ?? '');
       const addOnIds: string[] = Array.isArray(p.addOnIds) ? p.addOnIds.map(String) : [];
       if (!PUJA_IDS.has(pujaId)) return json({ error: 'unknown_puja' }, 400);
+      // slot date/cutoff — prefer the owner-editable DB row, fall back to config
+      let slotCloseMs = new Date(PUJA_SLOT.bookingCloseISO).getTime();
+      pujaSlotDate = PUJA_SLOT.pujaDate;
+      const { data: slotRow } = await admin.from('puja_slots')
+        .select('puja_date, booking_close_at').eq('puja_id', pujaId).maybeSingle();
+      if (slotRow?.puja_date && slotRow?.booking_close_at) {
+        pujaSlotDate = String(slotRow.puja_date);
+        slotCloseMs = new Date(slotRow.booking_close_at).getTime();
+      }
+      // reject bookings once the slot's cutoff has passed
+      if (Date.now() >= slotCloseMs) return json({ error: 'slot_closed' }, 409);
       const tier = PUJA_TIERS[tierId];
       if (!tier) return json({ error: 'unknown_tier' }, 400);
       // reject any add-on id we don't recognise (rule #3 — validate everything)
@@ -208,7 +218,7 @@ Deno.serve(async (req) => {
         want_prasad: false,
         contact_phone: d.phone ? String(d.phone).trim() : null,
         address: null,
-        preferred_date: PUJA_SLOT.pujaDate, // the slot this booking is for
+        preferred_date: pujaSlotDate ?? PUJA_SLOT.pujaDate, // the slot this booking is for
         status: 'pending_payment',
       });
       if (bookErr) return json({ error: 'booking_record_failed', detail: bookErr.message }, 500);

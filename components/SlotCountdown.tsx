@@ -4,16 +4,28 @@ import { Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Icon } from './Icon';
-import { NEXT_SLOT, getSlotStatus, fmtCountdown, SlotStatus, L } from '../config/pujas';
+import { NEXT_SLOT, fmtCountdown } from '../config/pujas';
+import { fetchPujaSlot, formatSlotLabel, PujaSlot } from '../lib/pujaSlot';
 
-// Re-computes the slot status every second so the countdown ticks live.
-export function useSlotTick(): SlotStatus {
-  const [status, setStatus] = useState<SlotStatus>(() => getSlotStatus());
+export interface SlotTick { open: boolean; msToClose: number; pujaDateISO: string; loaded: boolean }
+
+// Fetches the slot from the DB (owner-editable, config fallback) and ticks every
+// second so the countdown stays live.
+export function useSlotTick(): SlotTick {
+  const [slot, setSlot] = useState<PujaSlot | null>(null);
+  const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const id = setInterval(() => setStatus(getSlotStatus()), 1000);
+    let alive = true;
+    fetchPujaSlot().then((s) => { if (alive) setSlot(s); });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  return status;
+  const eff = slot ?? { pujaDateISO: NEXT_SLOT.pujaDateISO, bookingCloseISO: NEXT_SLOT.bookingCloseISO };
+  const close = new Date(eff.bookingCloseISO).getTime();
+  return { open: now < close, msToClose: close - now, pujaDateISO: eff.pujaDateISO, loaded: !!slot };
 }
 
 // Full card: "Next Puja · <date>" + a live "Bookings close in [d][h][m][s]" pill
@@ -24,8 +36,7 @@ export function SlotCountdown({ compact, style }: { compact?: boolean; style?: V
   const styles = makeStyles(th);
   const { isHindi } = useLanguage();
   const status = useSlotTick();
-  const tr = (l: L) => (isHindi ? l.hi : l.en);
-  const dateLabel = tr(NEXT_SLOT.label);
+  const dateLabel = formatSlotLabel(status.pujaDateISO, isHindi);
 
   if (compact) {
     return (

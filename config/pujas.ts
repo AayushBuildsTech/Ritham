@@ -273,7 +273,7 @@ export function getPuja(id: string): Puja | undefined {
 export const NEXT_SLOT = {
   pujaDateISO: '2026-10-03T06:00:00+05:30',
   bookingCloseISO: '2026-10-01T00:00:00+05:30', // bookings close end of 30 Sep 2026 IST
-  label: L('Fri, 3 October 2026', 'शुक्र, 3 अक्टूबर 2026'),
+  label: L('Sat, 3 October 2026', 'शनि, 3 अक्टूबर 2026'),
   closeLabel: L('30 September 2026', '30 सितंबर 2026'),
 };
 
