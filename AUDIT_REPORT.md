@@ -256,3 +256,38 @@ It is **not yet releasable to "thousands of users"** because of a small, well-de
 3. Confirm `VAPI_WEBHOOK_SECRET` is set (voice-webhook now rejects all calls without it).
 4. `npm install` (pulls `babel-plugin-transform-remove-console`) before the next release build.
 5. Smoke-test: a normal palm/kundli/horoscope call still works; a burst trips `429 rate_limited`; a voice call completes and the webhook decrements correctly.
+
+## 9. Remediation Log — pass 2 (deployed to production via Supabase CLI)
+
+**Applied to the live project (`eaxdqizerkuqkujxacru`) this session:**
+
+- ✅ **Migration `028_rate_limiting.sql` applied** to the remote DB (`supabase db push`). *Note: the push had to route around a pre-existing repo bug — two migration files share version `024` (`024_palm_reading.sql` + `024_report_pages.sql`); `db push --include-all` would collide on the `schema_migrations` PK. Tracked as **L-7** below.*
+- ✅ **12 of 14 functions redeployed:** `palm-check`, `kundli`, `horoscope`, `chat`, `create-order`, `verify-payment`, `puja-admin`, `delete-account`, `report`, `voice-token`, `panchang`, `muhurat` (JWT verification on); `voice-llm` (`--no-verify-jwt`, Vapi-called).
+- ✅ **Smoke-tested:** `palm-check` and `kundli` boot and return `401` without a user JWT; `kundli`'s new in-code `getUser()` now rejects the anon key (previously it passed the `Bearer` prefix check).
+- ⏸ **`voice-webhook` NOT deployed** — deliberately held (see H-2 status below).
+
+### Secret inventory (verified via `supabase secrets list`)
+| Secret | State | Impact |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | ✅ set | **Real AI in prod** (not mock) — resolves that part of H-4. |
+| `RAZORPAY_KEY_ID` / `_SECRET` | ✅ set | Present, but **live-vs-test cannot be read** (value is hashed) — still verify. |
+| `VEDASTRO_API_KEY`, `VAPI_PUBLIC_KEY`, `VAPI_ASSISTANT_ID`, `VOICE_TOKEN_SECRET`, `VOICE_LLM_URL`, `OWNER_EMAILS` | ✅ set | OK. |
+| **`VAPI_WEBHOOK_SECRET`** | ❌ **NOT set** | **Confirms H-2 is live** — the deployed webhook currently authenticates nothing. |
+| `OWNER_NOTIFY_URL` | ❌ not set | Puja owner notifications are a silent no-op (bookings still visible in dashboard). Operational, not security. |
+
+### H-2 status: BLOCKED on Vapi-side coordination (cannot be completed from the repo)
+`VAPI_WEBHOOK_SECRET` is unset **and** Vapi is (therefore) not sending an `x-vapi-secret` header. Neither "set the secret" nor "deploy the fail-closed webhook" is safe alone — either one, done in isolation, makes the live webhook reject Vapi's real end-of-call reports, which **breaks call-time metering** (paid call seconds would stop decrementing = revenue leak). Both sides must be changed together:
+1. In the **Vapi dashboard**, set a Server-URL/Server-Message secret (a strong random value) so Vapi sends it as `x-vapi-secret`.
+2. `npx supabase secrets set VAPI_WEBHOOK_SECRET='<same value>'`.
+3. `npx supabase functions deploy voice-webhook --no-verify-jwt`.
+4. Make a test call; confirm the webhook returns `200` and `seconds_used` decrements.
+
+Until step 1 is done, the fail-closed code is committed but intentionally **not deployed**; the live webhook remains fail-open (the H-2 risk persists but metering keeps working).
+
+---
+
+## L-7 · Duplicate migration version `024` (repo housekeeping)
+- **Category:** DevOps / migration hygiene
+- **Affected:** `supabase/migrations/024_palm_reading.sql` and `024_report_pages.sql`
+- **Description:** Two migrations share the `024` prefix. `supabase_migrations.schema_migrations` keys on version, so only one `024` can be recorded; `db push --include-all` collides. The remote DB already has both effects (idempotent `add column` / `check` widening), so there is no data problem — only a CLI-history hazard.
+- **Fix:** Rename `024_report_pages.sql` → `029_report_pages.sql` (its effect is idempotent and order-independent), then `supabase migration repair --status applied 029` if needed. Do this in a dedicated commit.
