@@ -72,7 +72,11 @@ export default function NumerologyScreen() {
           </Text>
 
           {data ? <Reveal index={0}><NumberCard kind="Life Path" n={data.life_path} /></Reveal> : null}
-          {data ? <Reveal index={1}><NumberCard kind="Expression" n={data.expression} /></Reveal> : null}
+          {/* Expression is derived from Latin letters in the name; a name with no
+              A–Z letters (e.g. Devanagari) yields 0, which has no reading — hide it
+              rather than show an empty "—" card. Life Path (from the DOB) still shows. */}
+          {data && data.expression.number > 0
+            ? <Reveal index={1}><NumberCard kind="Expression" n={data.expression} /></Reveal> : null}
 
           {/* Soft hook into Chat (gentle, optional) */}
           <Reveal index={2}>

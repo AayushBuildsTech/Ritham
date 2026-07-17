@@ -143,7 +143,9 @@ Deno.serve(async (req) => {
           .insert({ device_hash: deviceHash, user_id: user.id });
         deviceReserved = !devErr;
       }
-      const deviceOk = deviceHash ? deviceReserved : true;
+      // M-4 anti-abuse: the free call REQUIRES a device id (per-device scarcity);
+      // without one, deny the free tier (a purchase still works).
+      const deviceOk = deviceHash ? deviceReserved : false;
 
       const { data: claimed } = deviceOk
         ? await admin.from('users')

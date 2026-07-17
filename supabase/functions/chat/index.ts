@@ -148,7 +148,10 @@ Deno.serve(async (req) => {
           .insert({ device_hash: deviceHash, user_id: user.id });
         deviceReserved = !devErr;
       }
-      const deviceOk = deviceHash ? deviceReserved : true;
+      // M-4 anti-abuse: the free minute REQUIRES a device id. Without one we can't
+      // enforce per-device scarcity, so a farm of fresh Google accounts could mint
+      // unlimited free minutes — deny the free tier (they can still purchase).
+      const deviceOk = deviceHash ? deviceReserved : false;
 
       // Per-account claim (conditional update = concurrency-safe: two first-requests
       // can't both win).

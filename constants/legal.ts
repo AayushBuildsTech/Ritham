@@ -33,8 +33,11 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
           `• Birth details: name, gender, date, time and place of birth, which you provide ` +
           `to generate your Kundli, horoscopes and reports.\n` +
           `• Content you create: chat messages with the AI astrologer and report inputs ` +
-          `(e.g. a floor-plan image for a Vaastu report, a partner’s birth details for a ` +
-          `matchmaking report).\n` +
+          `(e.g. a floor-plan image for a Vaastu report, a palm photo for a palm reading, ` +
+          `a partner’s birth details for a matchmaking report).\n` +
+          `• Voice calls: when you place a voice call with the AI astrologer, your ` +
+          `microphone audio is streamed to power the live conversation. We do not retain ` +
+          `the audio recording; a text transcript of the call may be kept with your account.\n` +
           `• Usage data: basic in-app events (such as sign-in, purchases and report ` +
           `generation) to understand and improve the app.`,
       },
@@ -49,11 +52,18 @@ export const LEGAL: Record<LegalDoc, LegalContent> = {
       {
         heading: '3. Service providers',
         body:
-          `We rely on trusted third parties to run Ritham: Supabase (authentication, ` +
-          `database and secure storage), Razorpay (payments), and Anthropic (the AI that ` +
-          `narrates readings). These providers process data only to deliver their part of ` +
-          `the service, under their own terms and security practices. Your payment card ` +
-          `details are handled by Razorpay and are never stored by us.\n\n` +
+          `We rely on trusted third parties to run Ritham, each processing only the data ` +
+          `needed for its part of the service, under its own terms and security practices:\n` +
+          `• Google — sign-in (your name and email).\n` +
+          `• Supabase — authentication, database and secure file storage.\n` +
+          `• Razorpay — payments. Your payment card details are handled by Razorpay and are ` +
+          `never stored by us.\n` +
+          `• Anthropic — the AI that narrates your chat, report and call readings (receives ` +
+          `your questions, chart facts, and any uploaded floor-plan/palm image).\n` +
+          `• Vapi, Deepgram and ElevenLabs — the voice-call stack (real-time speech-to-text ` +
+          `and text-to-speech) that powers a live AI call; they process your call audio.\n` +
+          `• VedAstro — sidereal chart computation from your birth details.\n` +
+          `• Open-Meteo — place search (to find your birth place’s coordinates and timezone).\n\n` +
           `Some of these providers (for example, the AI that narrates your readings) may ` +
           `process your data on servers located outside India. By using Ritham you consent ` +
           `to this transfer, which we make only to deliver the service to you.`,
