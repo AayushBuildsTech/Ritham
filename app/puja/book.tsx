@@ -275,7 +275,9 @@ function StepBhet({
         const on = addOns.has(a.id);
         return (
           <Pressable key={a.id} style={[styles.addonCard, on && styles.addonCardOn]} onPress={() => toggleAddOn(a.id)}>
-            <Image source={a.image} style={styles.addonImg} resizeMode="cover" />
+            <View style={styles.addonImgTile}>
+              <Image source={a.image} style={styles.addonImg} resizeMode="contain" />
+            </View>
             <View style={styles.flex1}>
               <View style={styles.addonTitleRow}>
                 <Text style={styles.addonTitle}>{tr(a.name)}</Text>
@@ -519,12 +521,17 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   // add-on cards
   addonCard: {
-    flexDirection: 'row', gap: Spacing.md, backgroundColor: th.surface,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: th.surface,
     borderRadius: Radius.md, borderWidth: 1.5, borderColor: th.border,
     padding: Spacing.md, marginBottom: Spacing.md,
   },
   addonCardOn: { borderColor: th.gold, backgroundColor: th.goldFaint, ...Depth.glow },
-  addonImg: { width: 64, height: 64, borderRadius: Radius.sm, backgroundColor: th.surfaceSunken },
+  addonImgTile: {
+    width: 104, height: 132, borderRadius: Radius.md, backgroundColor: th.surfaceSunken,
+    borderWidth: 1, borderColor: th.border, alignItems: 'center', justifyContent: 'center',
+    padding: 6, overflow: 'hidden',
+  },
+  addonImg: { width: '100%', height: '100%' },
   addonTitleRow: { flexDirection: 'row', alignItems: 'center' },
   addonTitle: { flex: 1, fontFamily: Fonts.bodySemibold, fontSize: Fonts.size.md, color: th.text },
   addonTagRow: { flexDirection: 'row', marginTop: 3 },
