@@ -153,6 +153,9 @@ function PackRow({
       style={[styles.row, badge && styles.rowHighlight, disabled && !busy && styles.rowDim]}
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled, busy }}
+      accessibilityLabel={`${left}, ${price}${note ? `, ${note}` : ''}`}
       android_ripple={{ color: th.goldFaint }}
     >
       <View style={{ flex: 1 }}>

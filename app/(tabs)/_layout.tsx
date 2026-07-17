@@ -61,6 +61,9 @@ function LuxTabBar({ state, navigation }: { state: any; navigation: any }) {
             <Pressable
               key={route.key}
               onPress={onPress}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: focused }}
+              accessibilityLabel={t(cfg.labelKey)}
               android_ripple={{ color: th.goldFaint, borderless: true, radius: 44 }}
               style={styles.item}
             >

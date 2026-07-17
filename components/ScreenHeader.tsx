@@ -19,6 +19,8 @@ export function ScreenHeader({
         onPress={onBack}
         hitSlop={10}
         style={styles.side}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
         android_ripple={{ color: th.goldFaint, borderless: true, radius: 22 }}
       >
         <Icon name="back" size={22} color={th.gold} />

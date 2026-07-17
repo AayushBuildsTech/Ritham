@@ -124,17 +124,27 @@ export function Icon({
   size = 22,
   color,
   style,
+  accessibilityLabel,
 }: {
   name: IconName;
   size?: number;
   color?: string;
   style?: any;
+  // Provide a label ONLY when the icon conveys standalone meaning (e.g. a
+  // stat glyph with no adjacent text). Icons inside a labeled Pressable/row
+  // should be left unlabeled so they stay decorative and the parent owns the
+  // announcement — otherwise TalkBack reads the raw glyph name.
+  accessibilityLabel?: string;
 }) {
   const th = useColors();
   const col = color ?? th.gold;
   const [set, glyph] = MAP[name];
+  // Decorative by default (hidden from screen readers); labeled → announced as an image.
+  const a11y = accessibilityLabel
+    ? { accessible: true, accessibilityRole: 'image' as const, accessibilityLabel }
+    : { accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' as const };
   if (set === 'feather') {
-    return <Feather name={glyph as any} size={size} color={col} style={style} />;
+    return <Feather name={glyph as any} size={size} color={col} style={style} {...a11y} />;
   }
-  return <MaterialCommunityIcons name={glyph as any} size={size} color={col} style={style} />;
+  return <MaterialCommunityIcons name={glyph as any} size={size} color={col} style={style} {...a11y} />;
 }

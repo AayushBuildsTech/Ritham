@@ -225,7 +225,12 @@ function Row({ icon, label, value, onPress, chevron, last }: {
     </View>
   );
   return onPress
-    ? <Pressable onPress={onPress} android_ripple={{ color: th.goldFaint }}>{inner}</Pressable>
+    ? <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={value ? `${label}, ${value}` : label}
+        android_ripple={{ color: th.goldFaint }}
+      >{inner}</Pressable>
     : inner;
 }
 
@@ -251,6 +256,9 @@ function SegmentedRow({ icon, label, options, selected, onSelect, last }: {
             <Pressable
               key={o.key}
               onPress={() => onSelect(o.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${label}: ${o.label}`}
               android_ripple={{ color: th.goldFaint }}
               style={[styles.segItem, i > 0 && styles.segDivider, on && styles.segItemOn]}
             >
