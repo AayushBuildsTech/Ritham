@@ -147,7 +147,7 @@ export const PUJA_ADDONS: PujaAddOn[] = [
     tag: 'highly_recommended',
     tagLabel: L('Highly Recommended', 'अत्यधिक अनुशंसित'),
     price_paise: 10100,
-    image: require('../assets/puja/kaka_bali_seva.png'),
+    image: require('../assets/puja/kaka_bali_seva.webp'),
   },
   {
     id: 'gau_seva_pitru',
@@ -160,7 +160,7 @@ export const PUJA_ADDONS: PujaAddOn[] = [
     tag: 'karma_shuddhi',
     tagLabel: L('Karma Shuddhi', 'कर्म शुद्धि'),
     price_paise: 35100,
-    image: require('../assets/puja/gau_seva_pitru.png'),
+    image: require('../assets/puja/gau_seva_pitru.webp'),
   },
   {
     id: 'tila_daan_homam',
@@ -173,7 +173,7 @@ export const PUJA_ADDONS: PujaAddOn[] = [
     tag: 'dosha_nivaran',
     tagLabel: L('Dosha Nivaran', 'दोष निवारण'),
     price_paise: 9100,
-    image: require('../assets/puja/tila_daan_homam.png'),
+    image: require('../assets/puja/tila_daan_homam.webp'),
   },
   {
     id: 'vastra_daan_brahmin',
@@ -186,7 +186,7 @@ export const PUJA_ADDONS: PujaAddOn[] = [
     tag: 'auspicious',
     tagLabel: L('Auspicious', 'शुभ'),
     price_paise: 40100,
-    image: require('../assets/puja/vastra_daan_brahmin.png'),
+    image: require('../assets/puja/vastra_daan_brahmin.webp'),
   },
   {
     id: 'brahman_bhojan',
@@ -199,7 +199,7 @@ export const PUJA_ADDONS: PujaAddOn[] = [
     tag: 'purna_phala',
     tagLabel: L('Purna Phala', 'पूर्ण फल'),
     price_paise: 50100,
-    image: require('../assets/puja/brahman_bhojan.png'),
+    image: require('../assets/puja/brahman_bhojan.webp'),
   },
 ];
 
@@ -242,7 +242,7 @@ export const PUJAS: Puja[] = [
     title: L('Pitra Dosha Nivaran Puja', 'पितृ दोष निवारण पूजा'),
     subtitle: L('Ancestral rites to resolve Pitru Dosha', 'पितृ दोष निवारण हेतु पूर्वज कर्म'),
     location: L('Agni Theertham, Rameswaram', 'अग्नि तीर्थम्, रामेश्वरम्'),
-    hero: require('../assets/puja/hero.png'),
+    hero: require('../assets/puja/hero.webp'),
     about: L(
       'Performed at Agni Theertham — the sacred ocean shore beside the Ramanathaswamy Temple where Lord Rama himself performed ancestral rites (Shraddh) for his father King Dasharatha. This is the most spiritually charged place in India to resolve ancestral debts (Pitru Rin) through Tarpanam, Thila Homam and Pitru Puja. Experienced local Vedic priests perform the rituals in your name and gotra on your behalf.',
       'अग्नि तीर्थम् पर संपन्न — रामनाथस्वामी मंदिर के निकट वह पवित्र समुद्र तट जहाँ स्वयं भगवान राम ने अपने पिता राजा दशरथ के लिए श्राद्ध किया था। तर्पण, थिला होमम् और पितृ पूजा द्वारा पितृ ऋण चुकाने के लिए यह भारत का सर्वाधिक आध्यात्मिक स्थान है। अनुभवी स्थानीय वैदिक पुजारी आपके नाम और गोत्र में आपकी ओर से कर्म संपन्न करते हैं।',

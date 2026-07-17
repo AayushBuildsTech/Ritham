@@ -297,7 +297,7 @@ export default function HomeScreen() {
     {
       key: 'puja', icon: 'puja', badge: isHindi ? 'नया' : 'NEW', title: isHindi ? 'पितृ दोष पूजा' : 'Pitra Dosha Puja',
       sub: isHindi ? 'रामेश्वरम् में पूर्वजों के लिए पूजा' : 'Ancestral rites at Rameswaram', cta: isHindi ? 'बुक करें' : 'Book',
-      image: require('../../assets/puja/carousel.png'),
+      image: require('../../assets/puja/carousel.webp'),
       onPress: () => router.push('/puja' as any),
     },
     {
