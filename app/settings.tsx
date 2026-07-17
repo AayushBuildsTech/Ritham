@@ -273,10 +273,10 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: th.divider },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexShrink: 0 },
   rowLabel: { fontFamily: Fonts.body, color: th.text, fontSize: Fonts.size.md },
-  rowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
-  rowValue: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flex: 1, justifyContent: 'flex-end' },
+  rowValue: { fontFamily: Fonts.body, color: th.textMuted, fontSize: Fonts.size.sm, flexShrink: 1, textAlign: 'right' },
 
   // segmented (choose-between) control
   segment: { flexDirection: 'row', borderWidth: 1, borderColor: th.borderStrong, borderRadius: Radius.sm, overflow: 'hidden' },
