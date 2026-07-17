@@ -66,7 +66,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <ImageBackground source={require('../../assets/auth/login-hero.png')} style={styles.root} resizeMode="cover">
+    <ImageBackground source={require('../../assets/auth/login-hero.webp')} style={styles.root} resizeMode="cover">
       <StatusBar style="light" />
       <LinearGradient
         colors={['rgba(13,13,26,0.15)', 'rgba(13,13,26,0.55)', 'rgba(13,13,26,0.94)']}

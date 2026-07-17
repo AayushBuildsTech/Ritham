@@ -9,9 +9,9 @@ import { HeroBanner } from '../../components/HeroBanner';
 import { TAB_BAR_HEIGHT } from './_layout';
 
 type Category = { icon: IconName; accent: AccentName; title: string; desc: string; image: any };
-const RUDRAKSHA = require('../../assets/store/rudraksha.png');
-const GEMSTONE = require('../../assets/store/gemstone.png');
-const EVIL_EYE = require('../../assets/store/evil-eye.png');
+const RUDRAKSHA = require('../../assets/store/rudraksha.webp');
+const GEMSTONE = require('../../assets/store/gemstone.webp');
+const EVIL_EYE = require('../../assets/store/evil-eye.webp');
 const CATEGORIES_EN: Category[] = [
   { icon: 'beads', accent: 'saffron', title: 'Rudraksha', desc: 'Certified, energised beads and malas for daily practice and protection.', image: RUDRAKSHA },
   { icon: 'diamond', accent: 'sapphire', title: 'Gemstone Bracelets', desc: 'Genuine crystal bracelets, chosen to balance and strengthen your chart.', image: GEMSTONE },
@@ -40,7 +40,7 @@ export default function StoreScreen() {
     >
       <Reveal index={0}>
         <HeroBanner
-          source={require('../../assets/store/store-hero.png')}
+          source={require('../../assets/store/store-hero.webp')}
           aspectRatio={4 / 5}
           scrim
           style={{ marginBottom: Spacing.lg }}

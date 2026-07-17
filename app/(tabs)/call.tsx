@@ -157,7 +157,7 @@ export default function CallScreen() {
         <Reveal index={2}>
           <View style={styles.guruWrap}>
             <View style={styles.guruCameo}>
-              <Image source={require('../../assets/guru/guru-portrait.png')} style={styles.guruImg} resizeMode="cover" />
+              <Image source={require('../../assets/guru/guru-portrait.webp')} style={styles.guruImg} resizeMode="cover" />
             </View>
           </View>
         </Reveal>

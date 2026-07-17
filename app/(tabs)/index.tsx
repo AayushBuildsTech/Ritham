@@ -291,7 +291,7 @@ export default function HomeScreen() {
     {
       key: 'palmreading', icon: 'palmreading', badge: isHindi ? 'प्रीमियम' : 'PREMIUM', title: isHindi ? 'हस्तरेखा पठन' : 'Palm Reading',
       sub: isHindi ? 'आपकी नियति आपके हाथ में' : 'Your destiny, in your hands', cta: isHindi ? 'खोलें' : 'Reveal',
-      image: require('../../assets/carousel/palmreading.png'),
+      image: require('../../assets/carousel/palmreading.webp'),
       onPress: () => router.push({ pathname: '/palmreading' as any, params: { profileId: profile.id } }),
     },
     {

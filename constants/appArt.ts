@@ -5,14 +5,14 @@
 
 // ── Live Darshan temple banners (keyed by Temple.id in config/temples.ts) ────────
 export const TEMPLE_IMG: Record<string, any> = {
-  tirupati: require('../assets/temples/tirupati.png'),
-  vaishno_devi: require('../assets/temples/vaishno_devi.png'),
-  shirdi: require('../assets/temples/shirdi.png'),
-  kashi_vishwanath: require('../assets/temples/kashi_vishwanath.png'),
-  mahakaleshwar: require('../assets/temples/mahakaleshwar.png'),
-  somnath: require('../assets/temples/somnath.png'),
-  siddhivinayak: require('../assets/temples/siddhivinayak.png'),
-  golden_temple: require('../assets/temples/golden_temple.png'),
+  tirupati: require('../assets/temples/tirupati.webp'),
+  vaishno_devi: require('../assets/temples/vaishno_devi.webp'),
+  shirdi: require('../assets/temples/shirdi.webp'),
+  kashi_vishwanath: require('../assets/temples/kashi_vishwanath.webp'),
+  mahakaleshwar: require('../assets/temples/mahakaleshwar.webp'),
+  somnath: require('../assets/temples/somnath.webp'),
+  siddhivinayak: require('../assets/temples/siddhivinayak.webp'),
+  golden_temple: require('../assets/temples/golden_temple.webp'),
 };
 
 // ── Per-sign horoscope banners (constellation art, one shown per moon sign) ──────
@@ -51,5 +51,5 @@ export const FEATURE_BANNER = {
   muhurat: require('../assets/banners/muhurat.webp'),
   sadesati: require('../assets/banners/sadesati.webp'),
   vakri: require('../assets/banners/vakri.webp'),
-  palmreading: require('../assets/banners/palmreading.png'),
+  palmreading: require('../assets/banners/palmreading.webp'),
 } as const;
