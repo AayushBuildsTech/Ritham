@@ -40,37 +40,39 @@ export function AnimatedSplash({ onFinish }: { onFinish: () => void }) {
   useEffect(() => {
     // Background settles on its own timeline (slow, calm).
     Animated.parallel([
-      Animated.timing(bgOpacity, { toValue: 1, duration: 650, easing: ease, useNativeDriver: true }),
-      Animated.timing(bgScale, { toValue: 1, duration: 1600, easing: ease, useNativeDriver: true }),
+      Animated.timing(bgOpacity, { toValue: 1, duration: 450, easing: ease, useNativeDriver: true }),
+      Animated.timing(bgScale, { toValue: 1, duration: 1200, easing: ease, useNativeDriver: true }),
     ]).start();
 
+    // Trimmed to ~2.0s total (was ~3.8s) for a faster-feeling launch — same beats
+    // (bloom → mark → beat → name → fade), just tighter.
     Animated.sequence([
-      Animated.delay(220),
+      Animated.delay(100),
       // 2. the gold seed appears and blooms
       Animated.parallel([
-        Animated.timing(binduOpacity, { toValue: 1, duration: 300, easing: ease, useNativeDriver: true }),
-        Animated.timing(binduScale, { toValue: 1, duration: 560, easing: Easing.out(Easing.back(2.2)), useNativeDriver: true }),
+        Animated.timing(binduOpacity, { toValue: 1, duration: 180, easing: ease, useNativeDriver: true }),
+        Animated.timing(binduScale, { toValue: 1, duration: 340, easing: Easing.out(Easing.back(2.2)), useNativeDriver: true }),
       ]),
       // 3. the ऋ ignites over it
       Animated.parallel([
-        Animated.timing(markOpacity, { toValue: 1, duration: 520, easing: ease, useNativeDriver: true }),
-        Animated.timing(markScale, { toValue: 1, duration: 720, easing: ease, useNativeDriver: true }),
+        Animated.timing(markOpacity, { toValue: 1, duration: 280, easing: ease, useNativeDriver: true }),
+        Animated.timing(markScale, { toValue: 1, duration: 360, easing: ease, useNativeDriver: true }),
       ]),
       // 4. the beat — one ripple + a small kick of the mark
       Animated.parallel([
-        Animated.timing(beat, { toValue: 1, duration: 720, easing: ease, useNativeDriver: true }),
+        Animated.timing(beat, { toValue: 1, duration: 440, easing: ease, useNativeDriver: true }),
         Animated.sequence([
-          Animated.timing(pulse, { toValue: 1.09, duration: 180, easing: ease, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1, duration: 360, easing: ease, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1.09, duration: 140, easing: ease, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 240, easing: ease, useNativeDriver: true }),
         ]),
       ]),
       // 5. the name rises up
       Animated.parallel([
-        Animated.timing(textOpacity, { toValue: 1, duration: 440, easing: ease, useNativeDriver: true }),
-        Animated.timing(textShift, { toValue: 0, duration: 440, easing: ease, useNativeDriver: true }),
+        Animated.timing(textOpacity, { toValue: 1, duration: 280, easing: ease, useNativeDriver: true }),
+        Animated.timing(textShift, { toValue: 0, duration: 280, easing: ease, useNativeDriver: true }),
       ]),
-      Animated.delay(680),
-      Animated.timing(overlay, { toValue: 0, duration: 440, easing: ease, useNativeDriver: true }),
+      Animated.delay(220),
+      Animated.timing(overlay, { toValue: 0, duration: 280, easing: ease, useNativeDriver: true }),
     ]).start(({ finished }) => { if (finished) onFinish(); });
   }, []);
 

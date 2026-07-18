@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Linking, Alert, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Linking, ImageBackground } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { TEMPLES, Temple, TEMPLE_HI } from '../config/temples';
@@ -30,7 +31,7 @@ export default function DarshanScreen() {
     try {
       await Linking.openURL(t.streamUrl);
     } catch {
-      Alert.alert(isHindi ? 'स्ट्रीम नहीं खुल सकी' : 'Couldn’t open the stream', isHindi ? 'कृपया फिर कोशिश करें, या मंदिर का आधिकारिक चैनल/वेबसाइट सीधे खोलें।' : 'Please try again, or open the temple’s official channel/website directly.');
+      showAlert(isHindi ? 'स्ट्रीम नहीं खुल सकी' : 'Couldn’t open the stream', isHindi ? 'कृपया फिर कोशिश करें, या मंदिर का आधिकारिक चैनल/वेबसाइट सीधे खोलें।' : 'Please try again, or open the temple’s official channel/website directly.');
     }
   }
 

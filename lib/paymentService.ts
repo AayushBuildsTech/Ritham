@@ -63,7 +63,7 @@ export async function purchasePack(
       currency: data.currency,
       name: 'Ritham',
       description: 'Chat pack',
-      theme: { color: '#d9a441' },
+      theme: { color: '#FF007F' }, // Cyber Magenta brand accent (matches the puja checkout)
       prefill: {
         contact: prefill?.contact ?? '',
         email: prefill?.email ?? '',

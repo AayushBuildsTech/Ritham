@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert,
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
 } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { useActiveProfile } from '../context/ProfileContext';
@@ -116,7 +117,7 @@ export default function ChartReportIntake() {
         if (!pay.ok) {
           setBusy(false);
           if (pay.error !== 'cancelled') {
-            Alert.alert('Payment not completed', 'Something went wrong. Please try again in a moment.');
+            showAlert('Payment not completed', 'Something went wrong. Please try again in a moment.');
           }
           return;
         }
@@ -134,14 +135,14 @@ export default function ChartReportIntake() {
         return;
       }
       if (res.error === 'needs_purchase') {
-        Alert.alert('Purchase needed', 'Your report credit wasn’t found. Please try again from Reports.');
+        showAlert('Purchase needed', 'Your report credit wasn’t found. Please try again from Reports.');
         return;
       }
-      Alert.alert('Generation failed', 'We couldn’t generate your report just now. Please try again in a moment.');
+      showAlert('Generation failed', 'We couldn’t generate your report just now. Please try again in a moment.');
     } catch {
       setBusy(false);
       setGenerating(false);
-      Alert.alert('Something went wrong', 'Please try again in a moment.');
+      showAlert('Something went wrong', 'Please try again in a moment.');
     }
   }
 

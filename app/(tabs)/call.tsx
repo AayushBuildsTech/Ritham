@@ -7,8 +7,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Alert, Image,
+  View, Text, StyleSheet, Pressable, Modal, ScrollView, ActivityIndicator, Image,
 } from 'react-native';
+import { showAlert } from '../../lib/dialog';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +17,8 @@ import { Fonts, Spacing, Radius, Depth, ThemeColors } from '../../constants/them
 import { useColors } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useActiveProfile, RELATION_LABEL } from '../../context/ProfileContext';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 import { Icon } from '../../components/Icon';
 import { Reveal } from '../../components/Reveal';
 import { CallOrb } from '../../components/CallOrb';
@@ -40,11 +43,16 @@ export default function CallScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { active } = useActiveProfile();
+  const { user } = useAuth();
   const dur = (s: number) => (isHindi ? formatSeconds(s).replace('min', 'मिनट') : formatSeconds(s));
 
   const [phase, setPhase] = useState<Phase>('precall');
   const [callState, setCallState] = useState<CallState>('idle');
   const [callSeconds, setCallSeconds] = useState(0);
+  // Whether this account has ever consumed its free call. Gated per-account AND
+  // per-device on the server; the client mirrors the per-account flag so it never
+  // offers a "free call" the server will refuse (→ a bounce to the paywall).
+  const [freeCallUsed, setFreeCallUsed] = useState(false);
   const [volume, setVolume] = useState(0);
   const [allowance, setAllowance] = useState(0);
   const [remaining, setRemaining] = useState(0);
@@ -58,11 +66,46 @@ export default function CallScreen() {
   const handleRef = useRef<CallHandle | null>(null);
   const startedRef = useRef(false);
   const usedRef = useRef(0);
+  // Safety net for ending a call. The return-to-precall path used to depend entirely
+  // on Vapi's 'call-end' event, which can be dropped on abrupt hangups (network loss,
+  // remote end, backgrounding) — leaving the user stranded on the live-call screen.
+  // Whenever we ask to stop, we arm this watchdog; if no terminal state arrives, we
+  // force the ended summary ourselves so there is always a way back.
+  const endWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshBalance = useCallback(() => {
     getBalance().then((b) => setCallSeconds(b.callSeconds)).catch(() => {});
-  }, []);
+    if (user) {
+      supabase.from('users').select('free_call_used_at').eq('id', user.id).maybeSingle()
+        .then(({ data }) => setFreeCallUsed(!!data?.free_call_used_at));
+    }
+  }, [user]);
   useFocusEffect(useCallback(() => { refreshBalance(); }, [refreshBalance]));
+
+  const clearEndWatchdog = () => {
+    if (endWatchdogRef.current) { clearTimeout(endWatchdogRef.current); endWatchdogRef.current = null; }
+  };
+
+  // Ask the SDK to stop, but don't trust it to emit 'call-end'. If we haven't reached
+  // a terminal state within a few seconds, force the ended summary so the user is never
+  // stuck on the live-call screen. Idempotent — repeated taps won't stack watchdogs.
+  const finishCall = useCallback(() => {
+    handleRef.current?.stop();
+    if (endWatchdogRef.current) return;
+    endWatchdogRef.current = setTimeout(() => {
+      endWatchdogRef.current = null;
+      setCallState((s) => (s === 'ended' || s === 'error' ? s : 'ended'));
+      refreshBalance();
+    }, 2500);
+  }, [refreshBalance]);
+
+  // A real terminal event beat the watchdog → cancel it (a forced 'ended' would be a no-op anyway).
+  useEffect(() => {
+    if (callState === 'ended' || callState === 'error') clearEndWatchdog();
+  }, [callState]);
+
+  // Never leave a timer running past unmount.
+  useEffect(() => () => clearEndWatchdog(), []);
 
   // countdown while the call is live; auto-end at zero
   useEffect(() => {
@@ -73,12 +116,12 @@ export default function CallScreen() {
     const id = setInterval(() => {
       setRemaining((r) => {
         usedRef.current = allowance - (r - 1);
-        if (r <= 1) { handleRef.current?.stop(); return 0; }
+        if (r <= 1) { finishCall(); return 0; }
         return r - 1;
       });
     }, 1000);
     return () => clearInterval(id);
-  }, [phase, callState, allowance]);
+  }, [phase, callState, allowance, finishCall]);
 
   const hasKundli = !!active?.hasKundli;
   const person = active?.name ?? (isHindi ? 'आप' : 'you');
@@ -87,12 +130,22 @@ export default function CallScreen() {
   async function begin() {
     if (!active) return;
     if (!hasKundli) {
-      Alert.alert(
+      showAlert(
         isHindi ? 'कुंडली आवश्यक' : 'Kundli needed',
         isHindi ? 'कृपया इस व्यक्ति की कुंडली एक बार खोलें ताकि वह तैयार हो जाए, फिर कॉल करें।' : 'Please open this person’s Kundli once so it’s ready, then call.',
         [{ text: isHindi ? 'ठीक है' : 'OK' }, { text: isHindi ? 'कुंडली खोलें' : 'Open Kundli', onPress: () => router.push('/profile') }]);
       return;
     }
+    // Re-verify the balance against the server before entering the call UI. Post-call
+    // metering is async (the Vapi webhook decrements seconds after the fact), so the
+    // cached balance can briefly misread a just-exhausted pack as still available —
+    // dialing then would flash "Connecting…" and, in a slow-webhook race, start a call
+    // on seconds already spent. If there's no paid time and the free call is used, go
+    // straight to the paywall instead.
+    const bal = await getBalance().catch(() => null);
+    if (bal) setCallSeconds(bal.callSeconds);
+    const paidLeft = bal ? bal.callSeconds : callSeconds;
+    if (paidLeft <= 0 && freeCallUsed) { setPhase('paywall'); return; }
     setMuted(false); setCaptionsOn(false); setLastLine(''); setGreeted(false);
     startedRef.current = false; usedRef.current = 0;
     setPhase('call'); setCallState('connecting');
@@ -110,7 +163,7 @@ export default function CallScreen() {
     if (!res.ok) {
       if (res.error === 'needs_purchase') { setPhase('paywall'); return; }
       setPhase('precall');
-      Alert.alert(isHindi ? 'कॉल' : 'Call', callErrorMessage(res.error));
+      showAlert(isHindi ? 'कॉल' : 'Call', callErrorMessage(res.error));
       return;
     }
     handleRef.current = res.handle ?? null;
@@ -118,9 +171,10 @@ export default function CallScreen() {
     setRemaining(res.allowanceSeconds ?? 60);
   }
 
-  function endCall() { handleRef.current?.stop(); }
+  function endCall() { finishCall(); }
   function toggleMute() { const n = !muted; setMuted(n); handleRef.current?.setMuted(n); }
   function closeCall() {
+    clearEndWatchdog();
     handleRef.current = null; startedRef.current = false; setGreeted(false);
     setPhase('precall'); setCallState('idle'); setVolume(0);
     refreshBalance();
@@ -134,7 +188,14 @@ export default function CallScreen() {
     (isHindi ? 'सुन रहे हैं…' : 'Listening…');
 
   const hasMinutes = callSeconds > 0;
-  const primaryLabel = !hasKundli ? (isHindi ? 'अपनी कुंडली पूरी करें' : 'Finish your Kundli') : hasMinutes ? (isHindi ? 'अभी कॉल करें' : 'Call now') : (isHindi ? 'निःशुल्क कॉल करें' : 'Start free call');
+  const freeAvailable = !hasMinutes && !freeCallUsed;
+  const primaryLabel = !hasKundli
+    ? (isHindi ? 'अपनी कुंडली पूरी करें' : 'Finish your Kundli')
+    : hasMinutes
+    ? (isHindi ? 'अभी कॉल करें' : 'Call now')
+    : freeAvailable
+    ? (isHindi ? 'निःशुल्क कॉल करें' : 'Start free call')
+    : (isHindi ? 'कॉल मिनट खरीदें' : 'Buy call minutes');
 
   return (
     <View style={styles.root}>
@@ -174,7 +235,9 @@ export default function CallScreen() {
             <Text style={styles.valueText}>
               {hasMinutes
                 ? (isHindi ? `आपके पास ${dur(callSeconds)} का कॉल समय है` : `You have ${formatSeconds(callSeconds)} of call time`)
-                : (isHindi ? 'आपके पहले 60 सेकंड निःशुल्क हैं' : 'Your first 60 seconds are free')}
+                : freeAvailable
+                ? (isHindi ? 'आपके पहले 60 सेकंड निःशुल्क हैं' : 'Your first 60 seconds are free')
+                : (isHindi ? 'बात करने के लिए कॉल मिनट खरीदें' : 'Buy call minutes to talk to your astrologer')}
             </Text>
           </View>
           <Text style={styles.perMin}>{isHindi ? `${CHEAPEST_CALL_PER_MIN} से कॉल · आप केवल बोले गए समय का भुगतान करते हैं` : `Calls from ${CHEAPEST_CALL_PER_MIN} · you pay only for what you speak`}</Text>
@@ -193,7 +256,7 @@ export default function CallScreen() {
       </ScrollView>
 
       {/* ── full-screen call experience ─────────────────────────────────────── */}
-      <Modal visible={phase === 'call'} animationType="fade" onRequestClose={endCall} statusBarTranslucent>
+      <Modal visible={phase === 'call'} animationType="fade" onRequestClose={() => { if (callState === 'ended' || callState === 'error') closeCall(); else endCall(); }} statusBarTranslucent>
         <View style={styles.callRoot}>
           <LinearGradient colors={th.gHero} style={StyleSheet.absoluteFill} />
 
@@ -214,7 +277,7 @@ export default function CallScreen() {
               <View style={{ height: Spacing.xl }} />
               <Pressable
                 style={styles.primary}
-                onPress={() => { const buy = callSeconds <= 0; closeCall(); if (buy) setPhase('paywall'); else begin(); }}
+                onPress={() => { closeCall(); begin(); }}
               >
                 <LinearGradient colors={th.gSplash} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
                 <Icon name={callSeconds > 0 ? 'phoneCall' : 'diamond'} size={18} color={th.goldContrast} />

@@ -171,6 +171,14 @@ Deno.serve(async (req) => {
       } else {
         // release a device reservation we couldn't use, so a genuinely new user isn't blocked
         if (deviceHash && deviceReserved) await admin.from('device_free_call_trials').delete().eq('device_hash', deviceHash);
+        // If THIS device already used its free call under another account, this user
+        // can never earn it here — stamp the per-account flag so the client stops
+        // offering a "free call" it can't grant. Only on a real device block, not an
+        // absent device id (a soft, retryable deny).
+        if (deviceHash && !deviceReserved) {
+          await admin.from('users').update({ free_call_used_at: new Date().toISOString() })
+            .eq('id', user.id).is('free_call_used_at', null);
+        }
         return json({ error: 'needs_purchase' }); // client opens the call paywall
       }
     }

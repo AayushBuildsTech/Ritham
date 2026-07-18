@@ -52,6 +52,14 @@ Deno.serve(async (req) => {
       if (rmErr) { console.error('delete-account storage remove failed:', rmErr.message); return json({ error: 'storage_delete_failed' }, 500); }
     }
 
+    // 1b. Purge this user's rate-limit tally rows. They are keyed by a bucket string
+    //     ("<feature>:<uid>", e.g. "palm:<uid>") with NO foreign key to users, so the
+    //     users-row cascade below never reaches them. Delete them explicitly so no
+    //     trace of the user (their id) is left behind. Best-effort: these are throwaway
+    //     counters, so a failure here must never block the actual account deletion.
+    const { error: rlErr } = await admin.from('rate_limits').delete().like('bucket', `%:${uid}`);
+    if (rlErr) console.error('delete-account rate_limits purge failed:', rlErr.message);
+
     // 2. Delete the domain row — cascades all app data (profiles, chat, payments,
     //    entitlements, reports). Do this before removing the auth identity so RLS /
     //    triggers still see a coherent state.

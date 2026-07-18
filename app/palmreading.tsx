@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Alert, Animated, Easing,
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, Animated, Easing,
 } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
@@ -74,10 +75,10 @@ export default function PalmReadingScreen() {
   async function pick(fromCamera: boolean) {
     if (fromCamera) {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) { Alert.alert(isHindi ? 'अनुमति चाहिए' : 'Permission needed', isHindi ? 'हथेली की फ़ोटो लेने के लिए कैमरा अनुमति दें।' : 'Please allow camera access to photograph your palm.'); return; }
+      if (!perm.granted) { showAlert(isHindi ? 'अनुमति चाहिए' : 'Permission needed', isHindi ? 'हथेली की फ़ोटो लेने के लिए कैमरा अनुमति दें।' : 'Please allow camera access to photograph your palm.'); return; }
     } else {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { Alert.alert(isHindi ? 'अनुमति चाहिए' : 'Permission needed', isHindi ? 'हथेली की फ़ोटो चुनने के लिए फ़ोटो अनुमति दें।' : 'Please allow photo access to upload your palm.'); return; }
+      if (!perm.granted) { showAlert(isHindi ? 'अनुमति चाहिए' : 'Permission needed', isHindi ? 'हथेली की फ़ोटो चुनने के लिए फ़ोटो अनुमति दें।' : 'Please allow photo access to upload your palm.'); return; }
     }
     const res = fromCamera
       ? await ImagePicker.launchCameraAsync({ quality: 0.6, base64: true })
@@ -121,7 +122,7 @@ export default function PalmReadingScreen() {
         const pay = await purchasePack('report', 'palm', { email: user.email ?? '' });
         if (!pay.ok) {
           setBusy(false);
-          if (pay.error !== 'cancelled') Alert.alert(isHindi ? 'भुगतान पूरा नहीं हुआ' : 'Payment not completed', isHindi ? 'कुछ गड़बड़ हुई। कृपया पुनः प्रयास करें।' : 'Something went wrong. Please try again in a moment.');
+          if (pay.error !== 'cancelled') showAlert(isHindi ? 'भुगतान पूरा नहीं हुआ' : 'Payment not completed', isHindi ? 'कुछ गड़बड़ हुई। कृपया पुनः प्रयास करें।' : 'Something went wrong. Please try again in a moment.');
           return;
         }
         track('palm_purchased');
@@ -130,7 +131,7 @@ export default function PalmReadingScreen() {
       const up = await uploadPalm(user.id, image.base64, image.mimeType);
       if (up.error || !up.path) {
         setBusy(false);
-        Alert.alert(isHindi ? 'अपलोड विफल' : 'Upload failed', isHindi ? 'हम आपकी हथेली की फ़ोटो अपलोड नहीं कर सके। कृपया पुनः प्रयास करें।' : 'We couldn’t upload your palm photo. Please try again.');
+        showAlert(isHindi ? 'अपलोड विफल' : 'Upload failed', isHindi ? 'हम आपकी हथेली की फ़ोटो अपलोड नहीं कर सके। कृपया पुनः प्रयास करें।' : 'We couldn’t upload your palm photo. Please try again.');
         return;
       }
 
@@ -145,14 +146,14 @@ export default function PalmReadingScreen() {
         return;
       }
       if (res.error === 'needs_purchase') {
-        Alert.alert(isHindi ? 'खरीद आवश्यक' : 'Purchase needed', isHindi ? 'आपका रिपोर्ट क्रेडिट नहीं मिला। कृपया रिपोर्ट्स से पुनः प्रयास करें।' : 'Your report credit wasn’t found. Please try again from Reports.');
+        showAlert(isHindi ? 'खरीद आवश्यक' : 'Purchase needed', isHindi ? 'आपका रिपोर्ट क्रेडिट नहीं मिला। कृपया रिपोर्ट्स से पुनः प्रयास करें।' : 'Your report credit wasn’t found. Please try again from Reports.');
         return;
       }
-      Alert.alert(isHindi ? 'निर्माण विफल' : 'Generation failed', isHindi ? 'हम अभी आपकी रीडिंग नहीं बना सके। कृपया थोड़ी देर में पुनः प्रयास करें।' : 'We couldn’t generate your reading just now. Please try again in a moment.');
+      showAlert(isHindi ? 'निर्माण विफल' : 'Generation failed', isHindi ? 'हम अभी आपकी रीडिंग नहीं बना सके। कृपया थोड़ी देर में पुनः प्रयास करें।' : 'We couldn’t generate your reading just now. Please try again in a moment.');
     } catch {
       setBusy(false);
       setGenerating(false);
-      Alert.alert(isHindi ? 'कुछ गड़बड़ हुई' : 'Something went wrong', isHindi ? 'कृपया थोड़ी देर में पुनः प्रयास करें।' : 'Please try again in a moment.');
+      showAlert(isHindi ? 'कुछ गड़बड़ हुई' : 'Something went wrong', isHindi ? 'कृपया थोड़ी देर में पुनः प्रयास करें।' : 'Please try again in a moment.');
     }
   }
 

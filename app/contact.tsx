@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import {
-  View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, Linking,
+  View, Text, TextInput, Pressable, StyleSheet, ScrollView, Linking,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { useRouter } from 'expo-router';
 import { Fonts, Spacing, Radius, ThemeColors } from '../constants/theme';
 import { useColors } from '../context/ThemeContext';
@@ -31,7 +32,7 @@ export default function Contact() {
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert(
+      showAlert(
         isHindi ? 'ईमेल ऐप नहीं मिला' : 'No email app found',
         (isHindi ? 'कृपया हमें यहाँ ईमेल करें: ' : 'Please email us at ') + CONTACT_EMAIL,
       );

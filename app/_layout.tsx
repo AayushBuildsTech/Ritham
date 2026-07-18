@@ -23,6 +23,7 @@ import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { LanguageProvider, useLanguage } from '../context/LanguageContext';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { AnimatedSplash } from '../components/AnimatedSplash';
+import { AppDialog } from '../components/AppDialog';
 
 // Hold the native (static) splash until fonts + first auth check are ready, so
 // there is no flash of unstyled/system-font content before the branded splash.
@@ -99,6 +100,8 @@ function RootLayoutInner() {
           <AuthGate />
         </ProfileProvider>
       </AuthProvider>
+      {/* Themed, in-app replacement for native Alert popups. */}
+      <AppDialog />
       {!splashDone && <AnimatedSplash onFinish={() => setSplashDone(true)} />}
     </View>
   );

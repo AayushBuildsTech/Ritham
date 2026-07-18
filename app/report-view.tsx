@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Animated, Easing } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -178,10 +179,10 @@ export default function ReportView() {
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: isHindi ? 'आपकी रिपोर्ट' : 'Your Report' });
       } else {
-        Alert.alert(isHindi ? 'सहेजा गया' : 'Saved', `${isHindi ? 'PDF यहाँ सहेजी गई:' : 'PDF saved to:'} ${uri}`);
+        showAlert(isHindi ? 'सहेजा गया' : 'Saved', `${isHindi ? 'PDF यहाँ सहेजी गई:' : 'PDF saved to:'} ${uri}`);
       }
     } catch {
-      Alert.alert(isHindi ? 'निर्यात विफल' : 'Export failed', isHindi ? 'हम PDF नहीं बना सके। कृपया फिर कोशिश करें।' : 'We couldn’t create the PDF. Please try again.');
+      showAlert(isHindi ? 'निर्यात विफल' : 'Export failed', isHindi ? 'हम PDF नहीं बना सके। कृपया फिर कोशिश करें।' : 'We couldn’t create the PDF. Please try again.');
     } finally {
       setExporting(false);
     }

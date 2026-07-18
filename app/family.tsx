@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
@@ -41,7 +42,7 @@ export default function FamilyScreen() {
   }
 
   function confirmDelete(m: FamilyMember) {
-    Alert.alert(
+    showAlert(
       isHindi ? `${m.name} को हटाएं?` : `Remove ${m.name}?`,
       isHindi ? 'यह उनका जन्म विवरण और कुंडली हटा देगा। इसे वापस नहीं लाया जा सकता।' : 'This deletes their birth details and chart. This cannot be undone.',
       [
@@ -50,7 +51,7 @@ export default function FamilyScreen() {
           text: isHindi ? 'हटाएं' : 'Remove', style: 'destructive',
           onPress: async () => {
             const { error } = await supabase.from('profiles').delete().eq('id', m.id);
-            if (error) { Alert.alert(isHindi ? 'हटाया नहीं जा सका' : 'Could not remove', error.message); return; }
+            if (error) { showAlert(isHindi ? 'हटाया नहीं जा सका' : 'Could not remove', error.message); return; }
             track('family_member_removed');
             if (activeId === m.id) {
               const self = members.find((x) => x.relation === 'self');

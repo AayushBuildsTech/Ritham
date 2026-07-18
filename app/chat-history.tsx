@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { listChatHistory, deleteChatSessions, ChatHistoryItem } from '../lib/chatService';
@@ -71,7 +72,7 @@ export default function ChatHistoryScreen() {
   function confirmDelete() {
     const n = selected.size;
     if (!n) return;
-    Alert.alert(
+    showAlert(
       isHindi ? `${n} चैट हटाएं?` : `Delete ${n} chat${n > 1 ? 's' : ''}?`,
       isHindi ? 'यह चयनित बातचीत को स्थायी रूप से हटा देता है और इसे वापस नहीं लाया जा सकता।' : 'This permanently removes the selected conversation' + (n > 1 ? 's' : '') + ' and cannot be undone.',
       [
@@ -87,7 +88,7 @@ export default function ChatHistoryScreen() {
     setDeleting(true);
     const { error } = await deleteChatSessions(ids);
     setDeleting(false);
-    if (error) { Alert.alert(isHindi ? 'हटाया नहीं जा सका' : 'Could not delete', error); return; }
+    if (error) { showAlert(isHindi ? 'हटाया नहीं जा सका' : 'Could not delete', error); return; }
     track('chat_history_deleted', { count: ids.length });
     const removed = new Set(ids);
     setItems((prev) => (prev ? prev.filter((i) => !removed.has(i.id)) : prev));

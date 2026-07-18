@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Alert,
+  View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator,
 } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
@@ -118,16 +119,16 @@ export default function MatchmakingIntake() {
   // ── generate ────────────────────────────────────────────────────────────────
   async function generate() {
     if (!self || busy || generating) return;
-    if (!name.trim()) { Alert.alert('Almost there', 'Please enter your partner’s name.'); return; }
-    if (!gender) { Alert.alert('Almost there', 'Please select your partner’s gender.'); return; }
-    if (!day || !month || !year) { Alert.alert('Almost there', 'Please select the full date of birth.'); return; }
-    if (!hour || !minute || !ampm) { Alert.alert('Almost there', 'Please select the time of birth.'); return; }
-    if (!place) { Alert.alert('Almost there', 'Please select the birth place.'); return; }
+    if (!name.trim()) { showAlert('Almost there', 'Please enter your partner’s name.'); return; }
+    if (!gender) { showAlert('Almost there', 'Please select your partner’s gender.'); return; }
+    if (!day || !month || !year) { showAlert('Almost there', 'Please select the full date of birth.'); return; }
+    if (!hour || !minute || !ampm) { showAlert('Almost there', 'Please select the time of birth.'); return; }
+    if (!place) { showAlert('Almost there', 'Please select the birth place.'); return; }
 
     const y = Number(year), m = Number(month), d = Number(day);
     const test = new Date(y, m - 1, d);
     if (test.getFullYear() !== y || test.getMonth() !== m - 1 || test.getDate() !== d) {
-      Alert.alert('Check the date', 'That date does not exist. Please check the day and month.');
+      showAlert('Check the date', 'That date does not exist. Please check the day and month.');
       return;
     }
     let hh = Number(hour) % 12;
@@ -148,7 +149,7 @@ export default function MatchmakingIntake() {
         if (!pay.ok) {
           setBusy(false);
           if (pay.error !== 'cancelled') {
-            Alert.alert('Payment not completed', 'Something went wrong. Please try again in a moment.');
+            showAlert('Payment not completed', 'Something went wrong. Please try again in a moment.');
           }
           return;
         }
@@ -173,14 +174,14 @@ export default function MatchmakingIntake() {
         return;
       }
       if (res.error === 'needs_purchase') {
-        Alert.alert('Purchase needed', 'Your report credit wasn’t found. Please try again from Reports.');
+        showAlert('Purchase needed', 'Your report credit wasn’t found. Please try again from Reports.');
         return;
       }
-      Alert.alert('Generation failed', 'We couldn’t generate your report just now. Please try again in a moment.');
+      showAlert('Generation failed', 'We couldn’t generate your report just now. Please try again in a moment.');
     } catch {
       setBusy(false);
       setGenerating(false);
-      Alert.alert('Something went wrong', 'Please try again in a moment.');
+      showAlert('Something went wrong', 'Please try again in a moment.');
     }
   }
 

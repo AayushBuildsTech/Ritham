@@ -5,7 +5,8 @@
 // Prices are display-only here; the server recomputes the real amount (rule #3).
 
 import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import {
   SESSION_PLANS, QUESTION_PACKS, CALL_PACKS, paiseTo, formatSeconds,
   paisePerMinute, CHEAPEST_CALL_PER_MIN,
@@ -52,7 +53,7 @@ export default function Paywall({ title, subtitle, prefill, variant = 'chat', on
       return;
     }
     if (res.error === 'cancelled') return; // silent — user backed out
-    Alert.alert(isHindi ? 'भुगतान पूरा नहीं हुआ' : 'Payment not completed', friendlyError(res.error, isHindi));
+    showAlert(isHindi ? 'भुगतान पूरा नहीं हुआ' : 'Payment not completed', friendlyError(res.error, isHindi));
   }
 
   // ── call variant: voice-call minute packs, per-minute value up front ──────────

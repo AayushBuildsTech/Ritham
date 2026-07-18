@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Image, Alert,
+  View, Text, TextInput, StyleSheet, Pressable, ActivityIndicator, Image,
 } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -45,7 +46,7 @@ export default function VastuIntake() {
   async function pickFloorplan() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Please allow photo access to upload your floor plan.');
+      showAlert('Permission needed', 'Please allow photo access to upload your floor plan.');
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -60,8 +61,8 @@ export default function VastuIntake() {
 
   async function generate() {
     if (!user || busy || generating) return;
-    if (!facing) { Alert.alert('Almost there', 'Please select which direction your home faces.'); return; }
-    if (!image) { Alert.alert('Floor plan needed', 'Please upload a photo of your floor plan.'); return; }
+    if (!facing) { showAlert('Almost there', 'Please select which direction your home faces.'); return; }
+    if (!image) { showAlert('Floor plan needed', 'Please upload a photo of your floor plan.'); return; }
 
     // fill-first, pay-at-end: only charge if there isn't already an unused credit
     setBusy(true);
@@ -71,7 +72,7 @@ export default function VastuIntake() {
       if (!pay.ok) {
         setBusy(false);
         if (pay.error !== 'cancelled') {
-          Alert.alert('Payment not completed', 'Something went wrong. Please try again in a moment.');
+          showAlert('Payment not completed', 'Something went wrong. Please try again in a moment.');
         }
         return;
       }
@@ -81,7 +82,7 @@ export default function VastuIntake() {
     const up = await uploadFloorplan(user.id, image.base64, image.mimeType);
     if (up.error || !up.path) {
       setBusy(false);
-      Alert.alert('Upload failed', 'We couldn’t upload your floor plan. Please try again.');
+      showAlert('Upload failed', 'We couldn’t upload your floor plan. Please try again.');
       return;
     }
 
@@ -100,10 +101,10 @@ export default function VastuIntake() {
       return;
     }
     if (res.error === 'needs_purchase') {
-      Alert.alert('Purchase needed', 'Your report credit wasn’t found. Please try again from Reports.');
+      showAlert('Purchase needed', 'Your report credit wasn’t found. Please try again from Reports.');
       return;
     }
-    Alert.alert('Generation failed', 'We couldn’t generate your report just now. Please try again in a moment.');
+    showAlert('Generation failed', 'We couldn’t generate your report just now. Please try again in a moment.');
   }
 
   if (generating) {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { showAlert } from '../lib/dialog';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '../context/AuthContext';
@@ -39,7 +40,7 @@ export default function SettingsScreen() {
   }
 
   function confirmSignOut() {
-    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+    showAlert('Sign out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
     ]);
@@ -56,14 +57,14 @@ export default function SettingsScreen() {
       return; // component unmounts on redirect; leave the spinner up
     }
     setDeleting(false);
-    Alert.alert(
+    showAlert(
       'Couldn’t delete account',
       'Something went wrong. Please check your connection and try again, or email us at ' + CONTACT_EMAIL + '.',
     );
   }
 
   function confirmDelete() {
-    Alert.alert(
+    showAlert(
       'Delete account?',
       'This permanently deletes your account and all your data — your Kundli, chats, purchases, and reports. This cannot be undone. Any unused packs or credits are forfeited.',
       [
@@ -72,7 +73,7 @@ export default function SettingsScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: () =>
-            Alert.alert(
+            showAlert(
               'Are you sure?',
               'Last chance — your account and data will be erased and cannot be recovered.',
               [
