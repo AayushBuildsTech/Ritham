@@ -186,7 +186,7 @@ I have **not** fabricated per-file 1–10 scores for all 130 files (that would b
 
 ## 4. Release Blockers (must clear before public launch)
 
-- [ ] **H-4** Live Razorpay keys + `ANTHROPIC_API_KEY` set (no mock AI) + migrations ≤027 applied + all secrets present.
+- [x] **H-4** Live Razorpay keys ✅ (LIVE + ₹9 smoke test passed, 2026-07-19) + `ANTHROPIC_API_KEY` set (no mock AI) + migrations ≤027 applied + all secrets present.
 - [ ] **H-2** `voice-webhook` fails closed and `VAPI_WEBHOOK_SECRET` confirmed set.
 - [ ] **H-1** Rate limit / quota on `palm-check` + AI endpoints, with an Anthropic/VedAstro spend cap alarm.
 - [ ] **M-5** Play Data Safety form + privacy policy list every data category and sub-processor.
@@ -372,7 +372,7 @@ Almost every remaining audit item was implemented and shipped:
 | **L-9** numerology Devanagari | ✅ Done | Expression card hidden when it computes to 0. |
 | **L-3** pricing drift | ✅ Guarded | Now covered by the parity test (H-3). |
 | **H-2** webhook authentication | ✅ Done + deployed | Solved via a self-contained signature (**Option B**): `voice-token` stamps `HMAC(callSessionId, VOICE_TOKEN_SECRET)` into the call metadata; `voice-webhook` verifies it and now **rejects forged reports (403)** — verified live. No Vapi dashboard config needed. Residual (low): a user could replay *their own* call's report, since the metadata is client-visible. |
-| **H-4** live keys | ⏸ Owner-deferred | Razorpay intentionally on TEST keys for tomorrow's testing; migrations/secrets otherwise verified, `ANTHROPIC_API_KEY` set (real AI). |
+| **H-4** live keys | ⏸ Owner-deferred → ✅ **done in pass 4** | Razorpay was intentionally on TEST keys for testing; **went LIVE 2026-07-19 (see § 11c)**. migrations/secrets otherwise verified, `ANTHROPIC_API_KEY` set (real AI). |
 | **L-8** npm moderate advisories | ▫ Deferred | 14 moderate, build-time Expo tooling only; left as-is to avoid dep churn before testing. |
 
 ### Updated scorecard (post pass-3)
@@ -390,6 +390,50 @@ Almost every remaining audit item was implemented and shipped:
 
 ---
 
+## 11c. Remediation Log — pass 4 (2026-07-19) — Razorpay LIVE cutover
+
+The one owner-deferred blocker from pass 3 is now cleared.
+
+| Item | Status | What was done |
+|---|---|---|
+| **H-4** live Razorpay keys | ✅ **Done + verified** | `ritham.co.in` passed **Razorpay website verification**; `RAZORPAY_KEY_ID` (`rzp_live_…`) + `RAZORPAY_KEY_SECRET` swapped to **live** in Supabase Edge secrets; `create-order` + `verify-payment` **redeployed**. **Live ₹9 Bindu smoke test PASSED** — real UPI captured + entitlement granted end-to-end. No app rebuild needed (client reads `key_id` from `create-order`; nothing hardcoded). The `create-order/index.ts:11` "test keys for now" comment is now stale. |
+
+### New finding — 🟠 M-8 · No Razorpay **payment webhook** (client-only grant path)
+- **Category:** Payment reliability / revenue integrity
+- **Affected:** `lib/paymentService.ts` (client-driven `verify-payment` is the *only* grant path); no `razorpay-webhook` function exists.
+- **Description:** An entitlement is granted only when the client calls `verify-payment` after `RazorpayCheckout` returns. If the app is killed / loses network in the window between a **successful capture** and that call, the money is taken but nothing is delivered (no server-side reconciliation).
+- **Risk:** Money-in / grant-missed for a fraction of real payments — now live-money, so it's real. Bounded (only the crash window) but user-visible and support-costly at scale.
+- **Recommended fix:** Add a `razorpay-webhook` Edge Function (verify `X-Razorpay-Signature` against a webhook secret → look up the `payment_orders` row → grant via the **same idempotent path** as `verify-payment`, so a double-grant is impossible). Configure the webhook URL + secret in the Razorpay dashboard. Reuses existing HMAC + `entitlements_ledger` unique-index logic.
+- **Status:** ⏳ Open — recommended before scale. Distinct from `voice-webhook` (H-2, already solved).
+
+### Secret inventory update (supersedes § 9)
+- `RAZORPAY_KEY_ID` / `_SECRET` — ✅ **LIVE keys** (2026-07-19), verified by a real ₹9 transaction. (Was: intentionally on TEST keys.)
+
+---
+
+## 11d. Remediation Log — pass 5 (2026-07-19, later) — crash reporting shipped + production AAB built
+
+The last genuinely-missing production-observability piece is now in, and the app is built for Play.
+
+| Item | Status | What was done |
+|---|---|---|
+| **Crash reporting** (was the one "genuinely missing piece", §4 blocker list) | ✅ **Done** | `@sentry/react-native` 7.11.0 wired into `app/_layout.tsx`, guarded by `EXPO_PUBLIC_SENTRY_DSN` (no-op without it), `sendDefaultPii:false` (birth data/photos/audio never attach to events), `Sentry.wrap()` root. DSN set as an **EAS production env var** (EU region). Source-map auto-upload intentionally **disabled** for now (`SENTRY_DISABLE_AUTO_UPLOAD=true`) so the release build succeeds without a Sentry auth token — runtime crash capture works; JS traces are minified until an auth token is added (recommended follow-up). |
+| **Production build** | ✅ **Done** | EAS-linked (`@rithamastro/rithamastro`); **production AAB built** — v1.0.0, versionCode 4, `com.ritham.app`, ~30 MB, EAS-managed keystore. Two build failures fixed permanently en route: `.npmrc` `legacy-peer-deps=true` (Daily plugin peer conflict on clean install) and the Sentry gradle upload disable above. |
+| **M-5** Play Data Safety | ✅ Prepared + assets ready | `PLAY_DATA_SAFETY.md` mapping stands; store listing (`STORE_LISTING.md`) and screenshot/feature-graphic prompts (`STORE_SCREENSHOT_PROMPT.md`) prepared. Privacy policy live at `ritham.co.in/privacy.html`. Console form + upload are owner steps. |
+| **M-8** Razorpay payment webhook | ⏳ Open (owner-deferred) | Deferred to a future version by owner; recommended before scale. |
+
+**New non-code gate (external): D-U-N-S number.** Google requires a D-U-N-S number to verify the **organization** Play developer account. Owner has applied; issuance (Dun & Bradstreet) is the slow part (~days–weeks). **This is the only thing blocking public launch** — the app, build, and all store assets are ready. (Individual accounts don't need DUNS, but org is correct for a payment-taking business.)
+
+### Updated scorecard (post pass-5)
+
+| Dimension | Pass-3 | Now | Note |
+|---|---:|---:|---|
+| Security | 88 | 88 | — |
+| Production Readiness | 78 | **86** | Crash reporting now live in the release build; production AAB built. Remaining: source-map upload, payment webhook. |
+| Play Readiness | 80 | **90** | AAB + all store assets ready; only the DUNS account-verification gate + the manual Console form-fill remain. |
+
+---
+
 ## 12. Audit complete — final status
 
 All 20 requested areas were reviewed and **almost every finding has now been fixed, tested, and shipped** (see § 8–11b). Nothing critical (data breach / payment bypass / secret leak) was ever found — the core was well built — and the medium/low gaps are now closed.
@@ -398,15 +442,15 @@ All 20 requested areas were reviewed and **almost every finding has now been fix
 
 ### Updated verdict: ⚠️ **READY FOR TESTING — go-live switches remain before public production**
 
-The app is **ready for tomorrow's testing** as-is (test Razorpay keys, real AI, every code finding fixed and deployed). What remains for the **public** launch is non-code / owner-only:
+The app now takes **real money** (Razorpay live, verified). What remains for the **public** launch is non-code / owner-only:
 
-1. **Razorpay live keys** (deliberately on test keys for now).
-2. **Play Data Safety** form (mapping ready in `PLAY_DATA_SAFETY.md`) + host the privacy-policy URL.
+1. ~~**Razorpay live keys**~~ ✅ **DONE (2026-07-19)** — live keys set, functions redeployed, `ritham.co.in` verified, live ₹9 smoke test passed. *(Recommended follow-up: add the payment webhook, M-8, before scale.)*
+2. **Play Data Safety** form (mapping ready in `PLAY_DATA_SAFETY.md`) + host the privacy-policy URL. *(Privacy policy is now live at `https://ritham.co.in/privacy.html`.)*
 3. **Crash reporting** (Sentry/Crashlytics) — the one genuinely missing piece of production observability.
 
-Every High/Medium/Low code finding from the audit is now resolved. Recommended (non-blocking) follow-ups: per-screen accessibility labels + contrast/touch-target check, UI/e2e tests, and clearing the 14 moderate build-time npm advisories.
+Every High/Medium/Low code finding from the audit is resolved (M-8 payment-webhook is a new, non-blocking reliability recommendation). Recommended (non-blocking) follow-ups: the payment webhook, per-screen accessibility labels + contrast/touch-target check, UI/e2e tests, and clearing the 14 moderate build-time npm advisories.
 
-**Trajectory: ❌ NOT READY → ✅ READY FOR TESTING (now) → production-ready after the three owner steps above.**
+**Trajectory: ❌ NOT READY → ✅ READY FOR TESTING → 💳 PAYMENTS LIVE → 📦 PRODUCTION AAB BUILT + crash reporting shipped (2026-07-19) → awaiting D-U-N-S org-account verification, then Play Console upload + roll-out.**
 
 ---
 

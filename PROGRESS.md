@@ -4,7 +4,45 @@
 
 ---
 
-## 0. Latest Session (2026-07-17) — Puja Booking (new paid feature): Pitra Dosha Puja at Rameswaram
+## 0. Latest Session (2026-07-19, later) — Google Play deploy prep: production AAB built + Sentry crash reporting
+
+The app is now **built and shelf-ready for the Play Store.** The only thing left is **external**: Google requires a **D-U-N-S number** to verify the **organization** developer account (owner applied; D&B issuance is the slow part, ~days–weeks). Launch is paused on that, not on the app. (Individual accounts skip DUNS, but org is correct here since Ritham takes live Razorpay payments.)
+
+**Crash reporting added (closes the last audit "production readiness" gap).** `@sentry/react-native` 7.11.0 (`npx expo install`, needs `legacy-peer-deps`): initialised in `app/_layout.tsx` **guarded by `EXPO_PUBLIC_SENTRY_DSN`** (no DSN → no-op, so dev is silent), `sendDefaultPii:false` (deliberate — birth data/photos/audio must not attach to crash events), `tracesSampleRate:0.2`, root wrapped with `Sentry.wrap()`. DSN is a Sentry EU project (region `de`), stored as an **EAS production env var** (`eas env:create … EXPO_PUBLIC_SENTRY_DSN`), NOT in `.env.local`, so it only activates in the release build. Documented in `.env.example`.
+
+**EAS linked + production build (3 attempts — first two failed, both now permanently fixed):**
+- **Linked** to EAS project `@rithamastro/rithamastro` (projectId `d41ea5aa-f883-4648-97e3-46207523de99`; owner accounts `rithamastro` + `aayushbuildstech`). `eas init` renamed the app.json **slug `ritham`→`rithamastro`** to match the dashboard project (slug is internal to Expo/EAS — does NOT affect the Android package `com.ritham.app` or the "Ritham" display name).
+- **Build 1 failed at "Install dependencies"** → `@daily-co/config-plugin-rn-daily-js` peer conflict on EAS's clean `npm install`. **Fix: committed `.npmrc` with `legacy-peer-deps=true`** (the local install needed the same).
+- **Build 2 failed at "Run gradlew"** → Sentry's `sentry.gradle` runs a source-map/debug-symbol **upload** during `bundleRelease` that fails when no `SENTRY_AUTH_TOKEN`/org/project is set. **Fix: `SENTRY_DISABLE_AUTO_UPLOAD=true` in `eas.json` `build.production.env`.** (Runtime crash capture is unaffected; only source-map upload is off, so JS stack traces are minified until an auth token is added later.) Confirmed the JS bundle itself is fine — `npx expo export` produced an 8.4 MB Hermes bundle with no errors (ruled out the old "local gradlew JS-bundling" red herring).
+- **Build 3 SUCCEEDED.** v1.0.0, **versionCode 4**, package `com.ritham.app`, ~30 MB upload, EAS-managed keystore (`Build Credentials D7pMQaS6Yd` — this is the upload key; Google holds the final app-signing key via Play App Signing). Artifact: `https://expo.dev/artifacts/eas/LeMdcixde2f8As0Uw3h5Qbt--ERNuU5d_Rj8CZeguX8.aab` (download URL expires ~30 days; the build persists on EAS — re-download or rebuild anytime).
+
+**Store assets prepared (new files in repo root):** `STORE_LISTING.md` (app name "Ritham: AI Vedic Astrology", short + full description with the Play-required **guidance/entertainment disclaimer** for astrology apps), `STORE_SCREENSHOT_PROMPT.md` (a **generic one-paste ChatGPT prompt** + a caption-controlled master prompt + a **1024×500 feature-graphic** prompt, all on the brand kit `#0D0D1A` + magenta `#FF007F`→violet, Fraunces/Inter, no emojis, screenshot-fidelity instruction). `PLAY_DATA_SAFETY.md` already existed. Owner has: screenshots ✅, 512×512 icon ✅, feature graphic (generating). Privacy policy live at `ritham.co.in/privacy.html`.
+
+**Dev screenshots — free-tier reset.** To capture chat/call screenshots without paying, reset the free allowance via `npx supabase db query --linked` (CLI is authed; runs SQL over the Management API, no DB password): cleared `users.free_minute_used_at`/`free_call_used_at` and deleted `device_free_trials`/`device_free_call_trials` rows for the on-device account **`reach.aayushsingh@gmail.com`** (id `cc742089-0970-478a-bb79-6ad7cccfd625`). App run on device via wireless ADB `192.168.1.14:5555` + `adb reverse tcp:8081` + Metro (`npx expo start`); `expo-dev-client` is NOT installed, so the on-device app is a **debug build that loads JS from Metro over `localhost:8081`** (hence the adb reverse).
+
+**PICK UP HERE TOMORROW:** wait for the DUNS to clear → in Play Console: create app → paste store listing + upload screenshots/feature-graphic/icon → Data Safety (per `PLAY_DATA_SAFETY.md`) → content rating → **App access = provide a reviewer test login** (Google Sign-In is required, or review is blocked) → Production → create release → **upload the AAB** → roll out. **Recommended (non-blocking) follow-ups:** M-8 Razorpay payment webhook (owner-deferred to a future version), Sentry source-map upload (add `SENTRY_AUTH_TOKEN` for readable traces), v1.0.0 release notes.
+
+---
+
+## Prior Session (2026-07-19, earlier) — Razorpay went LIVE + public website (ritham.co.in)
+
+The last money-layer go-live gate is cleared: **Razorpay is now LIVE and verified end-to-end.** This session was website + hosting + the live-keys cutover (no app-code feature work).
+
+**Marketing website (separate repo `AayushBuildsTech/ritham-website`, folder `website/` — plain static HTML/CSS, NOT the Expo app):**
+- **New App Demo section** (`#demo`, "A live look inside Ritham") — **8 real on-device screenshots** in phone frames: Home, Kundli, AI chat packs, **Razorpay checkout sheet**, Call, Call packs, Reports, Store. Captured over wireless ADB (`192.168.1.14:5555`), cropped to drop the Android status bar, optimised to WebP (`website/img/shot-*.webp`, 27–74 KB each). The chat-packs + checkout shots visibly show "Secure payment via Razorpay" — the evidence Razorpay's reviewers wanted. Removed the small hero "Coming soon on Google Play" badge (kept the big Coming-Soon card).
+- **Hosted on GitHub Pages.** Repo nested everything under `website/`, and the Pages Actions workflow uploaded the repo root (`path: '.'`) → root URL 404'd. **Fix:** point the artifact at `./website` in `.github/workflows/static.yml`. Added `website/CNAME` = `ritham.co.in` so the custom domain survives every Actions redeploy (Actions-based Pages does NOT auto-write CNAME).
+- **Custom domain `ritham.co.in`** (GoDaddy DNS, `ns59/60.domaincontrol.com`): 4 apex `A` records → GitHub Pages IPs `185.199.108–111.153` + `CNAME www → aayushbuildstech.github.io`. HTTPS/SSL provisioned; live at **https://ritham.co.in** (privacy/terms/refund/disclaimer all 200). GitHub's stale "does not resolve" banner clears itself once its background check re-runs.
+
+**Razorpay LIVE cutover (money layer):**
+- **Website verification PASSED** (submitted `ritham.co.in`; answered Website / login-not-required).
+- Swapped `RAZORPAY_KEY_ID` (`rzp_live_…`) + `RAZORPAY_KEY_SECRET` in **Supabase Edge Function secrets** and **redeployed `create-order` + `verify-payment`** (secrets are read at cold start). **Nothing hardcoded in the app** — the client fetches `key_id` from `create-order`, so **no app rebuild was needed** to go live. Gotcha to watch: a mismatched live-id/test-secret pair makes `create-order` return `razorpay_order_failed`.
+- **Live ₹9 Bindu smoke test PASSED** — real UPI payment captured + entitlement granted end-to-end. Live payments confirmed working.
+
+**Resolves audit H-4** (live Razorpay keys — was "owner-deferred on test keys"). **Still pending (payment reliability):** a Razorpay **payment webhook** edge function (server-to-server signature verify + idempotent grant) so a purchase is still granted if the app dies right after paying — today only the client-driven `verify-payment` grants. Not built yet; recommended before scale. (Distinct from the existing `voice-webhook`.) Other remaining public-launch items unchanged: Play Data Safety form + crash reporting.
+
+---
+
+## Prior Session (2026-07-17) — Puja Booking (new paid feature): Pitra Dosha Puja at Rameswaram
 
 **New paid feature: Puja Booking** — users book a real **Pitra Dosha Nivaran Puja** performed on their behalf at **Agni Theertham, Rameswaram** (the ocean shore beside Ramanathaswamy Temple where ancestral Tarpanam/Thila Homam rites are done). Unlike everything else in the app this is **NOT AI-automated** — fulfillment is **manual** (the owner takes the order and coordinates the ritual, video and updates over WhatsApp). Competitor reference (Utsav) screenshots were in `../puja/`.
 
