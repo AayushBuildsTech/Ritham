@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Ritham",
-    "slug": "ritham",
+    "slug": "rithamastro",
     "version": "1.0.0",
     "scheme": "ritham",
     "orientation": "portrait",
@@ -31,7 +31,19 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.ritham.app",
-      "permissions": ["RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS"]
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.WAKE_LOCK",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.CAMERA",
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -69,14 +81,24 @@
         "expo-build-properties",
         {
           "android": {
-            "extraMavenRepos": ["https://www.jitpack.io"]
+            "extraMavenRepos": [
+              "https://www.jitpack.io"
+            ]
           }
         }
       ],
-      "./plugins/withDailyWebrtcFix"
+      "./plugins/withDailyWebrtcFix",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d41ea5aa-f883-4648-97e3-46207523de99"
+      }
+    },
+    "owner": "rithamastro"
   }
 }

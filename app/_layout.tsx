@@ -1,4 +1,5 @@
 import 'react-native-get-random-values'; // crypto polyfill required by the voice-call SDK (Daily/WebRTC)
+import * as Sentry from '@sentry/react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { View } from 'react-native';
@@ -24,6 +25,20 @@ import { LanguageProvider, useLanguage } from '../context/LanguageContext';
 import { LoadingScreen } from '../components/LoadingScreen';
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { AppDialog } from '../components/AppDialog';
+
+// Crash reporting. Guarded by the DSN env var so it is a no-op in dev / when
+// unset — the release build supplies EXPO_PUBLIC_SENTRY_DSN. sendDefaultPii is
+// off deliberately: the app handles sensitive birth data / photos / audio and
+// we don't want any of it (or IPs) attached to crash events.
+const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    sendDefaultPii: false,
+    // Light performance sampling; crash/error capture is the priority.
+    tracesSampleRate: 0.2,
+  });
+}
 
 // Hold the native (static) splash until fonts + first auth check are ready, so
 // there is no flash of unstyled/system-font content before the branded splash.
@@ -113,7 +128,7 @@ function useThemeBits() {
   return { colors, ready, statusBarStyle: colors.statusBar };
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <KeyboardProvider>
       <ThemeProvider>
@@ -124,3 +139,8 @@ export default function RootLayout() {
     </KeyboardProvider>
   );
 }
+
+// Sentry.wrap enables native crash handling, automatic error boundary and
+// touch/navigation breadcrumbs. It is a transparent pass-through when Sentry
+// was not initialised (no DSN), so dev builds are unaffected.
+export default Sentry.wrap(RootLayout);
