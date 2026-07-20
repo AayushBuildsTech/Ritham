@@ -180,11 +180,6 @@ export default function HomeScreen() {
 
   const features: { icon: IconName; accent: AccentName; title: string; sub: string; onPress: () => void }[] = profile ? [
     {
-      icon: 'puja', accent: 'ruby', title: isHindi ? 'पूजा बुक करें' : 'Book a Puja',
-      sub: isHindi ? 'रामेश्वरम् में पितृ दोष निवारण पूजा' : 'Pitra Dosha Puja at Rameswaram',
-      onPress: () => router.push('/puja' as any),
-    },
-    {
       icon: 'panchang', accent: 'saffron', title: isHindi ? 'पंचांग' : 'Panchang',
       sub: panchang ? `${panchang.tithi} · ${isHindi ? hiNakshatra(panchang.nakshatra?.split(' (')[0] ?? '') : panchang.nakshatra?.split(' (')[0]}` : (isHindi ? 'आज का पंचांग और समय' : 'Today’s almanac & timings'),
       onPress: () => router.push({ pathname: '/panchang', params: { profileId: profile.id } }),
@@ -293,12 +288,6 @@ export default function HomeScreen() {
       sub: isHindi ? 'आपकी नियति आपके हाथ में' : 'Your destiny, in your hands', cta: isHindi ? 'खोलें' : 'Reveal',
       image: require('../../assets/carousel/palmreading.webp'),
       onPress: () => router.push({ pathname: '/palmreading' as any, params: { profileId: profile.id } }),
-    },
-    {
-      key: 'puja', icon: 'puja', badge: isHindi ? 'नया' : 'NEW', title: isHindi ? 'पितृ दोष पूजा' : 'Pitra Dosha Puja',
-      sub: isHindi ? 'रामेश्वरम् में पूर्वजों के लिए पूजा' : 'Ancestral rites at Rameswaram', cta: isHindi ? 'बुक करें' : 'Book',
-      image: require('../../assets/puja/carousel.webp'),
-      onPress: () => router.push('/puja' as any),
     },
     {
       key: 'store', icon: 'store', badge: isHindi ? 'स्टोर' : 'SHOP', title: isHindi ? 'रिदम स्टोर' : 'Ritham Store',
@@ -437,19 +426,6 @@ export default function HomeScreen() {
         {profile && (
           <Reveal index={1} style={styles.carouselWrap}>
             <FeatureCarousel slides={carouselSlides} />
-          </Reveal>
-        )}
-
-        {/* ── Puja Booking promo banner ──────────────────────────────────────────── */}
-        {profile && (
-          <Reveal index={2} style={styles.bannerWrap}>
-            <Pressable
-              onPress={() => router.push('/puja/pitra_dosha_rameswaram' as any)}
-              android_ripple={{ color: th.goldFaint }}
-              style={styles.banner}
-            >
-              <Image source={require('../../assets/puja/banner.webp')} style={styles.bannerImg} resizeMode="cover" />
-            </Pressable>
           </Reveal>
         )}
 
@@ -617,13 +593,6 @@ const makeStyles = (th: ThemeColors) => StyleSheet.create({
 
   // carousel — break out of the body's horizontal padding to sit full-width
   carouselWrap: { marginTop: Spacing.lg, marginHorizontal: -Spacing.lg },
-  bannerWrap: { marginTop: Spacing.lg },
-  banner: {
-    width: '100%', aspectRatio: 1400 / 933, borderRadius: Radius.lg, overflow: 'hidden',
-    borderWidth: 1, borderColor: th.borderStrong, ...Depth.card,
-  },
-  bannerImg: { width: '100%', height: '100%' },
-
   // grid
   sectionTitle: { fontFamily: Fonts.displayBold, fontSize: Fonts.size.xl, color: th.text, marginTop: Spacing.xl, marginBottom: Spacing.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },

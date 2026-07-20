@@ -4,7 +4,52 @@
 
 ---
 
-## 0. Latest Session (2026-07-19, later) — Google Play deploy prep: production AAB built + Sentry crash reporting
+## 0. Latest Session (2026-07-20) — Puja Booking SHELVED (UI entry points removed)
+
+**Owner decision: pull the Puja Booking feature out of the app, save it for a future version.** Public launch is delayed by the external **D-U-N-S** org-verification gate (see §11d / prelaunch status), so the scheduled **3 Oct 2026** puja slot would draw too few bookings — better to shelve the whole booking section now than launch it late with weak demand.
+
+**Scope chosen: hide entry points only** (fastest, lowest-risk, fully reversible from git history; ships in the JS bundle, **no redeploy**). Removed the four things that make puja reachable:
+- `app/(tabs)/index.tsx` — the Home **feature card**, the **carousel slide**, and the **promo banner** (+ its now-orphaned `bannerWrap`/`banner`/`bannerImg` styles).
+- `app/settings.tsx` — the owner-only **"Puja Admin"** row, and its now-unused `isOwner` import.
+
+**Left dormant on purpose** (no benefit to ripping out; re-enable = restore the 4 UI blocks + Metro restart): all `app/puja/*` + `app/puja-admin.tsx` route files, `config/pujas.ts`, `lib/pujaSlot.ts`, puja-only components (`SlotCountdown`, `SacredDivider`), `purchasePuja` in `lib/paymentService.ts`, analytics events, `assets/puja/*`, and **all server code** — migrations 025/026/027, the `kind:'puja'` branches in `create-order`/`verify-payment`, and the `puja-admin` Edge Function. These are inert without a UI entry point, so nothing was redeployed and the live payment functions were not touched.
+
+**AI astrologer prompt scrubbed too (chat + voice call).** With the booking flow gone, the astrologer must not point users to a dead end. Removed all three puja mentions from `_shared/brain.ts` **and both inlined copies** (`chat/index.ts`, `voice-llm/index.ts`): (1) the "Pitra Dosha Puja — a real puja … at Rameswaram" feature bullet, (2) the `ancestral trouble / pitra dosha → the Pitra Dosha Puja` clause in the single-feature match line, (3) "the puja," in the remedies-note parenthetical. Grep of all three files for `puja|pitra|Rameswaram|ancestral` is now clean.
+
+**Verification:** `npx tsc --noEmit` = **0 errors** (twice — after the UI removals and after the style cleanup).
+
+**⚠️ DEPLOY NEEDED for the prompt scrub to take effect in prod:** the client/UI removals ship in the JS bundle (no deploy), but the `brain.ts` edit only reaches users once **`chat` + `voice-llm` are redeployed** (each carries a hand-maintained inlined copy — audit L-4). Until then the LIVE astrologer still mentions the puja. Deploy: `npx supabase functions deploy chat --project-ref eaxdqizerkuqkujxacru` and `npx supabase functions deploy voice-llm --no-verify-jwt --project-ref eaxdqizerkuqkujxacru` (production deploy — needs explicit owner go-ahead; **not done in this session**).
+
+---
+
+### 📦 Shelved-feature reference — Puja Booking (for the future version)
+
+Everything needed to resurrect the feature, in one place. **Nothing was deleted** — only the entry points and prompt mentions were removed; the git history + the code below is the full record. Fuller spec lives in the `puja-booking` memory.
+
+**What it was:** users book a real **Pitra Dosha Nivaran Puja** performed manually by the owner at **Agni Theertham, Rameswaram**. A puja is a *fulfillment order* (new `kind='puja'` → `puja_bookings` table), NOT a consumable entitlement — it reuses the Razorpay rails but does not grant an entitlement. Manual fulfillment over WhatsApp (video + updates), no prasad, no delivery address.
+
+**Packages (price_paise, mirrored client↔server):** `pkg_individual_personal` "Personal Shanti Puja" ₹2999 · `pkg_couple_blessing` "Couple's Blessing Puja" ₹4499 (*Most Chosen*) · `pkg_family_protection` "Family Protection Puja" ₹5999 (*Best Value*) · `pkg_joint_lineage` "Full Lineage Maha Puja" ₹7499. Plus 5 add-on bhet/daan + optional dakshina (clamped ≤₹51,000). Gotra = fixed 54-entry dropdown. Slot was DB-driven (`puja_slots`, migration 026) → **3 Oct 2026**, bookings close 3 days before.
+
+**All puja code (dormant, ready to re-enable):**
+- Client screens: `app/puja/{index,[id],book,confirmation,my-bookings}.tsx`, `app/puja-admin.tsx`
+- Client logic/config: `config/pujas.ts` (single source of truth), `config/owner.ts` (`OWNER_EMAILS`/`isOwner`), `lib/pujaSlot.ts`, `lib/paymentService.ts` (`purchasePuja` + `'puja'` in `PackKind`), analytics events (`puja_viewed`/`puja_detail_viewed`/`puja_book_started`)
+- Components: `components/SlotCountdown.tsx`, `components/SacredDivider.tsx`, the `puja` icon in `components/Icon.tsx`
+- Assets: `assets/puja/*` (hero, carousel, banner, 5 add-on thumbnails)
+- Server: `supabase/functions/{create-order,verify-payment}/index.ts` (`kind:'puja'` branches — server recomputes total, validates ids, writes/flips `puja_bookings`, owner notify via `OWNER_NOTIFY_URL`), `supabase/functions/puja-admin/index.ts` (owner-gated slot editor + booking management), migrations `025_puja_bookings.sql`, `026_puja_slots.sql`, `027_puja_bookings_gotras.sql` (all applied to prod, idempotent)
+- Live secrets still set: `OWNER_EMAILS` (3 owners). `OWNER_NOTIFY_URL` was never set (owner used the in-app admin).
+
+**To bring it back (future version):**
+1. Restore the 4 UI blocks in `app/(tabs)/index.tsx` (feature card, carousel slide, promo banner + its styles) and the OWNER "Puja Admin" row + `isOwner` import in `app/settings.tsx` — all recoverable from this commit's parent via git.
+2. Set a fresh future **slot** (`puja_slots` row via the in-app admin, or `NEXT_SLOT` in `config/pujas.ts` as fallback) — the 3 Oct 2026 slot is stale.
+3. Re-add the puja mentions to the astrologer prompt (`_shared/brain.ts` + regenerate/paste into `chat` + `voice-llm`) and redeploy those two functions, if you want the AI to funnel toward it again.
+4. Metro restart (route manifest is cached — else new `/puja` routes show "Unmatched Route").
+5. Confirm Razorpay is on the intended keys; re-run a small live smoke test before promoting.
+
+**Open items carried from when it was live (still true):** refund path + `refunded` status is manual via the Razorpay dashboard; GST/invoice + booking T&Cs were never added to `app/legal/`; the Kundli→Pitra-Dosha detection funnel (Phase 2) was never built.
+
+---
+
+## Prior Session (2026-07-19, later) — Google Play deploy prep: production AAB built + Sentry crash reporting
 
 The app is now **built and shelf-ready for the Play Store.** The only thing left is **external**: Google requires a **D-U-N-S number** to verify the **organization** developer account (owner applied; D&B issuance is the slow part, ~days–weeks). Launch is paused on that, not on the app. (Individual accounts skip DUNS, but org is correct here since Ritham takes live Razorpay payments.)
 
