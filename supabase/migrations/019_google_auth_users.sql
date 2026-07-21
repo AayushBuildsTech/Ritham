@@ -23,7 +23,7 @@ begin
     new.id,
     new.phone,
     new.email,
-    new.phone_confirmed_at is not null
+    new.phone_confirmed_at is not null 
   )
   on conflict (id) do update
     set phone          = coalesce(new.phone, public.users.phone),
